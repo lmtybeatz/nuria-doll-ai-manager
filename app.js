@@ -353,29 +353,62 @@
       }
       const {data:sessionData,error:sessionError}=await supabase.auth.getSession();
       if(sessionError||!sessionData?.session?.access_token)throw new Error('Session expirée. Reconnecte-toi.');
-      const series=data.series||[];
-      const bestDay=series.reduce((best,item)=>Number(item.views||0)>Number(best?.views||-1)?item:best,null);
-      const recent=series.slice(-7),previous=series.slice(-14,-7);
+      const series=(data.series||[]).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date)));
       const sumViews=items=>items.reduce((sum,item)=>sum+Number(item.views||0),0);
+      const dayMap=new Map(series.map(item=>[item.date,item]));
+      const start=new Date(data.start_date+'T00:00:00Z'),end=new Date(data.end_date+'T00:00:00Z');
+      const expectedDays=Math.max(0,Math.round((end-start)/86400000)+1);
+      const missingDates=[];
+      for(let d=new Date(start);d<=end;d.setUTCDate(d.getUTCDate()+1)){
+        const key=d.toISOString().slice(0,10);
+        if(!dayMap.has(key))missingDates.push(key);
+      }
+      const windowSum=(lastOffset,count)=>{
+        const dates=[];
+        for(let i=count-1;i>=0;i--){
+          const d=new Date(end);d.setUTCDate(d.getUTCDate()-lastOffset-i);
+          dates.push(d.toISOString().slice(0,10));
+        }
+        if(dates.some(date=>!dayMap.has(date)))return null;
+        return sumViews(dates.map(date=>dayMap.get(date)));
+      };
+      const bestDay=series.reduce((best,item)=>Number(item.views||0)>Number(best?.views||-1)?item:best,null);
+      const dailyViewsTotal=sumViews(series);
+      const dailyMinutesTotal=series.reduce((sum,item)=>sum+Number(item.minutes_watched||0),0);
+      const topVideos=(data.top_videos||[]).slice(0,5);
+      const topViews=topVideos.reduce((sum,v)=>sum+Number(v.views||0),0);
       const snapshot={
         period_days:range,start_date:data.start_date,end_date:data.end_date,
         totals:data.totals||{},
-        daily_views_average:series.length?Math.round(sumViews(series)/series.length):0,
+        daily_rows_returned:series.length,expected_calendar_days:expectedDays,missing_daily_dates:missingDates,
+        daily_rows_views_total:dailyViewsTotal,daily_rows_minutes_total:Number(dailyMinutesTotal.toFixed(3)),
+        daily_totals_match:dailyViewsTotal===Number(data.totals?.views||0),
+        daily_minutes_match:Math.abs(dailyMinutesTotal-Number(data.totals?.minutes_watched||0))<0.01,
+        daily_views_average:missingDates.length?null:Number((dailyViewsTotal/expectedDays).toFixed(2)),
         best_day:bestDay?{date:bestDay.date,views:Number(bestDay.views||0)}:null,
-        last_7_days_views:recent.length?sumViews(recent):null,
-        previous_7_days_views:previous.length?sumViews(previous):null,
-        top_videos:(data.top_videos||[]).slice(0,5).map(v=>({title:String(v.title||'Vidéo').slice(0,120),views:Number(v.views||0),minutes_watched:Number(v.minutes_watched||0),average_view_seconds:Number(v.average_view_seconds||0),url:v.url}))
+        last_7_days_views:windowSum(0,7),
+        previous_7_days_views:windowSum(7,7),
+        top_videos_count:topVideos.length,top_videos_are_top_five_only:true,top_videos_views_sum:topViews,
+        top_videos:topVideos.map(v=>({
+          title:String(v.title||'Vidéo').slice(0,120),views:Number(v.views||0),
+          minutes_watched:Number(v.minutes_watched||0),
+          average_view_seconds:Number(v.average_view_seconds||0),
+          calculated_seconds_per_view:Number(v.views>0?Number(v.minutes_watched||0)*60/Number(v.views):0),
+          url:v.url
+        }))
       };
       const task='Tu es analyste marketing YouTube senior pour NURIA DOLL, un projet musical familial porté par une enfant et administré exclusivement par son parent. Analyse les données fournies et produis un rapport utile au parent.\n\n'+
         'RÈGLES DE FIABILITÉ OBLIGATOIRES :\n'+
         '1) Utilise uniquement les chiffres du bloc DONNÉES. Ne crée aucun chiffre, date, pic, tendance, cause, source de trafic, taux de clic, rétention, commentaire, partage, donnée démographique ou résultat non fourni.\n'+
-        '2) Les vues quotidiennes sont dans series. Le meilleur jour doit être calculé uniquement à partir de cette série. Pour comparer les 7 derniers jours aux 7 jours précédents, additionne les 7 dernières lignes disponibles et les 7 lignes précédentes ; si la série ne contient pas assez de jours, indique que la comparaison est indisponible. Ne transforme jamais une corrélation en causalité.\n'+
-        '3) Distingue explicitement « FAITS MESURÉS », « INTERPRÉTATIONS À TESTER » et « DONNÉES MANQUANTES ». Si une explication n’est pas prouvée, formule-la comme une question ou hypothèse, jamais comme un fait. Signale les petits volumes et évite les conclusions définitives.\n'+
-        '4) Calcule correctement la durée moyenne par vue d’une vidéo seulement si views > 0 : minutes_watched × 60 / views. Précise qu’il s’agit d’une moyenne calculée, pas d’un taux de rétention. Ne compare pas des vidéos sans tenir compte de leur durée si celle-ci est inconnue.\n'+
-        '5) N’affirme pas que la chaîne est « très faible », « virale » ou « en croissance durable » sur un échantillon aussi réduit. Décris sobrement les tendances observées et leur incertitude.\n\n'+
+        '2) Le bloc SNAPSHOT contient des contrôles de qualité. Si missing_daily_dates n’est pas vide, ne traite pas une journée absente comme zéro : indique que la série quotidienne est incomplète. Le meilleur jour est seulement le meilleur parmi les lignes reçues. Une comparaison sur 7 jours n’est valable que si last_7_days_views et previous_7_days_views sont tous deux des nombres ; sinon indique « comparaison indisponible (données quotidiennes incomplètes ou période insuffisante) ». N’utilise jamais les 7 dernières lignes comme si elles représentaient forcément 7 jours calendaires.\n'+
+        '3) Vérifie daily_totals_match et daily_minutes_match. En cas de false, signale l’écart et privilégie totals pour les totaux de chaîne ; ne tente pas de le corriger en inventant ou en additionnant les vidéos du classement. Les totaux de la chaîne sont la référence.\n'+
+        '4) top_videos_are_top_five_only=true signifie que la liste est un classement partiel, pas toutes les vidéos. Ne compare jamais la somme des vidéos du top 5 au total de la chaîne comme si les périmètres étaient identiques. Les valeurs minutes_watched du classement peuvent être arrondies à l’affichage : ne les utilise pas pour contredire les totaux de chaîne.\n'+
+        '5) Pour chaque vidéo, average_view_seconds est la métrique native averageViewDuration renvoyée par YouTube Analytics : utilise-la en priorité et indique qu’elle vient de YouTube. calculated_seconds_per_view est un contrôle arithmétique dérivé de minutes_watched × 60 / views ; ne l’utilise qu’en contrôle secondaire et signale tout écart notable sans déclarer automatiquement l’une des valeurs fausse. Ces durées moyennes ne sont pas un taux de rétention ni un pourcentage de vidéo regardée. Ne compare pas des vidéos sans connaître leur durée exacte.\n'+
+        '6) Distingue explicitement « FAITS MESURÉS », « INTERPRÉTATIONS À TESTER » et « DONNÉES MANQUANTES ». Si une explication n’est pas prouvée, formule-la comme une question ou hypothèse, jamais comme un fait. Signale les petits volumes et évite les conclusions définitives. N’affirme pas que la chaîne est « très faible », « virale » ou « en croissance durable » sur un échantillon aussi réduit.\n\n'+
         'SÉCURITÉ ET CADRE PARENTAL :\n'+
         '- Le parent est l’unique gestionnaire et interlocuteur. Toutes les idées sont des brouillons soumis à validation parentale. Ne publie, ne programme, ne contacte et ne réponds à personne.\n'+
-        '- Ne propose jamais de collecte de coordonnées, messages privés avec des enfants, rendez-vous, concours exigeant des échanges directs avec des mineurs, ni partage de dessins/vidéos/photos identifiables d’autres enfants.\n'+
+        '- Ne propose jamais de collecte de coordonnées, messages privés avec des enfants, rendez-vous, concours exigeant des échanges directs avec des mineurs, ni demande d’envoi de photos, vidéos, dessins identifiables ou autres contenus personnels d’enfants. Les appels à l’action s’adressent aux adultes et peuvent inviter à regarder, écouter ou partager publiquement le contenu officiel, sans solliciter de réponse privée.\n'+
+        '- Ne demande pas de données démographiques individuelles sur les enfants. Si des statistiques d’audience agrégées sont disponibles dans les outils officiels, ne les mentionne que si elles sont réellement fournies et utiles ; elles ne sont pas une priorité de collecte.\n'+
         '- N’expose jamais école, domicile, habitudes, horaires, déplacements, localisation en temps réel, contacts privés ou informations personnelles de l’enfant.\n'+
         '- Privilégie des contenus que le parent peut produire et contrôler : clips, extraits musicaux, paroles/karaoké, animation, instruments, coulisses centrées sur la musique sans détails privés, histoires et culture béninoise. La présence de l’enfant à l’image n’est jamais une obligation.\n'+
         '- Toute action payante doit être signalée comme optionnelle et soumise à validation du parent ; ne promets aucun résultat.\n\n'+
