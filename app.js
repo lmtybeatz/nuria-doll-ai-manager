@@ -355,11 +355,28 @@
     const output=$('#ytRecommendationText');
     if(!row||!output)return;
     renderRecommendationMarkdown(row.recommendation||'Aucune recommandation disponible.',output);
+    output.classList.add('is-collapsed');
+    const toggle=$('#toggleYoutubeReport');
+    if(toggle){toggle.textContent='Lire la suite';toggle.setAttribute('aria-expanded','false');}
     show($('#ytRecommendationResult'));
     $('#ytRecommendationMeta').textContent=(row.source==='automatic'?'Analyse automatique':'Analyse demandée')+' · '+Number(row.range_days)+' jours · '+new Date(row.created_at).toLocaleString('fr-FR');
   }
-  const printReport=()=>{document.body.classList.add('printing-youtube-report');window.print();setTimeout(()=>document.body.classList.remove('printing-youtube-report'),500);};
-  document.addEventListener('click',event=>{if(event.target.closest('#printYoutubeReport'))printReport();});
+  const printReport=()=>{
+    document.body.classList.add('printing-youtube-report');
+    window.print();
+  };
+  window.addEventListener('afterprint',()=>document.body.classList.remove('printing-youtube-report'));
+  document.addEventListener('click',event=>{
+    if(event.target.closest('#printYoutubeReport')){printReport();return;}
+    const toggle=event.target.closest('#toggleYoutubeReport');
+    if(toggle){
+      const output=$('#ytRecommendationText');
+      const expanded=toggle.getAttribute('aria-expanded')==='true';
+      output.classList.toggle('is-collapsed',expanded);
+      toggle.setAttribute('aria-expanded',String(!expanded));
+      toggle.textContent=expanded?'Lire la suite':'Réduire';
+    }
+  });
   async function loadYoutubeRecommendationHistory(){
     const list=$('#ytRecommendationHistory');
     if(!list||!supabase||!user)return;
