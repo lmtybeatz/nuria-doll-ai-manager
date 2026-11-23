@@ -376,9 +376,21 @@
     }
     if(cursor<text.length)parent.append(document.createTextNode(text.slice(cursor)));
   }
+  function normalizeRecommendationText(value){
+    const namedEntities={amp:'&',lt:'<',gt:'>',quot:'"',apos:"'",nbsp:' ',ndash:'–',mdash:'—',rsquo:'’',lsquo:'‘',rdquo:'”',ldquo:'“',bull:'•',middot:'·',hellip:'…'};
+    return String(value||'').replace(/\r\n?/g,'\n')
+      .replace(/&#(?:x([0-9a-f]{1,6})|(\d{1,7}));?/gi,(match,hex,decimal)=>{
+        const code=hex?parseInt(hex,16):Number(decimal);
+        return Number.isInteger(code)&&code>=0&&code<=0x10ffff&&!(code>=0xd800&&code<=0xdfff)?String.fromCodePoint(code):match;
+      })
+      .replace(/&([a-z]+);/gi,(match,name)=>Object.prototype.hasOwnProperty.call(namedEntities,name.toLowerCase())?namedEntities[name.toLowerCase()]:match)
+      .replace(/\\?\s*<br\s*\/?>/gi,'\n')
+      .replace(/\\([*_\x60])/g,'$1');
+  }
   function renderRecommendationMarkdown(markdown,root){
     root.replaceChildren();
-    const lines=String(markdown||'').replace(/\r/g,'').split('\n');
+    const normalized=normalizeRecommendationText(markdown);
+    const lines=normalized.split('\n');
     let i=0;
     const isTableLine=line=>/^\s*\|.*\|\s*$/.test(line);
     const isDivider=line=>/^\s*(---+|\*\s*\*\s*\*|___+)\s*$/.test(line);
@@ -499,22 +511,24 @@
           const d=new Date(end);d.setUTCDate(d.getUTCDate()-lastOffset-i);
           dates.push(d.toISOString().slice(0,10));
         }
-        if(dates.some(date=>!dayMap.has(date)))return null;
+        if(!dailyTotalsMatch||dates.some(date=>!dayMap.has(date)))return null;
         return sumViews(dates.map(date=>dayMap.get(date)));
       };
       const bestDay=series.reduce((best,item)=>Number(item.views||0)>Number(best?.views||-1)?item:best,null);
       const dailyViewsTotal=sumViews(series);
       const dailyMinutesTotal=series.reduce((sum,item)=>sum+Number(item.minutes_watched||0),0);
+      const dailyTotalsMatch=dailyViewsTotal===Number(data.totals?.views||0);
+      const dailyMinutesMatch=Math.abs(dailyMinutesTotal-Number(data.totals?.minutes_watched||0))<0.01;
       const topVideos=(data.top_videos||[]).slice(0,5);
       const topViews=topVideos.reduce((sum,v)=>sum+Number(v.views||0),0);
       const snapshot={
         period_days:range,start_date:data.start_date,end_date:data.end_date,
         totals:data.totals||{},
-        daily_rows_returned:series.length,expected_calendar_days:expectedDays,missing_daily_dates:missingDates,
+        daily_rows_returned:Number(data.daily_api_rows_returned??series.length),daily_days_filled_zero:Number(data.daily_days_filled_zero||0),expected_calendar_days:expectedDays,missing_daily_dates:missingDates,
         daily_rows_views_total:dailyViewsTotal,daily_rows_minutes_total:Number(dailyMinutesTotal.toFixed(3)),
-        daily_totals_match:dailyViewsTotal===Number(data.totals?.views||0),
-        daily_minutes_match:Math.abs(dailyMinutesTotal-Number(data.totals?.minutes_watched||0))<0.01,
-        daily_views_average:missingDates.length?null:Number((dailyViewsTotal/expectedDays).toFixed(2)),
+        daily_totals_match:dailyTotalsMatch,
+        daily_minutes_match:dailyMinutesMatch,
+        daily_views_average:missingDates.length||!dailyTotalsMatch?null:Number((dailyViewsTotal/expectedDays).toFixed(2)),
         best_day:bestDay?{date:bestDay.date,views:Number(bestDay.views||0)}:null,
         last_7_days_views:windowSum(0,7),
         previous_7_days_views:windowSum(7,7),
@@ -534,7 +548,8 @@
         '3) Vérifie daily_totals_match et daily_minutes_match. En cas de false, signale l’écart et privilégie totals pour les totaux de chaîne ; ne tente pas de le corriger en inventant ou en additionnant les vidéos du classement. Les totaux de la chaîne sont la référence.\n'+
         '4) top_videos_are_top_five_only=true signifie que la liste est un classement partiel, pas toutes les vidéos. Ne compare jamais la somme des vidéos du top 5 au total de la chaîne comme si les périmètres étaient identiques. Les valeurs minutes_watched du classement peuvent être arrondies à l’affichage : ne les utilise pas pour contredire les totaux de chaîne.\n'+
         '5) Pour chaque vidéo, average_view_seconds est la métrique native averageViewDuration renvoyée par YouTube Analytics : utilise-la en priorité et indique qu’elle vient de YouTube. calculated_seconds_per_view est un contrôle arithmétique dérivé de minutes_watched × 60 / views ; ne l’utilise qu’en contrôle secondaire et signale tout écart notable sans déclarer automatiquement l’une des valeurs fausse. Ces durées moyennes ne sont pas un taux de rétention ni un pourcentage de vidéo regardée. Ne compare pas des vidéos sans connaître leur durée exacte.\n'+
-        '6) Distingue explicitement « FAITS MESURÉS », « INTERPRÉTATIONS À TESTER » et « DONNÉES MANQUANTES ». Si une explication n’est pas prouvée, formule-la comme une question ou hypothèse, jamais comme un fait. Signale les petits volumes et évite les conclusions définitives. N’affirme pas que la chaîne est « très faible », « virale » ou « en croissance durable » sur un échantillon aussi réduit.\n\n'+        '7) Ne déduis jamais un pourcentage de vues, une part de 100 %, un nombre total de vidéos ou une attribution d’abonnés à une vidéo si le dénominateur ou la métrique correspondante ne sont pas explicitement fournis. Une liste top vidéos ne prouve pas à elle seule qu’elle contient toutes les vidéos. Si tu calcules un pourcentage, refais la division et vérifie le résultat avant de l’écrire (exemple : 24/64 = 37,5 %, et non 40 %).\n'+
+        '6) Distingue explicitement « FAITS MESURÉS », « INTERPRÉTATIONS À TESTER » et « DONNÉES MANQUANTES ». Si une explication n’est pas prouvée, formule-la comme une question ou hypothèse, jamais comme un fait. Signale les petits volumes et évite les conclusions définitives. N’affirme pas que la chaîne est « très faible », « virale » ou « en croissance durable » sur un échantillon aussi réduit.\n        'Une hausse de vues ou un pic journalier ne prouve jamais une origine externe, une campagne ou une cause précise.\n'+
+\n'+        '7) Ne déduis jamais un pourcentage de vues, une part de 100 %, un nombre total de vidéos ou une attribution d’abonnés à une vidéo si le dénominateur ou la métrique correspondante ne sont pas explicitement fournis. Une liste top vidéos ne prouve pas à elle seule qu’elle contient toutes les vidéos. Si tu calcules un pourcentage, refais la division et vérifie le résultat avant de l’écrire (exemple : 24/64 = 37,5 %, et non 40 %).\n'+
         '8) Ne qualifie pas une vidéo de courte ou longue sans connaître sa durée exacte. Ne déduis pas que sa durée explique son average_view_seconds. Ne compare pas ces durées comme un taux de rétention. Pour calculated_seconds_per_view, utilise uniquement les minutes_watched et views de la même vidéo (minutes_watched × 60 / views) ; présente le résultat comme un calcul dérivé et approximatif si les minutes sont arrondies. Ne divise jamais les minutes totales de la chaîne par les vues d’une vidéo. Ne prétends pas que l’écart avec average_view_seconds prouve une différence de comptage ou une anomalie.\n'+
         '9) Ne crée aucune cible chiffrée arbitraire (ex. 15 vues, 45 secondes, +2 abonnés) : propose plutôt de mesurer l’évolution par rapport à une période comparable, ou indique clairement qu’un objectif doit être fixé par le parent.\n'+
         '10) Pour tout calcul dérivé (moyenne, ratio, pourcentage), vérifie l’opération et affiche le calcul ou sa base. Arrondis clairement ; si les données d’entrée sont arrondies ou de périmètres différents, présente le résultat comme approximatif ou ne le calcule pas.\n'+
@@ -547,6 +562,11 @@
         '- N’expose jamais école, domicile, habitudes, horaires, déplacements, localisation en temps réel, contacts privés ou informations personnelles de l’enfant.\n'+
         '- Privilégie des contenus que le parent peut produire et contrôler : clips, extraits musicaux, paroles/karaoké, animation, instruments, coulisses centrées sur la musique sans détails privés, histoires et culture béninoise. La présence de l’enfant à l’image n’est jamais une obligation.\n'+
         '- Toute action payante doit être signalée comme optionnelle et soumise à validation du parent ; ne promets aucun résultat.\n\n'+
+        'FORMAT ET PROPRETÉ DU RAPPORT :\n'+
+        '- Écris exclusivement en Markdown standard. N’insère aucune balise HTML (<br>, <p>, <div>, etc.) et n’écris aucune entité HTML (&lt;, &#x20;, &#x63;, &nbsp;, etc.). Pour séparer des éléments, utilise de vrais retours à la ligne, des listes Markdown et des tableaux Markdown.\n'+
+        '- N’écris pas de balises HTML échappées ou précédées d’une barre oblique inverse. Les mots doivent être écrits normalement, sans encodage caractère par caractère.\n'+
+        '- N’invente pas l’existence de vidéos, playlists, visuels, campagnes, making-of ou ressources qui ne figurent pas dans les données ou le profil. Présente toute nouvelle création comme une idée facultative à produire par le parent.\n'+
+        '- Ne recommande aucun concours, défi participatif, collecte de dessins/photos/vidéos, contenu de fans ou UGC impliquant des enfants. Ne demande jamais à l’enfant de se filmer ni de montrer son domicile, son école, ses proches, ses habitudes ou ses coulisses personnelles. Privilégie les visuels d’illustration, animations, pochettes, paroles et plans d’instruments réalisés et contrôlés par le parent.\n'+
         'FORMAT DE SORTIE (en français, Markdown lisible) :\n'+
         'A. SYNTHÈSE EN 3 LIGNES : période exacte, vues, heures regardées, abonnés gagnés/perdus/net.\n'+
         'B. FAITS MESURÉS : tableau avec indicateur, valeur et ce que la donnée permet réellement de dire.\n'+
