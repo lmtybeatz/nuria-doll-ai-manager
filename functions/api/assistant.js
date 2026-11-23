@@ -96,7 +96,12 @@ export async function onRequestPost({ request, env }) {
     }, status);
   }
 
-  const answer = typeof result.output_text === "string" ? result.output_text.trim() : "";
+  const answer = (typeof result.output_text === "string" ? result.output_text :
+    (result.steps || []).filter(step => step.type === "model_output")
+      .flatMap(step => step.content || [])
+      .filter(part => part.type === "text")
+      .map(part => part.text || "")
+      .join("\n")).trim();
   if (!answer) return json({ error: "Aucune réponse exploitable n'a été générée." }, 502);
 
   return json({ answer, approval_required: true });
