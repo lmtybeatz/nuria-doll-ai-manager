@@ -112,7 +112,7 @@
         body:JSON.stringify({task,profile:currentProfile})
       });
       let payload=await response.json().catch(()=>({}));
-      if(!response.ok)throw new Error([payload.error||'Le service IA n’a pas répondu correctement.',payload.diagnostic||''].filter(Boolean).join(' — '));
+      if(!response.ok)throw new Error([payload.error||'Le service IA n’a pas répondu correctement.',payload.diagnostic||'',payload.diagnostic_meta?'Détails techniques : '+JSON.stringify(payload.diagnostic_meta):''].filter(Boolean).join(' — '));
       // Gemini background generation: poll securely until the interaction completes.
       if(payload.id){
         const interactionId=payload.id;
@@ -124,7 +124,7 @@
             headers:{'authorization':'Bearer '+session.access_token}
           });
           payload=await check.json().catch(()=>({}));
-          if(!check.ok)throw new Error([payload.error||'Impossible de récupérer la proposition.',payload.diagnostic||''].filter(Boolean).join(' — '));
+          if(!check.ok)throw new Error([payload.error||'Impossible de récupérer la proposition.',payload.diagnostic||'',payload.diagnostic_meta?'Détails techniques : '+JSON.stringify(payload.diagnostic_meta):''].filter(Boolean).join(' — '));
           if(payload.status==='completed'){completed=true;break;}
           status.textContent='Gemini prépare toujours la proposition… ('+Math.round((attempt+1)*5/60)+' min écoulées)';
         }
