@@ -390,7 +390,7 @@
     }
   }
   async function loadYoutubeAnalytics(range=30){
-    const status=$('#youtubeAnalyticsStatus'),buttonSet=$('#youtubeAnalyticsRanges button');
+    const status=$('#youtubeAnalyticsStatus'),buttonSet=$$('#youtubeAnalyticsRanges button');
     buttonSet.forEach(b=>{b.disabled=true;b.classList.toggle('active',Number(b.dataset.range)===range);});
     status.textContent='Chargement des statistiques YouTube…';
     try{
