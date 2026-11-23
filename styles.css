@@ -34,3 +34,35 @@
 .youtube-channel-panel .btn{margin-top:2px;width:100%}
 .youtube-channel-panel .btn:disabled{opacity:.6;cursor:wait}
 @media(max-width:760px){.youtube-channel-panel{padding:11px}.youtube-channel-stats strong{font-size:13px}}
+
+/* Tableau de bord YouTube Analytics — lecture seule */
+.youtube-analytics{margin-top:17px;padding:15px;border:1px solid #e8e0ee;border-radius:12px;background:#fff}
+.yt-analytics-heading{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.yt-analytics-heading>div:first-child{display:grid;gap:4px}
+.yt-analytics-heading strong{font:700 12px Manrope;color:#34283e}
+.yt-analytics-heading small{font-size:9px;color:#92869a}
+.yt-range-buttons{display:flex;gap:4px;background:#f2eef5;padding:3px;border-radius:8px}
+.yt-range-buttons button{border:0;background:transparent;color:#786b82;border-radius:6px;padding:6px 9px;font-size:10px;font-weight:700}
+.yt-range-buttons button.active{background:#7047a6;color:#fff}
+.yt-range-buttons button:disabled{opacity:.55}
+.yt-period-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:13px 0}
+.yt-period-stats>div{background:#faf8fc;border:1px solid #eee8f2;border-radius:9px;padding:10px 6px;min-width:0}
+.yt-period-stats strong,.yt-period-stats small{display:block;text-align:center}
+.yt-period-stats strong{font:800 15px Manrope;color:#51376a;overflow-wrap:anywhere}
+.yt-period-stats small{font-size:9px;color:#92869a;margin-top:4px}
+.yt-chart-title{font:700 10px Manrope;color:#554660;margin:15px 0 9px}
+.yt-daily-chart{height:105px;display:flex;align-items:flex-end;gap:2px;padding:8px 2px 0;border-bottom:1px solid #eee8f2;overflow:hidden}
+.yt-day-bar{flex:1;min-width:1px;height:100%;display:flex;align-items:flex-end}
+.yt-day-bar span{display:block;width:100%;min-height:2px;background:#a884c7;border-radius:3px 3px 0 0}
+.yt-chart-labels{display:flex;justify-content:space-between;margin-top:5px;color:#92869a}
+.yt-chart-labels small{font-size:8px}
+.yt-subscriber-detail{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px;color:#81768a;font-size:9px}
+.yt-subscriber-detail strong{color:#50376a}
+.yt-top-videos{display:grid;gap:7px}
+.yt-top-video{display:flex;align-items:center;gap:10px;padding:9px;background:#faf8fc;border-radius:8px;text-decoration:none;color:inherit;min-width:0}
+.yt-video-rank{width:23px;height:23px;display:grid;place-items:center;border-radius:7px;background:#eee6f5;color:#7047a6;font-weight:800;font-size:10px;flex-shrink:0}
+.yt-video-info{display:grid;gap:3px;min-width:0}
+.yt-video-info strong{font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.yt-video-info small{font-size:9px;color:#92869a}
+.yt-top-video:hover{background:#f3edf8}
+@media(max-width:760px){.youtube-analytics{padding:11px}.yt-period-stats strong{font-size:13px}.yt-analytics-heading{align-items:flex-start}}
