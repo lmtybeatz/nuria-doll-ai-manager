@@ -101,7 +101,7 @@
     const task=$('#assistantTask').value.trim();
     if(!task)return;
     const submit=$('#assistantSubmit'),status=$('#assistantStatus'),result=$('#assistantResult'),answer=$('#assistantAnswer');
-    submit.disabled=true;submit.textContent='Préparation en cours…';status.textContent='Gemini prépare une proposition…';hide(result);
+    submit.disabled=true;submit.textContent='Préparation en cours…';status.textContent='Groq prépare une proposition…';hide(result);
     try{
       const {data:{session},error:sessionError}=await supabase.auth.getSession();
       if(sessionError||!session?.access_token)throw new Error('Session expirée. Reconnecte-toi.');
@@ -111,27 +111,14 @@
         headers:{'content-type':'application/json','authorization':'Bearer '+session.access_token},
         body:JSON.stringify({task,profile:currentProfile})
       });
-      let payload=await response.json().catch(()=>({}));
-      if(!response.ok)throw new Error([payload.error||'Le service IA n’a pas répondu correctement.',payload.diagnostic||'',payload.diagnostic_meta?'Détails techniques : '+JSON.stringify(payload.diagnostic_meta):''].filter(Boolean).join(' — '));
-      // Gemini background generation: poll securely until the interaction completes.
-      if(payload.id){
-        const interactionId=payload.id;
-        status.textContent='Gemini travaille en arrière-plan…';
-        let completed=false;
-        for(let attempt=0;attempt<120;attempt++){
-          await new Promise(resolve=>setTimeout(resolve,5000));
-          const check=await fetch('/api/assistant?id='+encodeURIComponent(interactionId),{
-            headers:{'authorization':'Bearer '+session.access_token}
-          });
-          payload=await check.json().catch(()=>({}));
-          if(!check.ok)throw new Error([payload.error||'Impossible de récupérer la proposition.',payload.diagnostic||'',payload.diagnostic_meta?'Détails techniques : '+JSON.stringify(payload.diagnostic_meta):''].filter(Boolean).join(' — '));
-          if(payload.status==='completed'){completed=true;break;}
-          status.textContent='Gemini prépare toujours la proposition… ('+Math.round((attempt+1)*5/60)+' min écoulées)';
-        }
-        if(!completed)throw new Error('Gemini n’a pas terminé après 10 minutes. La génération peut être encore en cours ; réessaie plus tard.');
-      }
-      answer.textContent=payload.answer||'Aucune proposition reçue.';
-      show(result);status.textContent='Proposition générée. Vérifie-la avant toute utilisation.';
+      const payload=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error([payload.error||'Le service IA n’a pas répondu correctement.',payload.diagnostic||'',payload.fallback_diagnostic||''].filter(Boolean).join(' — '));
+      if(!payload.answer)throw new Error('Aucune proposition exploitable reçue.');
+      answer.textContent=payload.answer;
+      show(result);
+      status.textContent=payload.fallback_used
+        ? 'Proposition générée par Cloudflare AI (secours Groq). Vérifie-la avant toute utilisation.'
+        : 'Proposition générée par Groq. Vérifie-la avant toute utilisation.';
     }catch(err){status.textContent=err.message||'Une erreur est survenue.';toast(status.textContent,true);}
     finally{submit.disabled=false;submit.innerHTML='Générer une proposition <span>→</span>';}
   });
