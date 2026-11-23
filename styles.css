@@ -150,3 +150,67 @@
 .parent-approval-item strong{font-size:11px;color:#44364d}
 .parent-approval-item small{font-size:9px;color:#92869a}
 .parent-approval-item .text-btn{font-size:10px}
+
+
+/* Refonte mobile — formulaires et espace Réseaux sociaux */
+@media (pointer:coarse) {
+  input, textarea, select, button, [contenteditable="true"] { -webkit-tap-highlight-color: transparent; }
+  input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),
+  textarea, select {
+    font-size:16px !important;
+  }
+}
+.social-mobile-note{display:flex;align-items:flex-start;gap:12px;padding:15px 17px;margin:0 0 15px;border:1px solid #e9e0f0;border-radius:13px;background:linear-gradient(110deg,#fff,#faf6fd)}
+.social-note-icon{display:grid;place-items:center;flex:0 0 34px;height:34px;border-radius:11px;background:#f0e8f8;color:#8056a4;font-size:19px}
+.social-mobile-note strong{display:block;font:800 12px Manrope,sans-serif;color:#44334f;margin:1px 0 4px}
+.social-mobile-note p{margin:0;color:#8d8295;font-size:11px;line-height:1.55}
+.social-card-top{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:13px}
+.social-card-top .social-logo{margin:0;flex:0 0 43px}
+.social-card-top .tag{font-size:9px}
+.social-card-foot{display:block;color:#9b91a1;font-size:10px;line-height:1.45;margin-top:10px}
+.social-card-youtube{grid-column:1/-1}
+.social-card-youtube .social-card-top{justify-content:flex-start}
+.social-card-youtube .youtube-channel-panel{text-align:left}
+.social-card-youtube .youtube-channel-head{justify-content:flex-start}
+@media(max-width:760px){
+  .main-area{min-width:0}
+  .view{min-width:0}
+  .social-mobile-note{padding:13px;margin-bottom:12px}
+  .social-mobile-note p{font-size:12px}
+  .social-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-items:stretch}
+  .social-card{display:flex;flex-direction:column;align-items:stretch;text-align:left;min-width:0;padding:15px 13px;border-radius:14px;box-shadow:0 7px 22px rgba(38,23,55,.045)}
+  .social-card-top{justify-content:space-between;gap:7px;margin-bottom:12px}
+  .social-card-top .social-logo{width:38px;height:38px;flex-basis:38px;border-radius:11px;font-size:22px}
+  .social-card h3{font-size:14px;margin:0 0 4px}
+  .social-card p{font-size:11px;line-height:1.45;margin:0}
+  .social-card-foot{font-size:10px;margin-top:11px}
+  .social-card .tag{align-self:flex-start;white-space:normal}
+  .social-card-youtube{grid-column:1/-1;padding:17px}
+  .social-card-youtube .social-card-top{justify-content:space-between}
+  .social-card-youtube #connectYoutube{width:100%;margin-top:12px}
+  .social-card-youtube .youtube-channel-panel{width:100%;min-width:0}
+  .social-card-youtube .youtube-channel-stats,
+  .social-card-youtube .yt-period-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+  .social-card-youtube .youtube-channel-stats>div,
+  .social-card-youtube .yt-period-stats>div{min-width:0;padding:9px 6px;text-align:center}
+  .social-card-youtube .youtube-channel-stats strong,
+  .social-card-youtube .yt-period-stats strong{font-size:14px;overflow-wrap:anywhere}
+  .social-card-youtube .youtube-channel-stats small,
+  .social-card-youtube .yt-period-stats small{font-size:9px}
+  .social-card-youtube .youtube-analytics{min-width:0}
+  .social-card-youtube .yt-analytics-heading{align-items:flex-start;flex-direction:column;gap:10px}
+  .social-card-youtube .yt-range-buttons{display:flex;width:100%}
+  .social-card-youtube .yt-range-buttons button{flex:1;min-height:36px}
+  .social-card-youtube .yt-daily-chart{max-width:100%;overflow:hidden}
+  .social-card-youtube .yt-top-videos{min-width:0}
+  .social-card-youtube .yt-recommendations-head{display:flex;flex-direction:column;align-items:stretch;gap:10px}
+  .social-card-youtube .yt-recommendations-head .btn,
+  .social-card-youtube .yt-print-button{width:100%}
+  .social-card-youtube .yt-subscriber-detail{display:flex;flex-wrap:wrap;gap:8px}
+}
+@media(max-width:360px){
+  .social-grid{gap:8px}
+  .social-card{padding:12px 10px}
+  .social-card-top{align-items:flex-start;flex-direction:column}
+  .social-card-youtube .social-card-top{align-items:center;flex-direction:row}
+}
