@@ -4,7 +4,7 @@ const b64decode=s=>Uint8Array.from(atob(s.replace(/-/g,"+").replace(/_/g,"/")+"=
 async function hmac(value,secret){const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(secret),{name:"HMAC",hash:"SHA-256"},false,["verify"]);return crypto.subtle.verify("HMAC",key,b64decode(value.split(".")[1]),new TextEncoder().encode(value.split(".")[0]));}
 async function encrypt(value,keyB64){const raw=Uint8Array.from(atob(keyB64),c=>c.charCodeAt(0));if(raw.length!==32)throw new Error("YOUTUBE_TOKEN_ENCRYPTION_KEY doit être une clé Base64 de 32 octets.");const key=await crypto.subtle.importKey("raw",raw,"AES-GCM",false,["encrypt"]);const iv=crypto.getRandomValues(new Uint8Array(12));const data=await crypto.subtle.encrypt({name:"AES-GCM",iv},key,new TextEncoder().encode(JSON.stringify(value)));return btoa(String.fromCharCode(...iv))+"."+btoa(String.fromCharCode(...new Uint8Array(data)));}
 export async function onRequestGet({request,env}){
- const origin=new URL(request.url).origin;let stage="initialisation";const fail=(reason)=>redirect(origin+"/?youtube=error&reason="+encodeURIComponent(reason));
+ const origin=new URL(request.url).origin;let stage="initialisation",diagnostic="";const fail=(reason)=>redirect(origin+"/?youtube=error&reason="+encodeURIComponent(reason));
  try{
   stage="verification_cookie";
   const cookie=(request.headers.get("cookie")||"").split(";").map(x=>x.trim()).find(x=>x.startsWith("nd_yt_oauth="))?.slice("nd_yt_oauth=".length);
@@ -23,9 +23,10 @@ export async function onRequestGet({request,env}){
   if(!response.ok){
    const detail=await response.text();
    let safe="réponse Supabase non détaillée";
-   try{const parsed=JSON.parse(detail);safe=[parsed.code,parsed.message,parsed.details,parsed.hint].filter(Boolean).join(" | ").slice(0,500)||safe;}catch{}
-   throw new Error("Supabase HTTP "+response.status+" : "+safe);
+   try{const parsed=JSON.parse(detail);safe=[parsed.code,parsed.message,parsed.details,parsed.hint].filter(Boolean).join(" | ").slice(0,300)||safe;}catch{}
+   diagnostic="HTTP_"+response.status+"_"+safe;
+   throw new Error("Enregistrement Supabase refusé.");
   }
   return redirect(origin+"/?youtube=connected");
- }catch(e){console.error("NURIA_YOUTUBE_OAUTH_ERROR",JSON.stringify({stage,message:String(e?.message||"erreur inconnue").slice(0,240)}));return fail("erreur_"+stage);}
+ }catch(e){console.error("NURIA_YOUTUBE_OAUTH_ERROR",JSON.stringify({stage,message:String(e?.message||"erreur inconnue").slice(0,240)}));return fail("erreur_"+stage+(diagnostic?"_"+diagnostic:""));}
 }
