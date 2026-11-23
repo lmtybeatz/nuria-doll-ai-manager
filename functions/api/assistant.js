@@ -71,13 +71,15 @@ export async function onRequestPost({ request, env }) {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          "x-goog-api-key": env.GEMINI_API_KEY
+          "x-goog-api-key": env.GEMINI_API_KEY,
+          "Api-Revision": "2026-05-20"
         },
         body: JSON.stringify({
           model: "gemini-3.8-flash",
           system_instruction: systemInstruction,
           input: prompt,
-          store: false
+          store: false,
+          background: true
         })
       }
     );
@@ -100,13 +102,54 @@ export async function onRequestPost({ request, env }) {
     }, status);
   }
 
-  const answer = (typeof result.output_text === "string" ? result.output_text :
-    (result.steps || []).filter(step => step.type === "model_output")
+  // Background mode returns quickly with an interaction ID, avoiding Cloudflare's 524 timeout.
+  if (result.id && result.status && result.status !== "completed") {
+    return json({ id: result.id, status: result.status, approval_required: true });
+  }
+  const answer = extractAnswer(result);
+  if (!answer) return json({ error: "Aucune réponse exploitable n'a été générée." }, 502);
+  return json({ answer, status: "completed", approval_required: true });
+}
+
+function extractAnswer(result) {
+  return (typeof result?.output_text === "string" ? result.output_text :
+    (result?.steps || []).filter(step => step.type === "model_output")
       .flatMap(step => step.content || [])
       .filter(part => part.type === "text")
       .map(part => part.text || "")
       .join("\n")).trim();
-  if (!answer) return json({ error: "Aucune réponse exploitable n'a été générée." }, 502);
+}
 
-  return json({ answer, approval_required: true });
+export async function onRequestGet({ request, env }) {
+  if (!env.GEMINI_API_KEY || !env.SUPABASE_URL || !env.SUPABASE_PUBLISHABLE_KEY) {
+    return json({ error: "Configuration serveur incomplète." }, 500);
+  }
+  const authorization = request.headers.get("authorization") || "";
+  const tokenMatch = authorization.match(/^Bearer\\s+(.+)$/i);
+  if (!tokenMatch) return json({ error: "Connexion requise." }, 401);
+  try {
+    const auth = await fetch(env.SUPABASE_URL.replace(/\\/$/, "") + "/auth/v1/user", {
+      headers: { apikey: env.SUPABASE_PUBLISHABLE_KEY, authorization: "Bearer " + tokenMatch[1] }
+    });
+    if (!auth.ok) return json({ error: "Session expirée ou invalide. Reconnecte-toi." }, 401);
+  } catch {
+    return json({ error: "Vérification de la connexion impossible." }, 502);
+  }
+  const id = new URL(request.url).searchParams.get("id") || "";
+  if (!/^v1_[A-Za-z0-9_-]{8,200}$/.test(id)) return json({ error: "Identifiant de génération invalide." }, 400);
+  let response;
+  try {
+    response = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions/" + encodeURIComponent(id), {
+      headers: { "x-goog-api-key": env.GEMINI_API_KEY, "Api-Revision": "2026-05-20" }
+    });
+  } catch {
+    return json({ error: "Impossible de vérifier l'avancement auprès de Gemini." }, 502);
+  }
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) return json({ error: "Gemini n'a pas pu récupérer la proposition.", diagnostic: result?.error?.message || "" }, 502);
+  if (result.status === "failed") return json({ error: "Gemini n'a pas réussi à terminer la génération.", diagnostic: result?.error?.message || "" }, 502);
+  if (result.status !== "completed") return json({ status: result.status || "in_progress" });
+  const answer = extractAnswer(result);
+  if (!answer) return json({ error: "Gemini a terminé sans fournir de texte exploitable." }, 502);
+  return json({ status: "completed", answer, approval_required: true });
 }
