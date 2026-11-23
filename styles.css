@@ -125,3 +125,16 @@
   body.printing-youtube-report .yt-recommendation-text table{display:table;overflow:visible;font-size:9pt}
   body.printing-youtube-report .yt-recommendation-text th{background:#eee!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
+
+
+/* Rapports YouTube : aperçu compact avec développement à la demande */
+.yt-recommendation-text.is-collapsed{max-height:430px;overflow:hidden;position:relative}
+.yt-recommendation-text.is-collapsed::after{content:"";position:absolute;left:0;right:0;bottom:0;height:76px;background:linear-gradient(transparent,#fff);pointer-events:none}
+.yt-report-toggle{display:inline-flex;align-items:center;justify-content:center;margin:0 0 12px;padding:8px 13px;border:1px solid #e5d9ee;border-radius:8px;background:#f8f4fb;color:#68458a;font-size:10px;font-weight:800;cursor:pointer}
+.yt-report-toggle:hover{background:#f0e8f8}
+.yt-report-toggle:focus-visible{outline:3px solid #b99bd4;outline-offset:2px}
+@media print{
+  body.printing-youtube-report #ytRecommendationText.is-collapsed{max-height:none!important;overflow:visible!important}
+  body.printing-youtube-report #ytRecommendationText.is-collapsed::after{display:none!important}
+  body.printing-youtube-report .yt-report-toggle{display:none!important}
+}
