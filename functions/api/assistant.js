@@ -147,7 +147,12 @@ export async function onRequestGet({ request, env }) {
   }
   const result = await response.json().catch(() => ({}));
   if (!response.ok) return json({ error: "Gemini n'a pas pu récupérer la proposition.", diagnostic: result?.error?.message || "" }, 502);
-  if (result.status === "failed") return json({ error: "Gemini n'a pas réussi à terminer la génération.", diagnostic: result?.error?.message || "" }, 502);
+  if (result.status === "failed" || result.status === "cancelled" || result.status === "incomplete") {
+    return json({
+      error: "La génération Gemini s'est terminée sans proposition complète (statut : " + result.status + ").",
+      diagnostic: result?.error?.message || result?.errors?.map?.(e => e.message).join("; ") || ""
+    }, 502);
+  }
   if (result.status !== "completed") return json({ status: result.status || "in_progress" });
   const answer = extractAnswer(result);
   if (!answer) return json({ error: "Gemini a terminé sans fournir de texte exploitable." }, 502);
