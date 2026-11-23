@@ -95,6 +95,35 @@
   $('#backToDashboard').onclick=()=>nav('overview');
   $('#brandForm').addEventListener('submit',async e=>{e.preventDefault();const f=new FormData(e.currentTarget),payload=Object.fromEntries(f.entries());payload.owner_id=user.id;payload.updated_at=new Date().toISOString();const query=supabase.from('ai_brand_profile').upsert(payload,{onConflict:'owner_id'});const {error}=await query;if(error){$('#brandMessage').textContent=error.message;toast('Impossible d’enregistrer le profil.',true);return;}$('#brandMessage').textContent='Profil enregistré.';toast('Identité artistique enregistrée.');await loadProfile();});
   $('#settingsForm').addEventListener('submit',async e=>{e.preventDefault();const f=new FormData(e.currentTarget),p=Object.fromEntries(f.entries());p.owner_id=user.id;p.monthly_budget_usd=Number(p.monthly_budget_usd);p.planning_horizon=Number(p.planning_horizon);p.updated_at=new Date().toISOString();const {error}=await supabase.from('ai_settings').upsert(p,{onConflict:'owner_id'});if(error){$('#settingsMessage').textContent=error.message;toast(error.message,true);return;}$('#settingsMessage').textContent='Paramètres enregistrés. Aucun service payant n’a été activé.';toast('Paramètres enregistrés.');});
+  $('#assistantForm').addEventListener('submit',async e=>{
+    e.preventDefault();
+    if(!supabase||!user)return;
+    const task=$('#assistantTask').value.trim();
+    if(!task)return;
+    const submit=$('#assistantSubmit'),status=$('#assistantStatus'),result=$('#assistantResult'),answer=$('#assistantAnswer');
+    submit.disabled=true;submit.textContent='Préparation en cours…';status.textContent='Gemini prépare une proposition…';hide(result);
+    try{
+      const {data:{session},error:sessionError}=await supabase.auth.getSession();
+      if(sessionError||!session?.access_token)throw new Error('Session expirée. Reconnecte-toi.');
+      const currentProfile=profile||Object.fromEntries(new FormData($('#brandForm')).entries());
+      const response=await fetch('/api/assistant',{
+        method:'POST',
+        headers:{'content-type':'application/json','authorization':'Bearer '+session.access_token},
+        body:JSON.stringify({task,profile:currentProfile})
+      });
+      const payload=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(payload.error||'Le service IA n’a pas répondu correctement.');
+      answer.textContent=payload.answer||'Aucune proposition reçue.';
+      show(result);status.textContent='Proposition générée. Vérifie-la avant toute utilisation.';
+    }catch(err){status.textContent=err.message||'Une erreur est survenue.';toast(status.textContent,true);}
+    finally{submit.disabled=false;submit.innerHTML='Générer une proposition <span>→</span>';}
+  });
+  $('[data-prompt]').forEach(button=>button.addEventListener('click',()=>{$('#assistantTask').value=button.dataset.prompt;$('#assistantTask').focus();}));
+  $('#copyAssistant').addEventListener('click',async()=>{
+    const value=$('#assistantAnswer').textContent;
+    try{await navigator.clipboard.writeText(value);toast('Brouillon copié.');}
+    catch{toast('Copie indisponible sur ce navigateur.',true);}
+  });
   $('#mediaInput').addEventListener('change',async e=>{const files=[...e.target.files];if(!files.length)return;for(const file of files){if(file.size>100*1024*1024){toast(`${file.name} dépasse la limite de 100 Mo.`,true);continue;}const safe=file.name.normalize('NFKD').replace(/[^a-zA-Z0-9._-]/g,'_');const path=`${user.id}/${crypto.randomUUID()}-${safe}`;$('#uploadStatus').textContent=`Envoi de ${file.name}…`;const {error:upErr}=await supabase.storage.from('nuria-private-media').upload(path,file,{contentType:file.type,upsert:false});if(upErr){toast(`Échec de ${file.name} : ${upErr.message}`,true);continue;}const category=file.type.startsWith('image/')?'image':file.type.startsWith('video/')?'video':file.type.startsWith('audio/')?'audio':'document';const {error:dbErr}=await supabase.from('ai_media_library').insert({owner_id:user.id,file_name:file.name,storage_path:path,mime_type:file.type,file_size:file.size,category});if(dbErr){await supabase.storage.from('nuria-private-media').remove([path]);toast(`Erreur d'enregistrement : ${dbErr.message}`,true);continue;}toast(`${file.name} ajouté.`);}$('#uploadStatus').textContent='';e.target.value='';await loadMedia();});
   init();
 })();
