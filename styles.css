@@ -138,3 +138,15 @@
   body.printing-youtube-report #ytRecommendationText.is-collapsed::after{display:none!important}
   body.printing-youtube-report .yt-report-toggle{display:none!important}
 }
+
+/* Validation parentale des propositions IA */
+.parent-approval-control{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid #eee8f2;padding-top:12px;margin-top:14px}
+.parent-approval-button{margin:0!important;font-size:10px;padding:9px 13px}
+.parent-approval-history{margin-top:18px}
+.parent-approval-history .section-heading{margin:0 0 12px}
+#parentApprovalHistory{display:grid;gap:8px}
+.parent-approval-item{display:flex;align-items:center;gap:12px;justify-content:space-between;flex-wrap:wrap;padding:11px 12px;border:1px solid #eee8f2;border-radius:9px;background:#fff}
+.parent-approval-item>div{display:grid;gap:4px;min-width:180px;flex:1}
+.parent-approval-item strong{font-size:11px;color:#44364d}
+.parent-approval-item small{font-size:9px;color:#92869a}
+.parent-approval-item .text-btn{font-size:10px}
