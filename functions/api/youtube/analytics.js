@@ -1,9 +1,9 @@
 const H={"content-type":"application/json; charset=utf-8","cache-control":"no-store"};
 const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:H});
 async function verify(request,env){
- const m=(request.headers.get("authorization")||"").match(/^Bearer\\s+(.+)$/i);
+ const m=(request.headers.get("authorization")||"").match(/^Bearer\s+(.+)$/i);
  if(!m)return null;
- const r=await fetch(env.SUPABASE_URL.replace(/\\/$/,"")+"/auth/v1/user",{headers:{apikey:env.SUPABASE_PUBLISHABLE_KEY,authorization:"Bearer "+m[1]}});
+ const r=await fetch(env.SUPABASE_URL.replace(/\/$/,"")+"/auth/v1/user",{headers:{apikey:env.SUPABASE_PUBLISHABLE_KEY,authorization:"Bearer "+m[1]}});
  return r.ok?await r.json():null;
 }
 async function decrypt(value,keyB64){
@@ -33,7 +33,7 @@ export async function onRequestGet({request,env}){
   const requested=new URL(request.url).searchParams.get("range")||"30";
   const days=["7","30","90"].includes(requested)?Number(requested):30;
   stage="lecture_jeton";
-  const base=env.SUPABASE_URL.replace(/\\/$/,"");
+  const base=env.SUPABASE_URL.replace(/\/$/,"");
   const q=await fetch(base+"/rest/v1/ai_social_connections?owner_id=eq."+encodeURIComponent(u.id)+"&provider=eq.youtube&select=token_ciphertext,scopes",{headers:{apikey:env.SUPABASE_SERVICE_ROLE_KEY}});
   if(!q.ok)return json({error:"Impossible de lire la connexion YouTube.",stage,http_status:q.status},502);
   const rows=await q.json();if(!rows.length)return json({error:"Aucune chaîne YouTube connectée."},404);
