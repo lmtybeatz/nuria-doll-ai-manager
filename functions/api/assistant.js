@@ -66,7 +66,7 @@ export async function onRequestPost({ request, env }) {
   let aiResponse;
   try {
     aiResponse = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
+      "https://generativelanguage.googleapis.com/v1beta/interactions",
       {
         method: "POST",
         headers: {
@@ -74,9 +74,10 @@ export async function onRequestPost({ request, env }) {
           "x-goog-api-key": env.GEMINI_API_KEY
         },
         body: JSON.stringify({
-          systemInstruction: { parts: [{ text: systemInstruction }] },
-          contents: [{ role: "user", parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.7, maxOutputTokens: 1800 }
+          model: "gemini-3.8-flash",
+          system_instruction: systemInstruction,
+          input: prompt,
+          store: false
         })
       }
     );
@@ -95,10 +96,7 @@ export async function onRequestPost({ request, env }) {
     }, status);
   }
 
-  const answer = result.candidates?.[0]?.content?.parts
-    ?.map(part => part.text || "")
-    .join("")
-    .trim();
+  const answer = typeof result.output_text === "string" ? result.output_text.trim() : "";
   if (!answer) return json({ error: "Aucune réponse exploitable n'a été générée." }, 502);
 
   return json({ answer, approval_required: true });
