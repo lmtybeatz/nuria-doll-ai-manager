@@ -124,7 +124,7 @@
             headers:{'authorization':'Bearer '+session.access_token}
           });
           payload=await check.json().catch(()=>({}));
-          if(!check.ok)throw new Error(payload.error||'Impossible de récupérer la proposition.');
+          if(!check.ok)throw new Error([payload.error||'Impossible de récupérer la proposition.',payload.diagnostic||''].filter(Boolean).join(' — '));
           if(payload.status==='completed'){completed=true;break;}
           status.textContent='Gemini prépare toujours la proposition… ('+Math.round((attempt+1)*5/60)+' min écoulées)';
         }
