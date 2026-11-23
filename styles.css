@@ -66,3 +66,21 @@
 .yt-video-info small{font-size:9px;color:#92869a}
 .yt-top-video:hover{background:#f3edf8}
 @media(max-width:760px){.youtube-analytics{padding:11px}.yt-period-stats strong{font-size:13px}.yt-analytics-heading{align-items:flex-start}}
+
+
+/* Recommandations IA issues des statistiques YouTube */
+.yt-recommendations{margin-top:17px;padding:14px;border:1px solid #e8e0ee;border-radius:11px;background:#fcfaff}
+.yt-recommendations-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.yt-recommendations-head>div{display:grid;gap:5px}
+.yt-recommendations-head strong,.yt-recommendation-history>strong{font:700 12px Manrope;color:#34283e}
+.yt-recommendations-head small{font-size:9px;color:#92869a;line-height:1.5}
+.yt-recommendations-head .btn{font-size:10px;padding:8px 11px}
+.yt-recommendation-result{margin-top:10px;padding:13px;background:#fff;border:1px solid #e9e0f0;border-radius:9px}
+.yt-recommendation-meta{font-size:9px;color:#92869a;margin-bottom:9px}
+.yt-recommendation-text{font-size:11px;line-height:1.7;color:#51445c;white-space:pre-wrap;overflow-wrap:anywhere;margin-bottom:12px}
+.yt-recommendation-history{border-top:1px solid #e9e0f0;margin-top:13px;padding-top:11px}
+.yt-recommendation-history>div{display:grid;gap:5px;margin-top:8px}
+.yt-recommendation-history-item{display:flex;align-items:center;justify-content:space-between;gap:10px;text-align:left;border:1px solid #eee8f2;background:#fff;border-radius:7px;padding:8px 10px;color:#554660;cursor:pointer}
+.yt-recommendation-history-item strong{font-size:9px}.yt-recommendation-history-item small{font-size:8px;color:#92869a}
+.yt-recommendations .tag{display:inline-flex;margin-top:4px}
+@media(max-width:760px){.yt-recommendations{padding:11px}.yt-recommendations-head .btn{width:100%}.yt-recommendation-history-item{align-items:flex-start;flex-direction:column;gap:3px}}
