@@ -19,7 +19,7 @@ export async function onRequestGet({request,env}){
   stage="chiffrement_jetons";
   const encrypted=await encrypt(tokens,env.YOUTUBE_TOKEN_ENCRYPTION_KEY);
   stage="enregistrement_supabase";
-  const response=await fetch(env.SUPABASE_URL.replace(/\/$/,"")+"/rest/v1/ai_social_connections?on_conflict=owner_id,provider",{method:"POST",headers:{apikey:env.SUPABASE_SERVICE_ROLE_KEY,"content-type":"application/json",prefer:"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({owner_id:payload.uid,provider:"youtube",token_ciphertext:encrypted,scopes:["https://www.googleapis.com/auth/youtube.readonly"],connected_at:new Date().toISOString(),updated_at:new Date().toISOString()})});
+  const response=await fetch(env.SUPABASE_URL.replace(/\/$/,"")+"/rest/v1/ai_social_connections?on_conflict=owner_id,provider",{method:"POST",headers:{apikey:env.SUPABASE_SERVICE_ROLE_KEY,"content-type":"application/json",prefer:"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({owner_id:payload.uid,provider:"youtube",token_ciphertext:encrypted,scopes:["https://www.googleapis.com/auth/youtube.readonly","https://www.googleapis.com/auth/yt-analytics.readonly"],connected_at:new Date().toISOString(),updated_at:new Date().toISOString()})});
   if(!response.ok){
    const detail=await response.text();
    let safe="réponse Supabase non détaillée";
