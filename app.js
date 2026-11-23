@@ -4,6 +4,7 @@
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => [...document.querySelectorAll(s)];
   let supabase = null, user = null, signupMode = false, profile = null, settings = null, media = [];
+  let campaigns = [], editingCampaignId = null;
   const toast = (msg, bad=false) => { const el=$('#toast'); el.textContent=msg; el.className='toast show'+(bad?' error':''); setTimeout(()=>el.className='toast',3600); };
   const show = (el) => el.classList.remove('hidden'); const hide = (el) => el.classList.add('hidden');
   function setupMessage() {
@@ -25,7 +26,7 @@
     const {data:{session}}=await supabase.auth.getSession(); if(session){user=session.user;await enterApp();}else show($('#authScreen'));
     supabase.auth.onAuthStateChange(async(_event,session)=>{if(session&&!user){user=session.user;await enterApp();}else if(!session&&user){user=null;hide($('#appShell'));show($('#authScreen'));}});
   }
-  async function enterApp(){ hide($('#authScreen')); show($('#appShell')); $('#userEmail').textContent=user.email||'Compte connecté'; await Promise.all([loadProfile(),loadSettings(),loadMedia()]); }
+  async function enterApp(){ hide($('#authScreen')); show($('#appShell')); $('#userEmail').textContent=user.email||'Compte connecté'; await Promise.all([loadProfile(),loadSettings(),loadMedia(),loadCampaigns()]); }
   async function loadProfile(){const {data,error}=await supabase.from('ai_brand_profile').select('*').maybeSingle();if(error){toast('Chargement du profil : '+error.message,true);return;}profile=data;if(data){const f=$('#brandForm');Object.entries(data).forEach(([k,v])=>{const el=f.elements[k];if(el&&v!==null)el.value=v;});$('#profileStatus').textContent='Configuré';$('#brandCheck').classList.add('done');$('#brandCheck').textContent='✓';}else $('#profileStatus').textContent='À compléter';}
   async function loadSettings(){const {data,error}=await supabase.from('ai_settings').select('*').maybeSingle();if(error)return;settings=data;if(data){const f=$('#settingsForm');['primary_goal','planning_horizon','autonomy_mode','monthly_budget_usd'].forEach(k=>{if(f.elements[k]&&data[k]!==null)f.elements[k].value=data[k];});}}
   async function loadMedia(){
@@ -122,6 +123,64 @@
     }catch(err){status.textContent=err.message||'Une erreur est survenue.';toast(status.textContent,true);}
     finally{submit.disabled=false;submit.innerHTML='Générer une proposition <span>→</span>';}
   });
+
+  const campaignTypes={single:'Single / sortie',album:'Album / EP',brand:'Marque'};
+  const campaignStatuses={draft:'Brouillon',planned:'Planifiée',active:'En cours',completed:'Terminée',archived:'Archivée'};
+  const money=(amount,currency)=>amount===null||amount===''?'Budget à définir':new Intl.NumberFormat('fr-FR',{maximumFractionDigits:0}).format(Number(amount))+' '+(currency==='XOF'?'FCFA':currency);
+  async function loadCampaigns(){
+    const {data,error}=await supabase.from('ai_marketing_campaigns').select('*').order('updated_at',{ascending:false});
+    if(error){$('#campaignList').innerHTML='<div class="empty-state">Impossible de charger les campagnes : '+escapeText(error.message)+'</div>';return;}
+    campaigns=data||[];renderCampaigns();
+  }
+  function escapeText(value){return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+  function renderCampaigns(){
+    $('#campaignCount').textContent=campaigns.length+' campagne'+(campaigns.length>1?'s':'');
+    const list=$('#campaignList');list.innerHTML='';
+    if(!campaigns.length){list.innerHTML='<div class="empty-state">Aucune campagne pour le moment. Crée ton premier projet ci-dessus.</div>';return;}
+    campaigns.forEach(c=>{
+      const card=document.createElement('article');card.className='campaign-card';
+      const head=document.createElement('div');head.className='campaign-card-head';
+      const title=document.createElement('div');title.innerHTML='<div class="campaign-type">'+escapeText(campaignTypes[c.project_type]||c.project_type)+'</div><h4>'+escapeText(c.project_name)+'</h4>';
+      const status=document.createElement('span');status.className='campaign-status '+(c.status==='active'?'active':c.status==='completed'?'completed':'');status.textContent=campaignStatuses[c.status]||c.status;
+      head.append(title,status);
+      const meta=document.createElement('div');meta.className='campaign-meta';
+      [c.duration_days+' jours',money(c.budget_amount,c.budget_currency)].forEach(v=>{const s=document.createElement('span');s.textContent=v;meta.append(s);});
+      const desc=document.createElement('p');desc.textContent=c.objective||'Objectif non précisé';
+      const markets=document.createElement('p');markets.textContent=c.markets?'Territoires : '+c.markets:'Territoires non définis';
+      const actions=document.createElement('div');actions.className='campaign-actions';
+      const edit=document.createElement('button');edit.type='button';edit.textContent='Modifier';edit.onclick=()=>editCampaign(c.id);
+      const del=document.createElement('button');del.type='button';del.className='delete';del.textContent='Supprimer';del.onclick=()=>deleteCampaign(c.id);
+      actions.append(edit,del);card.append(head,meta,desc,markets,actions);list.append(card);
+    });
+  }
+  function resetCampaignForm(){
+    const f=$('#campaignForm');f.reset();f.elements.id.value='';f.elements.project_type.value='single';f.elements.duration_days.value='30';f.elements.budget_currency.value='XOF';f.elements.status.value='draft';f.elements.objective.value='Lancement et promotion';
+    editingCampaignId=null;$('#campaignSave').innerHTML='Enregistrer le projet <span>→</span>';$('#campaignMessage').textContent='Les campagnes restent modifiables.';
+  }
+  function editCampaign(id){
+    const c=campaigns.find(x=>x.id===id);if(!c)return;
+    const f=$('#campaignForm');Object.keys(c).forEach(k=>{if(f.elements[k])f.elements[k].value=c[k]??'';});
+    editingCampaignId=id;$('#campaignSave').textContent='Enregistrer les modifications';$('#campaignMessage').textContent='Modification de : '+c.project_name;
+    $('#campaignForm').scrollIntoView({behavior:'smooth',block:'center'});
+  }
+  async function deleteCampaign(id){
+    const c=campaigns.find(x=>x.id===id);if(!c||!confirm('Supprimer la campagne « '+c.project_name+' » ? Cette action est définitive.'))return;
+    const {error}=await supabase.from('ai_marketing_campaigns').delete().eq('id',id);
+    if(error){toast('Suppression impossible : '+error.message,true);return;}
+    toast('Campagne supprimée.');if(editingCampaignId===id)resetCampaignForm();await loadCampaigns();
+  }
+  $('#campaignForm').addEventListener('submit',async e=>{
+    e.preventDefault();if(!supabase||!user)return;
+    const f=e.currentTarget,values=Object.fromEntries(new FormData(f).entries());
+    const payload={owner_id:user.id,project_type:values.project_type,project_name:values.project_name.trim(),objective:values.objective.trim(),duration_days:Number(values.duration_days),budget_amount:values.budget_amount===''?null:Number(values.budget_amount),budget_currency:values.budget_currency,markets:values.markets.trim()||null,channels:values.channels.trim()||null,notes:values.notes.trim()||null,status:values.status,updated_at:new Date().toISOString()};
+    const editing=Boolean(editingCampaignId);
+    const query=editing?supabase.from('ai_marketing_campaigns').update(payload).eq('id',editingCampaignId):supabase.from('ai_marketing_campaigns').insert(payload);
+    const {error}=await query;
+    if(error){$('#campaignMessage').textContent=error.message;toast('Enregistrement impossible : '+error.message,true);return;}
+    toast(editing?'Campagne mise à jour.':'Campagne créée.');resetCampaignForm();await loadCampaigns();
+  });
+  $('#campaignCancel').addEventListener('click',resetCampaignForm);
+
   $('#strategyForm').addEventListener('submit',async e=>{
     e.preventDefault();
     if(!supabase||!user)return;
