@@ -14,7 +14,9 @@
     $$('.view').forEach(v=>v.classList.toggle('active-view',v.id===`view-${view}`));
     $$('.nav-item[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===view));
     const names={overview:"Vue d'ensemble",brand:'Identité artistique',library:'Bibliothèque média',agent:'Configuration IA',connections:'Réseaux sociaux'};
-    $('#pageTitle').textContent=names[view]; $('#crumb').textContent=view==='overview'?'CENTRE DE COMMANDE':'NURIA DOLL · '+names[view].toUpperCase(); hide($('#sidebar'));
+    $('#pageTitle').textContent=names[view]; $('#crumb').textContent=view==='overview'?'CENTRE DE COMMANDE':'NURIA DOLL · '+names[view].toUpperCase();
+    $('#backToDashboard').classList.toggle('hidden',view==='overview');
+    if(window.innerWidth<=760) $('#sidebar').classList.remove('open');
   }
   function authMode(){ $('#authTitle').textContent=signupMode?'Créer ton compte':'Connexion'; $('#authSubtitle').textContent=signupMode?'Crée ton accès privé de parent ou gestionnaire.':'Connecte-toi à ton espace de gestion privé.'; $('#authSubmit').innerHTML=signupMode?'Créer mon compte <span>→</span>':'Se connecter <span>→</span>'; $('#authSwitchText').textContent=signupMode?'Tu as déjà un compte ?':'Pas encore de compte ?'; $('#authSwitch').textContent=signupMode?'Se connecter':'Créer un compte'; $('#authPassword').autocomplete=signupMode?'new-password':'current-password'; }
   async function init(){
@@ -26,8 +28,23 @@
   async function enterApp(){ hide($('#authScreen')); show($('#appShell')); $('#userEmail').textContent=user.email||'Compte connecté'; await Promise.all([loadProfile(),loadSettings(),loadMedia()]); }
   async function loadProfile(){const {data,error}=await supabase.from('ai_brand_profile').select('*').maybeSingle();if(error){toast('Chargement du profil : '+error.message,true);return;}profile=data;if(data){const f=$('#brandForm');Object.entries(data).forEach(([k,v])=>{const el=f.elements[k];if(el&&v!==null)el.value=v;});$('#profileStatus').textContent='Configuré';$('#brandCheck').classList.add('done');$('#brandCheck').textContent='✓';}else $('#profileStatus').textContent='À compléter';}
   async function loadSettings(){const {data,error}=await supabase.from('ai_settings').select('*').maybeSingle();if(error)return;settings=data;if(data){const f=$('#settingsForm');['primary_goal','planning_horizon','autonomy_mode','monthly_budget_usd'].forEach(k=>{if(f.elements[k]&&data[k]!==null)f.elements[k].value=data[k];});}}
-  async function loadMedia(){const {data,error}=await supabase.from('ai_media_library').select('*').order('created_at',{ascending:false});if(error){toast('Chargement des médias : '+error.message,true);return;}media=data||[];renderMedia();}
-  function renderMedia(){ $('#mediaCount').textContent=media.length;$('#libraryCount').textContent=`${media.length} fichier${media.length>1?'s':''}`;$('#mediaCheck').classList.toggle('done',media.length>0);$('#mediaCheck').textContent=media.length?'✓':'3';$('#mediaList').innerHTML='';if(!media.length){$('#mediaList').innerHTML='<div class="empty-state">Ta bibliothèque est vide. Ajoute tes premiers médias pour commencer.</div>';return;}media.forEach(item=>{const card=document.createElement('article');card.className='media-card';const icon=item.mime_type?.startsWith('image/')?'▧':item.mime_type?.startsWith('video/')?'▶':item.mime_type?.startsWith('audio/')?'♫':'▤';const meta=document.createElement('div');meta.className='media-thumb';meta.textContent=icon;const info=document.createElement('div');info.className='media-info';const name=document.createElement('strong');name.textContent=item.file_name;const type=document.createElement('small');type.textContent=`${item.category||'Autre'} · ${new Date(item.created_at).toLocaleDateString('fr-FR')}`;info.append(name,type);const del=document.createElement('button');del.className='icon-btn';del.textContent='×';del.title='Supprimer';del.onclick=()=>deleteMedia(item);card.append(meta,info,del);$('#mediaList').append(card);});}
+  async function loadMedia(){const {data,error}=await supabase.from('ai_media_library').select('*').order('created_at'  async function renderMedia(){
+    $('#mediaCount').textContent=media.length;$('#libraryCount').textContent=`${media.length} fichier${media.length>1?'s':''}`;$('#mediaCheck').classList.toggle('done',media.length>0);$('#mediaCheck').textContent=media.length?'✓':'3';$('#mediaList').innerHTML='';
+    if(!media.length){$('#mediaList').innerHTML='<div class="empty-state">Ta bibliothèque est vide. Ajoute tes premiers médias pour commencer.</div>';return;}
+    for(const item of media){
+      const card=document.createElement('article');card.className='media-card';
+      const isImage=item.mime_type?.startsWith('image/');
+      const icon=isImage?'▧':item.mime_type?.startsWith('video/')?'▶':item.mime_type?.startsWith('audio/')?'♫':'▤';
+      const meta=isImage?document.createElement('button'):document.createElement('div');meta.className='media-thumb'+(isImage?' media-thumb-button':'');meta.type=isImage?'button':undefined;meta.textContent=icon;
+      if(isImage){
+        const {data,error}=await supabase.storage.from('nuria-private-media').createSignedUrl(item.storage_path,3600);
+        if(!error&&data?.signedUrl){const img=document.createElement('img');img.src=data.signedUrl;img.alt=item.file_name;img.loading='lazy';img.onerror=()=>{meta.textContent='▧';};meta.textContent='';meta.append(img);meta.title='Ouvrir l’image en grand';meta.onclick=()=>window.open(data.signedUrl,'_blank','noopener,noreferrer');}
+        else {meta.title='Aperçu indisponible';meta.setAttribute('aria-label','Aperçu indisponible');}
+      }
+      const info=document.createElement('div');info.className='media-info';const name=document.createElement('strong');name.textContent=item.file_name;const type=document.createElement('small');type.textContent=`${item.category||'Autre'} · ${new Date(item.created_at).toLocaleDateString('fr-FR')}`;info.append(name,type);
+      const del=document.createElement('button');del.className='icon-btn';del.textContent='×';del.title='Supprimer';del.onclick=()=>deleteMedia(item);card.append(meta,info,del);$('#mediaList').append(card);
+    }
+  }
   async function deleteMedia(item){if(!confirm(`Supprimer ${item.file_name} de la bibliothèque ?`))return;const {error:storageError}=await supabase.storage.from('nuria-private-media').remove([item.storage_path]);if(storageError){toast(storageError.message,true);return;}const {error}=await supabase.from('ai_media_library').delete().eq('id',item.id);if(error){toast(error.message,true);return;}toast('Fichier supprimé.');await loadMedia();}
   $('#authForm').addEventListener('submit',async e=>{e.preventDefault();if(!supabase)return;const email=$('#authEmail').value,password=$('#authPassword').value;const method=signupMode?supabase.auth.signUp({email,password}):supabase.auth.signInWithPassword({email,password});const {data,error}=await method;if(error){toast(error.message,true);return;}if(signupMode&&!data.session)toast('Compte créé. Vérifie ton e-mail pour confirmer ton adresse.');else toast('Connexion réussie.');});
   $('#authSwitch').onclick=()=>{signupMode=!signupMode;authMode();};
