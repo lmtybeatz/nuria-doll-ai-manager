@@ -148,9 +148,11 @@ export async function onRequestGet({ request, env }) {
   const result = await response.json().catch(() => ({}));
   if (!response.ok) return json({ error: "Gemini n'a pas pu récupérer la proposition.", diagnostic: result?.error?.message || "" }, 502);
   if (result.status === "failed" || result.status === "cancelled" || result.status === "incomplete") {
-    const errorDetails = result?.error?.message ||
+    const errorDetails = (typeof result?.error === "string" ? result.error :
+      result?.error?.message || (result?.error ? JSON.stringify(result.error) : "")) ||
       (Array.isArray(result?.errors) ? result.errors.map(e => typeof e === "string" ? e : e?.message || JSON.stringify(e)).join("; ") : "") ||
-      (typeof result?.errors === "string" ? result.errors : "");
+      (typeof result?.errors === "string" ? result.errors : "") ||
+      (result?.status_details ? JSON.stringify(result.status_details) : "");
     const partialAnswer = (result?.steps || [])
       .filter(step => step.type === "model_output")
       .flatMap(step => step.content || [])
