@@ -22,9 +22,24 @@
   function authMode(){ $('#authTitle').textContent=signupMode?'Créer ton compte':'Connexion'; $('#authSubtitle').textContent=signupMode?'Crée ton accès privé de parent ou gestionnaire.':'Connecte-toi à ton espace de gestion privé.'; $('#authSubmit').innerHTML=signupMode?'Créer mon compte <span>→</span>':'Se connecter <span>→</span>'; $('#authSwitchText').textContent=signupMode?'Tu as déjà un compte ?':'Pas encore de compte ?'; $('#authSwitch').textContent=signupMode?'Se connecter':'Créer un compte'; $('#authPassword').autocomplete=signupMode?'new-password':'current-password'; }
   async function init(){
     if(!configured){setupMessage();return;}
-    supabase=window.supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY);
-    const {data:{session}}=await supabase.auth.getSession(); if(session){user=session.user;await enterApp();}else show($('#authScreen'));
-    supabase.auth.onAuthStateChange(async(_event,session)=>{if(session&&!user){user=session.user;await enterApp();}else if(!session&&user){user=null;hide($('#appShell'));show($('#authScreen'));}});
+    if(!window.supabase?.createClient){
+      show($('#authScreen'));
+      $('#authTitle').textContent='Connexion indisponible';
+      $('#authSubtitle').textContent='La bibliothèque de connexion Supabase ne s’est pas chargée. Recharge la page ou essaie sans bloqueur de contenu.';
+      toast('Service de connexion non chargé. Vérifie ta connexion Internet puis recharge la page.',true);
+      return;
+    }
+    try{
+      supabase=window.supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY);
+      const {data:{session},error}=await supabase.auth.getSession();
+      if(error)throw error;
+      if(session){user=session.user;await enterApp();}else show($('#authScreen'));
+      supabase.auth.onAuthStateChange(async(_event,session)=>{if(session&&!user){user=session.user;await enterApp();}else if(!session&&user){user=null;hide($('#appShell'));show($('#authScreen'));}});
+    }catch(error){
+      show($('#authScreen'));
+      $('#authSubtitle').textContent='Impossible d’initialiser la connexion : '+(error.message||'erreur inconnue');
+      toast('Initialisation impossible : '+(error.message||'erreur inconnue'),true);
+    }
   }
   async function enterApp(){ hide($('#authScreen')); show($('#appShell')); $('#userEmail').textContent=user.email||'Compte connecté'; await Promise.all([loadProfile(),loadSettings(),loadMedia(),loadCampaigns()]); await youtubeStatus(); }
   async function loadProfile(){const {data,error}=await supabase.from('ai_brand_profile').select('*').maybeSingle();if(error){toast('Chargement du profil : '+error.message,true);return;}profile=data;if(data){const f=$('#brandForm');Object.entries(data).forEach(([k,v])=>{const el=f.elements[k];if(el&&v!==null)el.value=v;});$('#profileStatus').textContent='Configuré';$('#brandCheck').classList.add('done');$('#brandCheck').textContent='✓';}else $('#profileStatus').textContent='À compléter';}
@@ -88,7 +103,26 @@
     }
   }
   async function deleteMedia(item){if(!confirm(`Supprimer ${item.file_name} de la bibliothèque ?`))return;const {error:storageError}=await supabase.storage.from('nuria-private-media').remove([item.storage_path]);if(storageError){toast(storageError.message,true);return;}const {error}=await supabase.from('ai_media_library').delete().eq('id',item.id);if(error){toast(error.message,true);return;}toast('Fichier supprimé.');await loadMedia();}
-  $('#authForm').addEventListener('submit',async e=>{e.preventDefault();if(!supabase)return;const email=$('#authEmail').value,password=$('#authPassword').value;const method=signupMode?supabase.auth.signUp({email,password}):supabase.auth.signInWithPassword({email,password});const {data,error}=await method;if(error){toast(error.message,true);return;}if(signupMode&&!data.session)toast('Compte créé. Vérifie ton e-mail pour confirmer ton adresse.');else toast('Connexion réussie.');});
+  $('#authForm').addEventListener('submit',async e=>{
+    e.preventDefault();
+    if(!supabase){toast('Le service de connexion n’est pas initialisé. Recharge la page et réessaie.',true);return;}
+    const email=$('#authEmail').value.trim(),password=$('#authPassword').value;
+    const button=$('#authSubmit');
+    button.disabled=true;button.textContent='Connexion en cours…';
+    try{
+      const {data,error}=signupMode
+        ?await supabase.auth.signUp({email,password})
+        :await supabase.auth.signInWithPassword({email,password});
+      if(error)throw error;
+      if(signupMode&&!data.session)toast('Compte créé. Vérifie ton e-mail pour confirmer ton adresse.');
+      else toast('Connexion réussie.');
+    }catch(error){
+      toast(error.message||'La connexion a échoué. Réessaie.',true);
+    }finally{
+      button.disabled=false;
+      button.innerHTML=signupMode?'Créer mon compte <span>→</span>':'Se connecter <span>→</span>';
+    }
+  });
   $('#authSwitch').onclick=()=>{signupMode=!signupMode;authMode();};
   $('#signOut').onclick=async()=>{await supabase.auth.signOut();user=null;hide($('#appShell'));show($('#authScreen'));};
   $$('.nav-item[data-view]').forEach(b=>b.onclick=()=>nav(b.dataset.view));$$('[data-goto]').forEach(b=>b.onclick=()=>nav(b.dataset.goto));
