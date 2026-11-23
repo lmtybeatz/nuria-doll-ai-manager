@@ -118,7 +118,7 @@
     }catch(err){status.textContent=err.message||'Une erreur est survenue.';toast(status.textContent,true);}
     finally{submit.disabled=false;submit.innerHTML='Générer une proposition <span>→</span>';}
   });
-  $('[data-prompt]').forEach(button=>button.addEventListener('click',()=>{$('#assistantTask').value=button.dataset.prompt;$('#assistantTask').focus();}));
+  Array.from(document.querySelectorAll('[data-prompt]')).forEach(button=>button.addEventListener('click',()=>{$('#assistantTask').value=button.dataset.prompt;$('#assistantTask').focus();}));
   $('#copyAssistant').addEventListener('click',async()=>{
     const value=$('#assistantAnswer').textContent;
     try{await navigator.clipboard.writeText(value);toast('Brouillon copié.');}
