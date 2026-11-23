@@ -384,7 +384,7 @@
         return Number.isInteger(code)&&code>=0&&code<=0x10ffff&&!(code>=0xd800&&code<=0xdfff)?String.fromCodePoint(code):match;
       })
       .replace(/&([a-z]+);/gi,(match,name)=>Object.prototype.hasOwnProperty.call(namedEntities,name.toLowerCase())?namedEntities[name.toLowerCase()]:match)
-      .replace(/\\?\s*<br\s*\/?>/gi,'\n')
+      .replace(/\\?\s*<br\s*\/?>/gi,'; ')
       .replace(/\\([*_\x60])/g,'$1');
   }
   function renderRecommendationMarkdown(markdown,root){
