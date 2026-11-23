@@ -206,9 +206,11 @@
       if(!response.ok)throw new Error([payload.error||'Le service IA n’a pas répondu correctement.',payload.diagnostic||'',payload.fallback_diagnostic||''].filter(Boolean).join(' — '));
       if(!payload.answer)throw new Error('Aucune proposition exploitable reçue.');
       answer.textContent=payload.answer;
-      const approval=await saveParentApproval('assistant',crypto.randomUUID(),'Proposition de l’assistant',payload.answer);
-      renderApprovalControl(approval,$('#assistantApprovalControl'));
       show(result);
+      try{
+        const approval=await saveParentApproval('assistant',crypto.randomUUID(),'Proposition de l’assistant',payload.answer);
+        renderApprovalControl(approval,$('#assistantApprovalControl'));
+      }catch(approvalError){toast(approvalError.message,true);}
       status.textContent=payload.fallback_used
         ? 'Proposition générée par Cloudflare AI (secours Groq). Vérifie-la avant toute utilisation.'
         : 'Proposition générée par Groq. Vérifie-la avant toute utilisation.';
