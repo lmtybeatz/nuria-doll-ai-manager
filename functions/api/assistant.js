@@ -12,10 +12,10 @@ function json(data, status = 200) {
 
 async function verifySession(request, env) {
   const authorization = request.headers.get("authorization") || "";
-  const tokenMatch = authorization.match(/^Bearer\\s+(.+)$/i);
+  const tokenMatch = authorization.match(/^Bearer\s+(.+)$/i);
   if (!tokenMatch) return { error: json({ error: "Connexion requise." }, 401) };
   try {
-    const response = await fetch(env.SUPABASE_URL.replace(/\\/$/, "") + "/auth/v1/user", {
+    const response = await fetch(env.SUPABASE_URL.replace(/\/$/, "") + "/auth/v1/user", {
       headers: {
         apikey: env.SUPABASE_PUBLISHABLE_KEY,
         authorization: "Bearer " + tokenMatch[1]
@@ -41,8 +41,8 @@ function makePrompt(task, profile) {
 
   const system = `Tu es l'assistant marketing éditorial de NURIA DOLL. Tu aides le parent/manager à préparer des idées, calendriers, légendes, hashtags et campagnes pour un projet musical familial. Réponds en français sauf demande explicite contraire. Sois concret, structuré, adapté aux enfants et aux familles. N'invente jamais de faits, chiffres, partenariats ou résultats. Respecte strictement les consignes parentales fournies. Ne demande et ne révèle jamais l'adresse, l'école, les horaires, la localisation en temps réel, les coordonnées privées ou autres données personnelles de l'enfant. Ne propose pas de conversation privée entre l'enfant et des inconnus. Ne publie, n'envoie, ne commente et ne contacte personne : tu ne fais que préparer des brouillons pour validation par le parent. Si la demande concerne une rencontre, un message privé, une proposition commerciale ou une situation sensible, conseille de la transmettre au parent sans répondre directement.`;
 
-  const user = "IDENTITÉ ARTISTIQUE (informations de marque uniquement)\\n" +
-    JSON.stringify(safeProfile) + "\\n\\nDEMANDE DU PARENT / MANAGER\\n" + task;
+  const user = "IDENTITÉ ARTISTIQUE (informations de marque uniquement)\n" +
+    JSON.stringify(safeProfile) + "\n\nDEMANDE DU PARENT / MANAGER\n" + task;
   return { system, user };
 }
 
