@@ -13,3 +13,24 @@
 /* Phase 2.1 — gestionnaire de campagnes multi-projets */
 .campaign-manager{margin:18px 0 22px}.campaign-help{font-size:11px;margin:12px 0 20px}.campaign-form{border-top:1px solid var(--line);padding-top:18px}.campaign-form-actions{display:flex;gap:9px}.campaign-form-actions .btn{margin:0}.campaign-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:20px}.campaign-card{border:1px solid var(--line);border-radius:12px;padding:15px;background:#fff;min-width:0}.campaign-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.campaign-card h4{font:700 13px Manrope;margin:0 0 5px;overflow-wrap:anywhere}.campaign-type{font-size:9px;color:#8b7a99;text-transform:uppercase;letter-spacing:1px}.campaign-meta{display:flex;flex-wrap:wrap;gap:7px;margin:12px 0}.campaign-meta span{background:#f5f2f7;border-radius:20px;padding:5px 8px;font-size:9px;color:#766b80}.campaign-card p{font-size:10px;color:var(--muted);line-height:1.5;margin:8px 0}.campaign-actions{display:flex;gap:8px;border-top:1px solid var(--line);padding-top:11px;margin-top:12px}.campaign-actions button{border:0;background:#f2edf6;color:#68458a;border-radius:7px;padding:7px 10px;font-size:10px;font-weight:700}.campaign-actions button.delete{background:#fff0f0;color:#a14a4a}.campaign-status{font-size:9px;border-radius:20px;padding:6px 8px;background:#f1edf5;color:#766b80;white-space:nowrap}.campaign-status.active{background:#e7f5ef;color:#39856d}.campaign-status.completed{background:#eaf0fb;color:#5576af}
 @media(max-width:760px){.campaign-list{grid-template-columns:1fr}.campaign-form-actions{width:100%}.campaign-form-actions .btn{flex:1}}
+
+
+/* Phase 3 — lecture sécurisée des informations de la chaîne YouTube */
+.youtube-channel-panel{grid-column:1/-1;margin-top:14px;padding:14px;border:1px solid #e8e0ee;border-radius:12px;background:#fbf9fd;min-width:0}
+.youtube-channel-head{display:flex;align-items:center;gap:11px;min-width:0}
+.youtube-channel-avatar{width:48px;height:48px;object-fit:cover;border-radius:50%;background:#eee8f3;flex-shrink:0}
+.youtube-channel-head>div{min-width:0;display:grid;gap:4px}
+.youtube-channel-head strong{font:700 13px Manrope;overflow-wrap:anywhere;color:#34283e}
+.youtube-channel-head small,.youtube-channel-foot small{font-size:9px;color:#91869a;overflow-wrap:anywhere}
+.youtube-channel-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:14px 0}
+.youtube-channel-stats>div{background:#fff;border:1px solid #eee8f2;border-radius:9px;padding:10px 7px;min-width:0}
+.youtube-channel-stats strong,.youtube-channel-stats small{display:block;text-align:center}
+.youtube-channel-stats strong{font:800 15px Manrope;color:#51376a;overflow-wrap:anywhere}
+.youtube-channel-stats small{font-size:9px;color:#92869a;margin-top:3px}
+.youtube-channel-description{font-size:10px;line-height:1.55;color:#766d7d;white-space:pre-wrap;overflow-wrap:anywhere;max-height:90px;overflow:auto}
+.youtube-channel-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px}
+.youtube-channel-foot a{font-size:10px;font-weight:700;color:#68458a;text-decoration:none}
+.youtube-channel-sync{font-size:9px;color:#8a7d91;margin:10px 0}
+.youtube-channel-panel .btn{margin-top:2px;width:100%}
+.youtube-channel-panel .btn:disabled{opacity:.6;cursor:wait}
+@media(max-width:760px){.youtube-channel-panel{padding:11px}.youtube-channel-stats strong{font-size:13px}}
