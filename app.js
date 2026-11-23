@@ -4,6 +4,8 @@
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => [...document.querySelectorAll(s)];
   let supabase = null, user = null, signupMode = false, profile = null, settings = null, media = [];
+  let latestYoutubeAnalytics=null;
+  const recommendationBusy=new Set();
   let campaigns = [], editingCampaignId = null;
   const toast = (msg, bad=false) => { const el=$('#toast'); el.textContent=msg; el.className='toast show'+(bad?' error':''); setTimeout(()=>el.className='toast',3600); };
   const show = (el) => el.classList.remove('hidden'); const hide = (el) => el.classList.add('hidden');
@@ -300,6 +302,93 @@
     finally{button.disabled=false;}
   }
   const ytNumber=value=>new Intl.NumberFormat('fr-FR',{maximumFractionDigits:0}).format(Number(value||0));
+  function displayYoutubeRecommendation(row){
+    const output=$('#ytRecommendationText');
+    if(!row||!output)return;
+    output.textContent=row.recommendation||'Aucune recommandation disponible.';
+    show($('#ytRecommendationResult'));
+    $('#ytRecommendationMeta').textContent=(row.source==='automatic'?'Analyse automatique':'Analyse demandée')+' · '+Number(row.range_days)+' jours · '+new Date(row.created_at).toLocaleString('fr-FR');
+  }
+  async function loadYoutubeRecommendationHistory(){
+    const list=$('#ytRecommendationHistory');
+    if(!list||!supabase||!user)return;
+    const {data,error}=await supabase.from('ai_marketing_recommendations')
+      .select('id,range_days,end_date,source,recommendation,provider,created_at')
+      .order('created_at',{ascending:false}).limit(6);
+    list.innerHTML='';
+    if(error){list.textContent='Historique indisponible. Vérifie que la migration des recommandations a été exécutée.';return;}
+    if(!data?.length){list.textContent='Aucune analyse enregistrée pour le moment.';return;}
+    data.forEach(row=>{
+      const item=document.createElement('button');
+      item.type='button';item.className='yt-recommendation-history-item';
+      const label=document.createElement('strong');
+      label.textContent=(row.source==='automatic'?'Automatique':'Manuelle')+' · '+row.range_days+' jours';
+      const date=document.createElement('small');
+      date.textContent=new Date(row.created_at).toLocaleString('fr-FR');
+      item.append(label,date);item.addEventListener('click',()=>displayYoutubeRecommendation(row));
+      list.append(item);
+    });
+  }
+  async function generateYoutubeRecommendations(data,range=30,manual=false){
+    const status=$('#ytRecommendationStatus'),button=$('#generateYtRecommendations');
+    if(!data||!user)return;
+    const jobKey=range+':'+data.end_date;
+    if(recommendationBusy.has(jobKey))return;
+    recommendationBusy.add(jobKey);
+    if(manual&&button){button.disabled=true;button.textContent='Analyse en cours…';}
+    if(status)status.textContent=manual?'Nouvelle analyse IA en cours…':'Vérification des recommandations enregistrées…';
+    try{
+      if(!manual){
+        const {data:existing,error:lookupError}=await supabase.from('ai_marketing_recommendations')
+          .select('id,range_days,end_date,source,recommendation,provider,created_at')
+          .eq('range_days',range).eq('end_date',data.end_date).eq('source','automatic')
+          .order('created_at',{ascending:false}).limit(1).maybeSingle();
+        if(lookupError)throw new Error('Historique indisponible. Exécute la migration SQL des recommandations dans Supabase.');
+        if(existing){
+          displayYoutubeRecommendation(existing);
+          if(status)status.textContent='Analyse automatique déjà disponible pour cette période.';
+          await loadYoutubeRecommendationHistory();
+          return;
+        }
+      }
+      const {data:sessionData,error:sessionError}=await supabase.auth.getSession();
+      if(sessionError||!sessionData?.session?.access_token)throw new Error('Session expirée. Reconnecte-toi.');
+      const series=data.series||[];
+      const bestDay=series.reduce((best,item)=>Number(item.views||0)>Number(best?.views||-1)?item:best,null);
+      const recent=series.slice(-7),previous=series.slice(-14,-7);
+      const sumViews=items=>items.reduce((sum,item)=>sum+Number(item.views||0),0);
+      const snapshot={
+        period_days:range,start_date:data.start_date,end_date:data.end_date,
+        totals:data.totals||{},
+        daily_views_average:series.length?Math.round(sumViews(series)/series.length):0,
+        best_day:bestDay?{date:bestDay.date,views:Number(bestDay.views||0)}:null,
+        last_7_days_views:recent.length?sumViews(recent):null,
+        previous_7_days_views:previous.length?sumViews(previous):null,
+        top_videos:(data.top_videos||[]).slice(0,5).map(v=>({title:String(v.title||'Vidéo').slice(0,120),views:Number(v.views||0),minutes_watched:Number(v.minutes_watched||0),average_view_seconds:Number(v.average_view_seconds||0),url:v.url}))
+      };
+      const task='Analyse ces statistiques YouTube de NURIA DOLL et rédige un plan de recommandations marketing concret.\n\n'+
+        'Règles : distingue clairement les faits observés des hypothèses ; ne prétends pas connaître les clics, commentaires ou taux de rétention non fournis ; propose 3 à 5 actions prioritaires, 3 idées de contenus adaptées à un projet musical familial et un mini-plan sur 7 jours. Explique brièvement pourquoi chaque action est proposée. Aucun contenu ne doit exposer la vie privée de l’enfant. Ne publie rien : ce sont uniquement des propositions à valider par le parent. Si les données sont trop limitées, dis-le.\n\nDONNÉES :\n'+JSON.stringify(snapshot);
+      const response=await fetch('/api/assistant',{
+        method:'POST',
+        headers:{'content-type':'application/json','authorization':'Bearer '+sessionData.session.access_token},
+        body:JSON.stringify({task,profile:profile||{artist_name:'NURIA DOLL',genre:'Pop enfantine',target_audience:'Enfants et familles'}})
+      });
+      const payload=await response.json().catch(()=>({}));
+      if(!response.ok||!payload.answer)throw new Error([payload.error||'La génération IA a échoué.',payload.diagnostic||'',payload.fallback_diagnostic||''].filter(Boolean).join(' — '));
+      const row={owner_id:user.id,range_days:range,start_date:data.start_date,end_date:data.end_date,source:manual?'manual':'automatic',recommendation:payload.answer,provider:payload.provider||'unknown',analytics_snapshot:snapshot};
+      const {data:saved,error:saveError}=await supabase.from('ai_marketing_recommendations').insert(row).select('id,range_days,end_date,source,recommendation,provider,created_at').single();
+      if(saveError)throw new Error('Impossible de sauvegarder la recommandation : '+saveError.message+'. Vérifie la migration SQL.');
+      displayYoutubeRecommendation(saved);
+      if(status)status.textContent=(manual?'Nouvelle analyse terminée':'Analyse automatique terminée')+' · '+(payload.fallback_used?'Cloudflare AI':'Groq')+' · À valider par le parent.';
+      await loadYoutubeRecommendationHistory();
+    }catch(error){
+      if(status)status.textContent=error.message||'Analyse des recommandations impossible.';
+      if(manual)toast(error.message||'Analyse impossible.',true);
+    }finally{
+      recommendationBusy.delete(jobKey);
+      if(manual&&button){button.disabled=false;button.textContent='Générer mes recommandations';}
+    }
+  }
   async function loadYoutubeAnalytics(range=30){
     const status=$('#youtubeAnalyticsStatus'),buttonSet=$('#youtubeAnalyticsRanges button');
     buttonSet.forEach(b=>{b.disabled=true;b.classList.toggle('active',Number(b.dataset.range)===range);});
@@ -335,6 +424,8 @@
         info.append(title,meta);item.append(rank,info);list.append(item);
       });
       status.textContent='Statistiques du '+range+' derniers jours · Données arrêtées au '+new Date(d.end_date+'T00:00:00').toLocaleDateString('fr-FR')+' · Actualisé '+new Date(d.synced_at).toLocaleTimeString('fr-FR');
+      latestYoutubeAnalytics=d;
+      void generateYoutubeRecommendations(d,range,false);
     }catch(e){status.textContent='Statistiques indisponibles : '+e.message;toast(e.message,true);}
     finally{buttonSet.forEach(b=>b.disabled=false);}
   }
@@ -352,7 +443,8 @@
     }catch(e){box.textContent='Statut indisponible : '+e.message;}
   }
   $('#refreshYoutube').addEventListener('click',loadYoutubeChannel);
-  $$('#youtubeAnalyticsRanges button').forEach(b=>b.addEventListener('click',()=>loadYoutubeAnalytics(Number(b.dataset.range))));
+  $('#youtubeAnalyticsRanges button').forEach(b=>b.addEventListener('click',()=>loadYoutubeAnalytics(Number(b.dataset.range))));
+  $('#generateYtRecommendations').addEventListener('click',()=>{if(latestYoutubeAnalytics)generateYoutubeRecommendations(latestYoutubeAnalytics,Number(latestYoutubeAnalytics.range||30),true);else $('#ytRecommendationStatus').textContent='Charge d’abord les statistiques YouTube.';});
   $('#connectYoutube').addEventListener('click',async()=>{
     try{
       const {data:{session}}=await supabase.auth.getSession();if(!session?.access_token)throw new Error('Reconnecte-toi.');
