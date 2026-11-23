@@ -51,6 +51,8 @@ export async function onRequestGet({request,env}){
   const startDate=dateOnly(start),endDate=dateOnly(end);
   stage="rapport_quotidien";
   const daily=await report(refreshed.access_token,{ids:"channel==MINE",startDate,endDate,metrics:"views,estimatedMinutesWatched,subscribersGained,subscribersLost",dimensions:"day",sort:"day"});
+  stage="rapport_total";
+  const aggregate=await report(refreshed.access_token,{ids:"channel==MINE",startDate,endDate,metrics:"views,estimatedMinutesWatched,subscribersGained,subscribersLost"});
   stage="meilleures_videos";
   const top=await report(refreshed.access_token,{ids:"channel==MINE",startDate,endDate,metrics:"views,estimatedMinutesWatched,averageViewDuration",dimensions:"video",sort:"-views",maxResults:5});
   const ids=(top.rows||[]).map(row=>row[0]).filter(Boolean);
@@ -63,9 +65,32 @@ export async function onRequestGet({request,env}){
   }
   const headers=daily.columnHeaders||[];
   const idx=Object.fromEntries(headers.map((h,i)=>[h.name,i]));
-  const series=(daily.rows||[]).map(row=>({date:row[idx.day],views:Number(row[idx.views]||0),minutes_watched:Number(row[idx.estimatedMinutesWatched]||0),subscribers_gained:Number(row[idx.subscribersGained]||0),subscribers_lost:Number(row[idx.subscribersLost]||0)}));
+  const rawDailyRows=daily.rows||[];
+  const dailyMap=new Map(rawDailyRows.map(row=>[String(row[idx.day]),row]));
+  const series=[];
+  let daysFilledZero=0;
+  for(let d=new Date(start);d<=end;d.setUTCDate(d.getUTCDate()+1)){
+   const key=dateOnly(d),row=dailyMap.get(key);
+   if(!row)daysFilledZero++;
+   series.push({
+    date:key,
+    views:Number(row?.[idx.views]||0),
+    minutes_watched:Number(row?.[idx.estimatedMinutesWatched]||0),
+    subscribers_gained:Number(row?.[idx.subscribersGained]||0),
+    subscribers_lost:Number(row?.[idx.subscribersLost]||0)
+   });
+  }
+  const totalHeaders=aggregate.columnHeaders||[];
+  const totalIdx=Object.fromEntries(totalHeaders.map((h,i)=>[h.name,i]));
+  const totalRow=(aggregate.rows||[])[0]||[];
+  const totals={
+   views:Number(totalRow[totalIdx.views]||0),
+   minutes_watched:Number(totalRow[totalIdx.estimatedMinutesWatched]||0),
+   subscribers_gained:Number(totalRow[totalIdx.subscribersGained]||0),
+   subscribers_lost:Number(totalRow[totalIdx.subscribersLost]||0)
+  };
   const topVideos=(top.rows||[]).map(row=>({id:row[0],title:details[row[0]]||"Vidéo YouTube",views:Number(row[1]||0),minutes_watched:Number(row[2]||0),average_view_seconds:Number(row[3]||0),url:"https://www.youtube.com/watch?v="+encodeURIComponent(row[0])}));
-  return json({range:days,start_date:startDate,end_date:endDate,series,top_videos:topVideos,totals:series.reduce((a,r)=>({views:a.views+r.views,minutes_watched:a.minutes_watched+r.minutes_watched,subscribers_gained:a.subscribers_gained+r.subscribers_gained,subscribers_lost:a.subscribers_lost+r.subscribers_lost}),{views:0,minutes_watched:0,subscribers_gained:0,subscribers_lost:0}),synced_at:new Date().toISOString()});
+  return json({range:days,start_date:startDate,end_date:endDate,series,daily_api_rows_returned:rawDailyRows.length,daily_days_filled_zero:daysFilledZero,top_videos:topVideos,totals,totals_source:"aggregate_youtube_analytics_report",synced_at:new Date().toISOString()});
  }catch(e){
   console.error("NURIA_YOUTUBE_ANALYTICS_ERROR",JSON.stringify({stage,message:String(e?.message||"erreur inconnue").slice(0,220)}));
   return json({error:String(e?.message||"Erreur lors de la lecture des statistiques YouTube."),stage},502);
