@@ -39,6 +39,28 @@
       <section id="view-brand" class="view"><div class="intro-row"><div><p class="eyebrow">FONDATIONS DE MARQUE</p><h2>Identité artistique</h2><p class="muted">Ces informations guideront les futures créations et recommandations de l'agent.</p></div><span class="tag">Enregistré dans Supabase</span></div><form id="brandForm" class="panel form-panel"><div class="form-grid"><label>Nom d'artiste<input name="artist_name" value="NURIA DOLL" required></label><label>Univers musical<input name="genre" value="Pop enfantine, Afro-pop, Pop"></label><label class="span-2">Présentation artistique<textarea name="bio" rows="3" placeholder="Présente NURIA DOLL en quelques phrases..."></textarea></label><label>Public cible<input name="target_audience" value="Enfants et adultes sensibles à l'univers de l'enfance"></label><label>Langue principale<input name="language" value="Français"></label><label class="span-2">Ton de communication<textarea name="tone" rows="2">Joyeux, bienveillant, créatif, familial et adapté à un public intergénérationnel.</textarea></label><label class="span-2">Consignes parentales et limites<textarea name="parent_guardrails" rows="4">Ne jamais divulguer d'informations personnelles, de localisation, d'école, d'emploi du temps ou de coordonnées de l'enfant. Toute demande sensible, rencontre, proposition commerciale ou message privé doit être transmise au parent. Ne jamais inventer de faits biographiques.</textarea></label><label>Couleur principale<input name="primary_color" type="color" value="#6D45A6"></label><label>Couleur secondaire<input name="secondary_color" type="color" value="#E8B9D4"></label></div><div class="form-footer"><span class="muted" id="brandMessage">Modifie les informations puis enregistre.</span><button class="btn primary" type="submit">Enregistrer le profil <span>→</span></button></div></form></section>
       <section id="view-strategy" class="view">
         <div class="intro-row"><div><p class="eyebrow">PILOTAGE DE CAMPAGNE</p><h2>Stratégie marketing</h2><p class="muted">Construis un plan d'action réaliste pour développer le projet musical de NURIA DOLL.</p></div><span class="tag green">Validation parentale requise</span></div>
+
+        <section class="panel campaign-manager">
+          <div class="panel-head"><div><p class="eyebrow">PORTFOLIO DE CAMPAGNES</p><h3>Mes projets marketing</h3></div><span class="tag" id="campaignCount">0 campagne</span></div>
+          <p class="muted campaign-help">Crée une fiche distincte pour chaque single, album ou campagne de marque. Les données sont privées et rattachées à ton compte.</p>
+          <form id="campaignForm" class="campaign-form">
+            <input type="hidden" name="id">
+            <div class="form-grid">
+              <label>Type de projet<select name="project_type" required><option value="single">Single / sortie musicale</option><option value="album">Album / EP</option><option value="brand">Marque NURIA DOLL</option></select></label>
+              <label>Nom du projet<input name="project_name" maxlength="180" required placeholder="Ex. : Papa dis moi"></label>
+              <label>Objectif principal<input name="objective" maxlength="240" required value="Lancement et promotion"></label>
+              <label>Durée<select name="duration_days"><option value="30">30 jours</option><option value="60">60 jours</option><option value="90">90 jours</option><option value="180">180 jours</option><option value="365">365 jours</option></select></label>
+              <label>Budget prévu<input name="budget_amount" type="number" min="0" step="1" placeholder="Ex. : 50000"></label>
+              <label>Devise<select name="budget_currency"><option value="XOF">FCFA (XOF)</option><option value="EUR">Euro (EUR)</option><option value="USD">Dollar (USD)</option></select></label>
+              <label class="span-2">Territoires ciblés<input name="markets" maxlength="500" placeholder="Ex. : Bénin, France, Europe francophone"></label>
+              <label class="span-2">Canaux prioritaires<input name="channels" maxlength="700" placeholder="Radios, presse, YouTube, TikTok..."></label>
+              <label class="span-2">Notes<textarea name="notes" rows="2" maxlength="2000" placeholder="Dates, liens, éléments disponibles, partenaires confirmés..."></textarea></label>
+              <label>État de la campagne<select name="status"><option value="draft">Brouillon</option><option value="planned">Planifiée</option><option value="active">En cours</option><option value="completed">Terminée</option><option value="archived">Archivée</option></select></label>
+            </div>
+            <div class="form-footer"><span class="muted" id="campaignMessage">Les campagnes restent modifiables.</span><div class="campaign-form-actions"><button type="button" class="btn secondary" id="campaignCancel">Annuler</button><button class="btn primary" id="campaignSave" type="submit">Enregistrer le projet <span>→</span></button></div></div>
+          </form>
+          <div id="campaignList" class="campaign-list"><div class="empty-state">Chargement des campagnes…</div></div>
+        </section>
         <form id="strategyForm" class="panel form-panel">
           <div class="form-grid">
             <label class="span-2">Projet ou chanson à promouvoir<input name="project" value="Papa dis moi — premier single de DOLL & FRIENDS" maxlength="180" required></label>
