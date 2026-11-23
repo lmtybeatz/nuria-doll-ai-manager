@@ -13,7 +13,7 @@
   function nav(view) {
     $$('.view').forEach(v=>v.classList.toggle('active-view',v.id===`view-${view}`));
     $$('.nav-item[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===view));
-    const names={overview:"Vue d'ensemble",brand:'Identité artistique',library:'Bibliothèque média',agent:'Configuration IA',connections:'Réseaux sociaux'};
+    const names={overview:"Vue d'ensemble",brand:'Identité artistique',strategy:'Stratégie marketing',library:'Bibliothèque média',agent:'Configuration IA',connections:'Réseaux sociaux'};
     $('#pageTitle').textContent=names[view]; $('#crumb').textContent=view==='overview'?'CENTRE DE COMMANDE':'NURIA DOLL · '+names[view].toUpperCase();
     $('#backToDashboard').classList.toggle('hidden',view==='overview');
     if(window.innerWidth<=760) $('#sidebar').classList.remove('open');
@@ -121,6 +121,58 @@
         : 'Proposition générée par Groq. Vérifie-la avant toute utilisation.';
     }catch(err){status.textContent=err.message||'Une erreur est survenue.';toast(status.textContent,true);}
     finally{submit.disabled=false;submit.innerHTML='Générer une proposition <span>→</span>';}
+  });
+  $('#strategyForm').addEventListener('submit',async e=>{
+    e.preventDefault();
+    if(!supabase||!user)return;
+    const form=new FormData(e.currentTarget);
+    const values=Object.fromEntries(form.entries());
+    const task=[
+      "Élabore une stratégie marketing opérationnelle, réaliste et détaillée pour NURIA DOLL.",
+      "PROJET : "+values.project,
+      "OBJECTIF PRINCIPAL : "+values.objective,
+      "DURÉE : "+values.duration,
+      "BUDGET TOTAL INDICATIF : "+values.budget+" (FCFA). Ne dépasse pas cette enveloppe et distingue les actions gratuites des dépenses éventuelles.",
+      "TERRITOIRES : "+values.markets,
+      "CANAUX PRIORITAIRES : "+values.channels,
+      "INFORMATIONS COMPLÉMENTAIRES : "+(values.notes||"Aucune information complémentaire fournie."),
+      "",
+      "CONSIGNES DE LIVRABLE :",
+      "1. Fais un bref diagnostic et formule le positionnement de campagne.",
+      "2. Définis 3 à 5 objectifs concrets et des indicateurs mesurables, sans inventer de résultats ni de benchmarks.",
+      "3. Propose un plan d'action par semaine adapté à la durée demandée.",
+      "4. Répartis le budget en FCFA, avec un total qui ne dépasse jamais l'enveloppe; indique les actions gratuites et les dépenses optionnelles.",
+      "5. Prépare un volet relations radios, médias, presse et labels : types de contacts à cibler, éléments à préparer et approche. N'invente aucun nom de contact, partenariat ou accord.",
+      "6. Propose les contenus à produire pour les réseaux et plateformes indiqués.",
+      "7. Termine par une liste de préparation, les risques/points à confirmer et les 5 prochaines actions prioritaires.",
+      "Adapte absolument la communication à un projet musical porté par une enfant : le parent est l'interlocuteur unique, aucune sollicitation privée de l'enfant, aucune information personnelle, localisation, école ou emploi du temps. Toutes les prises de contact, dépenses et publications restent à valider et exécuter par le parent. Signale clairement les informations manquantes au lieu de les inventer."
+    ].join("\n");
+    const submit=$('#strategySubmit'),result=$('#strategyResult'),status=$('#strategyStatus'),answer=$('#strategyAnswer');
+    submit.disabled=true;submit.textContent='Analyse et préparation…';status.textContent='L’assistant prépare le plan stratégique…';show(result);answer.textContent='';
+    try{
+      const {data:{session},error:sessionError}=await supabase.auth.getSession();
+      if(sessionError||!session?.access_token)throw new Error('Session expirée. Reconnecte-toi.');
+      const response=await fetch('/api/assistant',{
+        method:'POST',
+        headers:{'content-type':'application/json','authorization':'Bearer '+session.access_token},
+        body:JSON.stringify({task,profile:profile||{artist_name:'NURIA DOLL',genre:'Pop enfantine'}})
+      });
+      const payload=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error([payload.error||'Le service IA n’a pas répondu correctement.',payload.diagnostic||'',payload.fallback_diagnostic||''].filter(Boolean).join(' — '));
+      if(!payload.answer)throw new Error('Aucune stratégie exploitable reçue.');
+      answer.textContent=payload.answer;
+      status.textContent=payload.fallback_used?'Généré par Cloudflare AI (secours Groq).':'Généré par Groq.';
+    }catch(err){
+      status.textContent=err.message||'Une erreur est survenue.';
+      toast(status.textContent,true);
+    }finally{
+      submit.disabled=false;submit.innerHTML='Générer ma stratégie <span>→</span>';
+    }
+  });
+  $('#copyStrategy').addEventListener('click',async()=>{
+    const value=$('#strategyAnswer').textContent;
+    try{await navigator.clipboard.writeText(value);toast('Stratégie copiée.');}
+    catch{toast('Copie indisponible sur ce navigateur.',true);}
   });
   Array.from(document.querySelectorAll('[data-prompt]')).forEach(button=>button.addEventListener('click',()=>{$('#assistantTask').value=button.dataset.prompt;$('#assistantTask').focus();}));
   $('#copyAssistant').addEventListener('click',async()=>{
