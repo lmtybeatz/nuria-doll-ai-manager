@@ -334,7 +334,9 @@
         table.append(tbody);root.append(table);continue;
       }
       const heading=line.match(/^(#{1,3})\s+(.+)$/);
+      const reportSection=line.match(/^\*{0,2}([A-H])\.\s+(.+?)\*{0,2}$/i);
       if(heading){const el=document.createElement(heading[1].length===1?'h2':heading[1].length===2?'h3':'h4');appendReportInline(el,heading[2]);root.append(el);i++;continue;}
+      if(reportSection){const el=document.createElement('h2');appendReportInline(el,reportSection[1]+'. '+reportSection[2]);root.append(el);i++;continue;}
       if(/^[-•]\s+/.test(line)){
         const list=document.createElement('ul');
         while(i<lines.length&&/^\s*[-•]\s+/.test(lines[i])){const li=document.createElement('li');appendReportInline(li,lines[i].trim().replace(/^[-•]\s+/,''));list.append(li);i++;}
