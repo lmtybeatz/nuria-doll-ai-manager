@@ -302,13 +302,62 @@
     finally{button.disabled=false;}
   }
   const ytNumber=value=>new Intl.NumberFormat('fr-FR',{maximumFractionDigits:0}).format(Number(value||0));
+  function appendReportInline(parent,text){
+    const pattern=/\*\*(.+?)\*\*|\*(.+?)\*|\x60([^\x60]+)\x60|\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
+    let cursor=0,match;
+    while((match=pattern.exec(text))){
+      if(match.index>cursor)parent.append(document.createTextNode(text.slice(cursor,match.index)));
+      let node;
+      if(match[1]){node=document.createElement('strong');node.textContent=match[1];}
+      else if(match[2]){node=document.createElement('em');node.textContent=match[2];}
+      else if(match[3]){node=document.createElement('code');node.textContent=match[3];}
+      else{node=document.createElement('a');node.textContent=match[4];node.href=match[5];node.target='_blank';node.rel='noopener noreferrer';}
+      parent.append(node);cursor=pattern.lastIndex;
+    }
+    if(cursor<text.length)parent.append(document.createTextNode(text.slice(cursor)));
+  }
+  function renderRecommendationMarkdown(markdown,root){
+    root.replaceChildren();
+    const lines=String(markdown||'').replace(/\r/g,'').split('\n');
+    let i=0;
+    const isTableLine=line=>/^\s*\|.*\|\s*$/.test(line);
+    const isDivider=line=>/^\s*(---+|\*\s*\*\s*\*|___+)\s*$/.test(line);
+    while(i<lines.length){
+      const raw=lines[i],line=raw.trim();
+      if(!line){i++;continue;}
+      if(isDivider(line)){root.append(document.createElement('hr'));i++;continue;}
+      if(isTableLine(line)&&i+1<lines.length&&/^\s*\|?\s*:?-{3,}/.test(lines[i+1])){
+        const table=document.createElement('table'),thead=document.createElement('thead'),tbody=document.createElement('tbody');
+        const cells=value=>value.trim().replace(/^\||\|$/g,'').split('|').map(v=>v.trim());
+        const head=document.createElement('tr');cells(line).forEach(value=>{const th=document.createElement('th');appendReportInline(th,value);head.append(th);});thead.append(head);table.append(thead);i+=2;
+        while(i<lines.length&&isTableLine(lines[i])){const tr=document.createElement('tr');cells(lines[i]).forEach(value=>{const td=document.createElement('td');appendReportInline(td,value);tr.append(td);});tbody.append(tr);i++;}
+        table.append(tbody);root.append(table);continue;
+      }
+      const heading=line.match(/^(#{1,3})\s+(.+)$/);
+      if(heading){const el=document.createElement(heading[1].length===1?'h2':heading[1].length===2?'h3':'h4');appendReportInline(el,heading[2]);root.append(el);i++;continue;}
+      if(/^[-•]\s+/.test(line)){
+        const list=document.createElement('ul');
+        while(i<lines.length&&/^\s*[-•]\s+/.test(lines[i])){const li=document.createElement('li');appendReportInline(li,lines[i].trim().replace(/^[-•]\s+/,''));list.append(li);i++;}
+        root.append(list);continue;
+      }
+      if(/^\d+[.)]\s+/.test(line)){
+        const list=document.createElement('ol');
+        while(i<lines.length&&/^\s*\d+[.)]\s+/.test(lines[i])){const li=document.createElement('li');appendReportInline(li,lines[i].trim().replace(/^\d+[.)]\s+/,''));list.append(li);i++;}
+        root.append(list);continue;
+      }
+      if(line.startsWith('>')){const quote=document.createElement('blockquote');appendReportInline(quote,line.replace(/^>\s?/,''));root.append(quote);i++;continue;}
+      const p=document.createElement('p');appendReportInline(p,line);root.append(p);i++;
+    }
+  }
   function displayYoutubeRecommendation(row){
     const output=$('#ytRecommendationText');
     if(!row||!output)return;
-    output.textContent=row.recommendation||'Aucune recommandation disponible.';
+    renderRecommendationMarkdown(row.recommendation||'Aucune recommandation disponible.',output);
     show($('#ytRecommendationResult'));
     $('#ytRecommendationMeta').textContent=(row.source==='automatic'?'Analyse automatique':'Analyse demandée')+' · '+Number(row.range_days)+' jours · '+new Date(row.created_at).toLocaleString('fr-FR');
   }
+  const printReport=()=>{document.body.classList.add('printing-youtube-report');window.print();setTimeout(()=>document.body.classList.remove('printing-youtube-report'),500);};
+  document.addEventListener('click',event=>{if(event.target.closest('#printYoutubeReport'))printReport();});
   async function loadYoutubeRecommendationHistory(){
     const list=$('#ytRecommendationHistory');
     if(!list||!supabase||!user)return;
