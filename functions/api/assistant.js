@@ -87,12 +87,16 @@ export async function onRequestPost({ request, env }) {
 
   const result = await aiResponse.json().catch(() => ({}));
   if (!aiResponse.ok) {
-    // Avoid returning provider details that might contain sensitive configuration.
+    // Return a limited diagnostic from Google, never the API key or request headers.
+    const providerMessage = typeof result?.error?.message === "string"
+      ? result.error.message.slice(0, 500)
+      : "Aucun détail fourni par Google.";
     const status = aiResponse.status === 429 ? 429 : 502;
     return json({
       error: status === 429
         ? "La limite temporaire de Gemini est atteinte. Réessaie plus tard."
-        : "Gemini n'a pas pu traiter la demande. Vérifie la configuration de la clé API."
+        : "Gemini a refusé la requête (HTTP " + aiResponse.status + ").",
+      diagnostic: providerMessage
     }, status);
   }
 
