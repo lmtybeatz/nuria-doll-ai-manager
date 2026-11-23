@@ -191,7 +191,7 @@
       "PROJET : "+values.project,
       "OBJECTIF PRINCIPAL : "+values.objective,
       "DURÉE : "+values.duration,
-      "BUDGET TOTAL INDICATIF : "+values.budget+" (FCFA). Ne dépasse pas cette enveloppe et distingue les actions gratuites des dépenses éventuelles.",
+      "BUDGET TOTAL INDICATIF : "+values.budget+" (FCFA). Ne dépasse jamais cette enveloppe. Si le budget est de 0 FCFA, construis exclusivement un plan sans dépense : actions organiques gratuites, contenus réalisables avec les moyens disponibles, démarchage direct non payant et partenariats à solliciter sans garantie. N’inclus aucun achat publicitaire, prestation payante ni frais caché.",
       "TERRITOIRES : "+values.markets,
       "CANAUX PRIORITAIRES : "+values.channels,
       "INFORMATIONS COMPLÉMENTAIRES : "+(values.notes||"Aucune information complémentaire fournie."),
