@@ -125,10 +125,10 @@ export async function onRequestGet({ request, env }) {
     return json({ error: "Configuration serveur incomplète." }, 500);
   }
   const authorization = request.headers.get("authorization") || "";
-  const tokenMatch = authorization.match(/^Bearer\\s+(.+)$/i);
+  const tokenMatch = authorization.match(/^Bearer\s+(.+)$/i);
   if (!tokenMatch) return json({ error: "Connexion requise." }, 401);
   try {
-    const auth = await fetch(env.SUPABASE_URL.replace(/\\/$/, "") + "/auth/v1/user", {
+    const auth = await fetch(env.SUPABASE_URL.replace(/\/$/, "") + "/auth/v1/user", {
       headers: { apikey: env.SUPABASE_PUBLISHABLE_KEY, authorization: "Bearer " + tokenMatch[1] }
     });
     if (!auth.ok) return json({ error: "Session expirée ou invalide. Reconnecte-toi." }, 401);
