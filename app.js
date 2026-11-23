@@ -43,7 +43,61 @@
       toast('Initialisation impossible : '+(error.message||'erreur inconnue'),true);
     }
   }
-  async function enterApp(){ hide($('#authScreen')); show($('#appShell')); $('#userEmail').textContent=user.email||'Compte connecté'; await Promise.all([loadProfile(),loadSettings(),loadMedia(),loadCampaigns()]); await youtubeStatus(); }
+  async function enterApp(){ hide($('#authScreen')); show($('#appShell')); $('#userEmail').textContent=user.email||'Compte connecté'; await Promise.all([loadProfile(),loadSettings(),loadMedia(),loadCampaigns(),loadParentApprovals()]); await youtubeStatus(); }
+
+  let parentApprovals=[];
+  async function saveParentApproval(sourceType,sourceKey,title,content){
+    const payload={owner_id:user.id,source_type:sourceType,source_key:sourceKey,title,content,updated_at:new Date().toISOString()};
+    const {data,error}=await supabase.from('ai_parent_approvals').upsert(payload,{onConflict:'owner_id,source_type,source_key'}).select('*').single();
+    if(error)throw new Error('Enregistrement de la validation impossible : '+error.message+'. Vérifie que la migration parent_approvals.sql a été exécutée.');
+    const index=parentApprovals.findIndex(x=>x.id===data.id);
+    if(index>=0)parentApprovals[index]=data;else parentApprovals.unshift(data);
+    renderParentApprovals();
+    return data;
+  }
+  function renderApprovalControl(record,target){
+    if(!target)return;
+    target.innerHTML='';
+    const wrap=document.createElement('div');wrap.className='parent-approval-control';
+    const status=document.createElement('span');status.className='tag '+(record.approved?'green':'amber');
+    status.textContent=record.approved?'Validée par le parent':'En attente de validation';
+    const button=document.createElement('button');button.type='button';button.className='btn '+(record.approved?'secondary':'primary')+' parent-approval-button';
+    button.textContent=record.approved?'Annuler la validation':'Valider cette proposition';
+    button.addEventListener('click',async()=>{
+      const next=!record.approved;
+      const prompt=next?'Confirmer que tu as vérifié cette proposition et que tu l’autorises à être utilisée ?':'Annuler la validation parentale de cette proposition ?';
+      if(!confirm(prompt))return;
+      button.disabled=true;
+      const {data,error}=await supabase.from('ai_parent_approvals').update({approved:next,approved_at:next?new Date().toISOString():null,updated_at:new Date().toISOString()}).eq('id',record.id).select('*').single();
+      button.disabled=false;
+      if(error){toast('Mise à jour impossible : '+error.message,true);return;}
+      const i=parentApprovals.findIndex(x=>x.id===data.id);if(i>=0)parentApprovals[i]=data;
+      renderApprovalControl(data,target);renderParentApprovals();
+      toast(next?'Proposition validée par le parent.':'Validation annulée.');
+    });
+    wrap.append(status,button);target.append(wrap);
+  }
+  function renderParentApprovals(){
+    const list=$('#parentApprovalHistory');if(!list)return;
+    list.innerHTML='';
+    if(!parentApprovals.length){list.textContent='Aucune proposition enregistrée pour le moment.';return;}
+    parentApprovals.forEach(record=>{
+      const item=document.createElement('article');item.className='parent-approval-item';
+      const info=document.createElement('div');const title=document.createElement('strong');title.textContent=record.title;
+      const meta=document.createElement('small');meta.textContent=(record.source_type==='youtube'?'Recommandations YouTube':record.source_type==='strategy'?'Stratégie marketing':'Assistant marketing')+' · '+new Date(record.created_at).toLocaleString('fr-FR');
+      const state=document.createElement('span');state.className='tag '+(record.approved?'green':'amber');state.textContent=record.approved?'Validée':'À valider';
+      info.append(title,meta);item.append(info,state);
+      const button=document.createElement('button');button.type='button';button.className='text-btn';button.textContent='Afficher';
+      button.addEventListener('click',()=>{const text=record.content;const win=window.open('','_blank');if(!win){toast('Autorise les fenêtres contextuelles pour afficher cette proposition.',true);return;}win.document.write('<!doctype html><html lang="fr"><meta charset="utf-8"><title>'+escapeText(record.title)+'</title><body style="font:15px/1.7 Arial,sans-serif;max-width:850px;margin:40px auto;padding:0 20px;color:#302638"><h1>'+escapeText(record.title)+'</h1><pre style="white-space:pre-wrap;font:inherit">'+escapeText(text)+'</pre></body></html>');win.document.close();});
+      item.append(button);list.append(item);
+    });
+  }
+  async function loadParentApprovals(){
+    const {data,error}=await supabase.from('ai_parent_approvals').select('*').order('created_at',{ascending:false}).limit(50);
+    if(error){const list=$('#parentApprovalHistory');if(list)list.textContent='Historique indisponible. Exécute la migration SQL parent_approvals.sql dans le projet Supabase de l’AI Manager.';return;}
+    parentApprovals=data||[];renderParentApprovals();
+  }
+
   async function loadProfile(){const {data,error}=await supabase.from('ai_brand_profile').select('*').maybeSingle();if(error){toast('Chargement du profil : '+error.message,true);return;}profile=data;if(data){const f=$('#brandForm');Object.entries(data).forEach(([k,v])=>{const el=f.elements[k];if(el&&v!==null)el.value=v;});$('#profileStatus').textContent='Configuré';$('#brandCheck').classList.add('done');$('#brandCheck').textContent='✓';}else $('#profileStatus').textContent='À compléter';}
   async function loadSettings(){const {data,error}=await supabase.from('ai_settings').select('*').maybeSingle();if(error)return;settings=data;if(data){const f=$('#settingsForm');['primary_goal','planning_horizon','autonomy_mode','monthly_budget_usd'].forEach(k=>{if(f.elements[k]&&data[k]!==null)f.elements[k].value=data[k];});}}
   async function loadMedia(){
@@ -152,6 +206,8 @@
       if(!response.ok)throw new Error([payload.error||'Le service IA n’a pas répondu correctement.',payload.diagnostic||'',payload.fallback_diagnostic||''].filter(Boolean).join(' — '));
       if(!payload.answer)throw new Error('Aucune proposition exploitable reçue.');
       answer.textContent=payload.answer;
+      const approval=await saveParentApproval('assistant',crypto.randomUUID(),'Proposition de l’assistant',payload.answer);
+      renderApprovalControl(approval,$('#assistantApprovalControl'));
       show(result);
       status.textContent=payload.fallback_used
         ? 'Proposition générée par Cloudflare AI (secours Groq). Vérifie-la avant toute utilisation.'
@@ -256,6 +312,8 @@
       if(!response.ok)throw new Error([payload.error||'Le service IA n’a pas répondu correctement.',payload.diagnostic||'',payload.fallback_diagnostic||''].filter(Boolean).join(' — '));
       if(!payload.answer)throw new Error('Aucune stratégie exploitable reçue.');
       answer.textContent=payload.answer;
+      const approval=await saveParentApproval('strategy',crypto.randomUUID(),'Stratégie marketing',payload.answer);
+      renderApprovalControl(approval,$('#strategyApprovalControl'));
       status.textContent=payload.fallback_used?'Généré par Cloudflare AI (secours Groq).':'Généré par Groq.';
     }catch(err){
       status.textContent=err.message||'Une erreur est survenue.';
@@ -360,6 +418,8 @@
     if(toggle){toggle.textContent='Lire la suite';toggle.setAttribute('aria-expanded','false');}
     show($('#ytRecommendationResult'));
     $('#ytRecommendationMeta').textContent=(row.source==='automatic'?'Analyse automatique':'Analyse demandée')+' · '+Number(row.range_days)+' jours · '+new Date(row.created_at).toLocaleString('fr-FR');
+    const approvalTarget=$('#ytApprovalControl');
+    if(approvalTarget){approvalTarget.innerHTML='';(async()=>{try{let record=parentApprovals.find(x=>x.source_type==='youtube'&&x.source_key===String(row.id));if(!record)record=await saveParentApproval('youtube',String(row.id),'Recommandations YouTube · '+Number(row.range_days)+' jours',row.recommendation||'');renderApprovalControl(record,approvalTarget);}catch(error){approvalTarget.textContent=error.message;}})();}
   }
   const printReport=()=>{
     document.body.classList.add('printing-youtube-report');
