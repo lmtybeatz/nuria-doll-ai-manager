@@ -22,5 +22,5 @@ export async function onRequestGet({request,env}){
   const response=await fetch(env.SUPABASE_URL.replace(/\/$/,"")+"/rest/v1/ai_social_connections?on_conflict=owner_id,provider",{method:"POST",headers:{apikey:env.SUPABASE_SERVICE_ROLE_KEY,"content-type":"application/json",prefer:"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({owner_id:payload.uid,provider:"youtube",token_ciphertext:encrypted,scopes:["https://www.googleapis.com/auth/youtube.readonly"],connected_at:new Date().toISOString(),updated_at:new Date().toISOString()})});
   if(!response.ok)throw new Error("Enregistrement sécurisé impossible.");
   return redirect(origin+"/?youtube=connected");
- }catch(e){console.error("NURIA_YOUTUBE_OAUTH_ERROR",JSON.stringify({stage,message:String(e?.message||"erreur inconnue").slice(0,240)}));return fail();}
+ }catch(e){console.error("NURIA_YOUTUBE_OAUTH_ERROR",JSON.stringify({stage,message:String(e?.message||"erreur inconnue").slice(0,240)}));return fail("erreur_"+stage);}
 }
