@@ -101,7 +101,7 @@ export async function onRequestPost({ request, env }) {
   let body;
   try {
     const raw = await request.text();
-    if (raw.length > 12000) return json({ error: "Demande trop volumineuse." }, 413);
+    if (raw.length > 30000) return json({ error: "Demande trop volumineuse (30 000 caractères maximum)." }, 413);
     body = JSON.parse(raw);
   } catch {
     return json({ error: "Format de demande invalide." }, 400);
@@ -109,7 +109,7 @@ export async function onRequestPost({ request, env }) {
 
   const task = typeof body.task === "string" ? body.task.trim() : "";
   if (!task) return json({ error: "Décris ce que tu souhaites préparer." }, 400);
-  if (task.length > 5000) return json({ error: "La demande est trop longue (5 000 caractères maximum)." }, 400);
+  if (task.length > 20000) return json({ error: "La demande est trop longue (20 000 caractères maximum)." }, 400);
 
   const profile = body.profile && typeof body.profile === "object" ? body.profile : {};
   const { system, user } = makePrompt(task, profile);
