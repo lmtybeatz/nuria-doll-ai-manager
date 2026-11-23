@@ -148,9 +148,26 @@ export async function onRequestGet({ request, env }) {
   const result = await response.json().catch(() => ({}));
   if (!response.ok) return json({ error: "Gemini n'a pas pu récupérer la proposition.", diagnostic: result?.error?.message || "" }, 502);
   if (result.status === "failed" || result.status === "cancelled" || result.status === "incomplete") {
+    const errorDetails = result?.error?.message ||
+      (Array.isArray(result?.errors) ? result.errors.map(e => typeof e === "string" ? e : e?.message || JSON.stringify(e)).join("; ") : "") ||
+      (typeof result?.errors === "string" ? result.errors : "");
+    const partialAnswer = (result?.steps || [])
+      .filter(step => step.type === "model_output")
+      .flatMap(step => step.content || [])
+      .filter(part => part.type === "text")
+      .map(part => part.text || "")
+      .join("\n").trim().slice(0, 1200);
     return json({
       error: "La génération Gemini s'est terminée sans proposition complète (statut : " + result.status + ").",
-      diagnostic: result?.error?.message || result?.errors?.map?.(e => e.message).join("; ") || ""
+      diagnostic: errorDetails || "Google n'a pas fourni de motif détaillé.",
+      partial_output: partialAnswer || undefined,
+      has_continuation: Boolean(result?.continuation_token)
+    }, 502);
+  }
+  if (result.status === "requires_continuation") {
+    return json({
+      error: "Gemini a produit une réponse partielle et demande une continuation.",
+      diagnostic: "La réponse a atteint une limite de génération. Une étape de continuation est nécessaire."
     }, 502);
   }
   if (result.status !== "completed") return json({ status: result.status || "in_progress" });
