@@ -114,6 +114,27 @@ export async function onRequestPost({ request, env }) {
   const profile = body.profile && typeof body.profile === "object" ? body.profile : {};
   const { system, user } = makePrompt(task, profile);
 
+  // Temporary controlled test: FORCE_AI_FALLBACK=true skips Groq and tests Cloudflare Workers AI.
+  if (String(env.FORCE_AI_FALLBACK || "").toLowerCase() === "true") {
+    try {
+      const answer = await askCloudflare(env, system, user);
+      return json({
+        answer,
+        provider: "cloudflare_workers_ai",
+        model: "@cf/zai-org/glm-4.7-flash",
+        status: "completed",
+        fallback_used: true,
+        forced_test: true,
+        approval_required: true
+      });
+    } catch (fallbackError) {
+      return json({
+        error: "Le test du moteur de secours Cloudflare AI a échoué.",
+        fallback_diagnostic: "Cloudflare AI : " + String(fallbackError?.message || "erreur inconnue").slice(0, 300)
+      }, 502);
+    }
+  }
+
   // Primary provider: Groq. Any provider/network/quota failure triggers the Cloudflare fallback.
   try {
     const answer = await askGroq(env, system, user);
