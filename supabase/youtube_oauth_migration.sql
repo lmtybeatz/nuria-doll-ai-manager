@@ -13,3 +13,6 @@ create table if not exists public.ai_social_connections (
 alter table public.ai_social_connections enable row level security;
 -- Aucun accès direct depuis le navigateur, même pour l'utilisateur authentifié.
 revoke all on public.ai_social_connections from anon, authenticated;
+
+-- Accès serveur uniquement : nécessaire à l'enregistrement et à la lecture des jetons chiffrés.
+GRANT SELECT, INSERT, UPDATE ON public.ai_social_connections TO service_role;
