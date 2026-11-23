@@ -366,8 +366,29 @@
         previous_7_days_views:previous.length?sumViews(previous):null,
         top_videos:(data.top_videos||[]).slice(0,5).map(v=>({title:String(v.title||'Vidéo').slice(0,120),views:Number(v.views||0),minutes_watched:Number(v.minutes_watched||0),average_view_seconds:Number(v.average_view_seconds||0),url:v.url}))
       };
-      const task='Analyse ces statistiques YouTube de NURIA DOLL et rédige un plan de recommandations marketing concret.\n\n'+
-        'Règles : distingue clairement les faits observés des hypothèses ; ne prétends pas connaître les clics, commentaires ou taux de rétention non fournis ; propose 3 à 5 actions prioritaires, 3 idées de contenus adaptées à un projet musical familial et un mini-plan sur 7 jours. Explique brièvement pourquoi chaque action est proposée. Aucun contenu ne doit exposer la vie privée de l’enfant. Ne publie rien : ce sont uniquement des propositions à valider par le parent. Si les données sont trop limitées, dis-le.\n\nDONNÉES :\n'+JSON.stringify(snapshot);
+      const task='Tu es analyste marketing YouTube senior pour NURIA DOLL, un projet musical familial porté par une enfant et administré exclusivement par son parent. Analyse les données fournies et produis un rapport utile au parent.\n\n'+
+        'RÈGLES DE FIABILITÉ OBLIGATOIRES :\n'+
+        '1) Utilise uniquement les chiffres du bloc DONNÉES. Ne crée aucun chiffre, date, pic, tendance, cause, source de trafic, taux de clic, rétention, commentaire, partage, donnée démographique ou résultat non fourni.\n'+
+        '2) Les vues quotidiennes sont dans series. Le meilleur jour doit être calculé uniquement à partir de cette série. Pour comparer les 7 derniers jours aux 7 jours précédents, additionne les 7 dernières lignes disponibles et les 7 lignes précédentes ; si la série ne contient pas assez de jours, indique que la comparaison est indisponible. Ne transforme jamais une corrélation en causalité.\n'+
+        '3) Distingue explicitement « FAITS MESURÉS », « INTERPRÉTATIONS À TESTER » et « DONNÉES MANQUANTES ». Si une explication n’est pas prouvée, formule-la comme une question ou hypothèse, jamais comme un fait. Signale les petits volumes et évite les conclusions définitives.\n'+
+        '4) Calcule correctement la durée moyenne par vue d’une vidéo seulement si views > 0 : minutes_watched × 60 / views. Précise qu’il s’agit d’une moyenne calculée, pas d’un taux de rétention. Ne compare pas des vidéos sans tenir compte de leur durée si celle-ci est inconnue.\n'+
+        '5) N’affirme pas que la chaîne est « très faible », « virale » ou « en croissance durable » sur un échantillon aussi réduit. Décris sobrement les tendances observées et leur incertitude.\n\n'+
+        'SÉCURITÉ ET CADRE PARENTAL :\n'+
+        '- Le parent est l’unique gestionnaire et interlocuteur. Toutes les idées sont des brouillons soumis à validation parentale. Ne publie, ne programme, ne contacte et ne réponds à personne.\n'+
+        '- Ne propose jamais de collecte de coordonnées, messages privés avec des enfants, rendez-vous, concours exigeant des échanges directs avec des mineurs, ni partage de dessins/vidéos/photos identifiables d’autres enfants.\n'+
+        '- N’expose jamais école, domicile, habitudes, horaires, déplacements, localisation en temps réel, contacts privés ou informations personnelles de l’enfant.\n'+
+        '- Privilégie des contenus que le parent peut produire et contrôler : clips, extraits musicaux, paroles/karaoké, animation, instruments, coulisses centrées sur la musique sans détails privés, histoires et culture béninoise. La présence de l’enfant à l’image n’est jamais une obligation.\n'+
+        '- Toute action payante doit être signalée comme optionnelle et soumise à validation du parent ; ne promets aucun résultat.\n\n'+
+        'FORMAT DE SORTIE (en français, Markdown lisible) :\n'+
+        'A. SYNTHÈSE EN 3 LIGNES : période exacte, vues, heures regardées, abonnés gagnés/perdus/net.\n'+
+        'B. FAITS MESURÉS : tableau avec indicateur, valeur et ce que la donnée permet réellement de dire.\n'+
+        'C. INTERPRÉTATIONS À TESTER : au maximum 3 hypothèses, chacune accompagnée de la donnée qui pourrait la confirmer.\n'+
+        'D. DONNÉES MANQUANTES : liste précise des métriques nécessaires pour mieux décider (ex. impressions/CTR, rétention, sources de trafic), sans prétendre les connaître.\n'+
+        'E. 3 ACTIONS PRIORITAIRES : pour chacune, objectif, justification fondée sur les données, étapes pratiques, effort (faible/moyen/élevé), indicateur à surveiller. Classe-les par priorité et commence par les actions gratuites et sûres.\n'+
+        'F. 3 IDÉES DE CONTENUS : adaptées à la pop enfantine et aux familles, avec format, durée indicative, angle créatif et appel à l’action destiné aux parents/familles.\n'+
+        'G. MINI-PLAN SUR 7 JOURS : tâches réalistes côté parent/manager, sans obligation de publier chaque jour.\n'+
+        'H. VALIDATION PARENTALE : rappelle clairement qu’aucune action publique ne sera effectuée sans accord du parent.\n'+
+        'Évite les recommandations génériques ou risquées. N’invente pas de playlist déjà créée, de campagne existante ou de partenariat. Si les données sont insuffisantes pour une recommandation, dis-le.\n\nDONNÉES MESURÉES (source : YouTube Analytics) :\n'+JSON.stringify(snapshot);
       const response=await fetch('/api/assistant',{
         method:'POST',
         headers:{'content-type':'application/json','authorization':'Bearer '+sessionData.session.access_token},
