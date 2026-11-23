@@ -112,7 +112,7 @@
         body:JSON.stringify({task,profile:currentProfile})
       });
       let payload=await response.json().catch(()=>({}));
-      if(!response.ok)throw new Error(payload.error||'Le service IA n’a pas répondu correctement.');
+      if(!response.ok)throw new Error([payload.error||'Le service IA n’a pas répondu correctement.',payload.diagnostic||''].filter(Boolean).join(' — '));
       // Gemini background generation: poll securely until the interaction completes.
       if(payload.id){
         const interactionId=payload.id;
