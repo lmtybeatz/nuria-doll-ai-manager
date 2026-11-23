@@ -78,7 +78,7 @@ export async function onRequestPost({ request, env }) {
           model: "gemini-3.8-flash",
           system_instruction: systemInstruction,
           input: prompt,
-          store: false,
+          store: true,
           background: true
         })
       }
@@ -151,5 +151,14 @@ export async function onRequestGet({ request, env }) {
   if (result.status !== "completed") return json({ status: result.status || "in_progress" });
   const answer = extractAnswer(result);
   if (!answer) return json({ error: "Gemini a terminé sans fournir de texte exploitable." }, 502);
+  // Delete the stored interaction as soon as its result has been retrieved.
+  try {
+    await fetch("https://generativelanguage.googleapis.com/v1beta/interactions/" + encodeURIComponent(id), {
+      method: "DELETE",
+      headers: { "x-goog-api-key": env.GEMINI_API_KEY, "Api-Revision": "2026-05-20" }
+    });
+  } catch {
+    // The answer remains available even if cleanup fails; provider retention still applies.
+  }
   return json({ status: "completed", answer, approval_required: true });
 }
