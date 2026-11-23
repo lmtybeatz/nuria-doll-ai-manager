@@ -1,8 +1,8 @@
 const H={"content-type":"application/json; charset=utf-8","cache-control":"no-store"};
 async function user(request,env){
- const m=(request.headers.get("authorization")||"").match(/^Bearer\\s+(.+)$/i);
+ const m=(request.headers.get("authorization")||"").match(/^Bearer\s+(.+)$/i);
  if(!m)return null;
- const r=await fetch(env.SUPABASE_URL.replace(/\\/$/,"")+"/auth/v1/user",{headers:{apikey:env.SUPABASE_PUBLISHABLE_KEY,authorization:"Bearer "+m[1]}});
+ const r=await fetch(env.SUPABASE_URL.replace(/\/$/,"")+"/auth/v1/user",{headers:{apikey:env.SUPABASE_PUBLISHABLE_KEY,authorization:"Bearer "+m[1]}});
  return r.ok?await r.json():null;
 }
 export async function onRequestGet({request,env}){
@@ -13,11 +13,10 @@ export async function onRequestGet({request,env}){
    console.error("NURIA_YOUTUBE_STATUS_CONFIG",JSON.stringify({missing}));
    return Response.json({error:"Configuration serveur incomplète.",missing},{status:503,headers:H});
   }
-  stage="verification_session";
   const u=await user(request,env);
   if(!u?.id)return Response.json({error:"Connexion requise."},{status:401,headers:H});
   stage="lecture_supabase";
-  const base=env.SUPABASE_URL.replace(/\\/$/,"");
+  const base=env.SUPABASE_URL.replace(/\/$/,"");
   const r=await fetch(base+"/rest/v1/ai_social_connections?owner_id=eq."+encodeURIComponent(u.id)+"&provider=eq.youtube&select=connected_at,scopes",{headers:{apikey:env.SUPABASE_SERVICE_ROLE_KEY}});
   if(!r.ok){
    console.error("NURIA_YOUTUBE_STATUS_ERROR",JSON.stringify({stage,http_status:r.status}));
