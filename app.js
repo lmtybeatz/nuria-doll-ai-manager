@@ -265,6 +265,45 @@
     }catch(e){status.textContent='Synchronisation impossible : '+e.message;toast(e.message,true);}
     finally{button.disabled=false;}
   }
+  const ytNumber=value=>new Intl.NumberFormat('fr-FR',{maximumFractionDigits:0}).format(Number(value||0));
+  async function loadYoutubeAnalytics(range=30){
+    const status=$('#youtubeAnalyticsStatus'),buttonSet=$('#youtubeAnalyticsRanges button');
+    buttonSet.forEach(b=>{b.disabled=true;b.classList.toggle('active',Number(b.dataset.range)===range);});
+    status.textContent='Chargement des statistiques YouTube…';
+    try{
+      const {data:{session}}=await supabase.auth.getSession();
+      if(!session?.access_token)throw new Error('Session expirée. Reconnecte-toi.');
+      const r=await fetch('/api/youtube/analytics?range='+range,{headers:{authorization:'Bearer '+session.access_token}});
+      const d=await r.json();if(!r.ok)throw new Error(d.error||'Lecture des statistiques impossible.');
+      const t=d.totals||{};
+      $('#ytViewsPeriod').textContent=ytNumber(t.views);
+      $('#ytWatchTime').textContent=ytNumber(Math.round((t.minutes_watched||0)/60))+' h';
+      $('#ytSubsGained').textContent='+'+ytNumber(t.subscribers_gained);
+      $('#ytSubsLost').textContent='−'+ytNumber(t.subscribers_lost);
+      $('#ytSubsNet').textContent=(Number(t.subscribers_gained||0)-Number(t.subscribers_lost||0)>=0?'+':'')+ytNumber(Number(t.subscribers_gained||0)-Number(t.subscribers_lost||0));
+      $('#ytAnalyticsDates').textContent=new Date(d.start_date+'T00:00:00').toLocaleDateString('fr-FR')+' – '+new Date(d.end_date+'T00:00:00').toLocaleDateString('fr-FR');
+      const chart=$('#ytDailyChart');chart.innerHTML='';
+      const rows=d.series||[],max=Math.max(1,...rows.map(x=>Number(x.views||0)));
+      rows.forEach((item,i)=>{
+        const bar=document.createElement('div');bar.className='yt-day-bar';bar.title=new Date(item.date+'T00:00:00').toLocaleDateString('fr-FR')+': '+ytNumber(item.views)+' vues';
+        const fill=document.createElement('span');fill.style.height=Math.max(2,Number(item.views||0)/max*100)+'%';bar.append(fill);chart.append(bar);
+      });
+      const labels=$('#ytChartLabels');labels.innerHTML='';
+      [0,Math.floor((rows.length-1)/2),Math.max(0,rows.length-1)].forEach(i=>{const s=document.createElement('small');s.textContent=rows[i]?.date?new Date(rows[i].date+'T00:00:00').toLocaleDateString('fr-FR',{day:'2-digit',month:'short'}):'';labels.append(s);});
+      const list=$('#ytTopVideos');list.innerHTML='';
+      if(!(d.top_videos||[]).length){list.textContent='Aucune donnée vidéo sur cette période.';}
+      (d.top_videos||[]).forEach((v,i)=>{
+        const item=document.createElement('a');item.className='yt-top-video';item.href=v.url;item.target='_blank';item.rel='noopener noreferrer';
+        const rank=document.createElement('span');rank.className='yt-video-rank';rank.textContent=String(i+1);
+        const info=document.createElement('span');info.className='yt-video-info';
+        const title=document.createElement('strong');title.textContent=v.title;
+        const meta=document.createElement('small');meta.textContent=ytNumber(v.views)+' vues · '+Math.round(v.minutes_watched||0)+' min regardées';
+        info.append(title,meta);item.append(rank,info);list.append(item);
+      });
+      status.textContent='Statistiques du '+range+' derniers jours · Données arrêtées au '+new Date(d.end_date+'T00:00:00').toLocaleDateString('fr-FR')+' · Actualisé '+new Date(d.synced_at).toLocaleTimeString('fr-FR');
+    }catch(e){status.textContent='Statistiques indisponibles : '+e.message;toast(e.message,true);}
+    finally{buttonSet.forEach(b=>b.disabled=false);}
+  }
   async function youtubeStatus(){
     const box=$('#youtubeStatus'),button=$('#connectYoutube');
     try{
@@ -275,10 +314,11 @@
       button.textContent=d.connected?'Reconnecter YouTube':'Connecter YouTube';
       $('#youtubeTag').textContent=d.connected?'Connecté':'Non connecté';
       $('#youtubeTag').className='tag '+(d.connected?'green':'');
-      if(d.connected)await loadYoutubeChannel();else $('#youtubeChannelPanel')?.classList.add('hidden');
+      if(d.connected){await loadYoutubeChannel();await loadYoutubeAnalytics(30);}else $('#youtubeChannelPanel')?.classList.add('hidden');
     }catch(e){box.textContent='Statut indisponible : '+e.message;}
   }
   $('#refreshYoutube').addEventListener('click',loadYoutubeChannel);
+  $('#youtubeAnalyticsRanges button').forEach(b=>b.addEventListener('click',()=>loadYoutubeAnalytics(Number(b.dataset.range))));
   $('#connectYoutube').addEventListener('click',async()=>{
     try{
       const {data:{session}}=await supabase.auth.getSession();if(!session?.access_token)throw new Error('Reconnecte-toi.');
