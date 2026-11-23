@@ -241,6 +241,30 @@
   });
   $('#mediaInput').addEventListener('change',async e=>{const files=[...e.target.files];if(!files.length)return;for(const file of files){if(file.size>100*1024*1024){toast(`${file.name} dépasse la limite de 100 Mo.`,true);continue;}const safe=file.name.normalize('NFKD').replace(/[^a-zA-Z0-9._-]/g,'_');const path=`${user.id}/${crypto.randomUUID()}-${safe}`;$('#uploadStatus').textContent=`Envoi de ${file.name}…`;const {error:upErr}=await supabase.storage.from('nuria-private-media').upload(path,file,{contentType:file.type,upsert:false});if(upErr){toast(`Échec de ${file.name} : ${upErr.message}`,true);continue;}const category=file.type.startsWith('image/')?'image':file.type.startsWith('video/')?'video':file.type.startsWith('audio/')?'audio':'document';const {error:dbErr}=await supabase.from('ai_media_library').insert({owner_id:user.id,file_name:file.name,storage_path:path,mime_type:file.type,file_size:file.size,category});if(dbErr){await supabase.storage.from('nuria-private-media').remove([path]);toast(`Erreur d'enregistrement : ${dbErr.message}`,true);continue;}toast(`${file.name} ajouté.`);}$('#uploadStatus').textContent='';e.target.value='';await loadMedia();});
 
+  async function loadYoutubeChannel(){
+    const panel=$('#youtubeChannelPanel'),status=$('#youtubeChannelSync'),button=$('#refreshYoutube');
+    if(!panel)return;
+    panel.classList.remove('hidden');status.textContent='Lecture des informations de la chaîne…';button.disabled=true;
+    try{
+      const {data:{session}}=await supabase.auth.getSession();
+      if(!session?.access_token)throw new Error('Session expirée. Reconnecte-toi.');
+      const r=await fetch('/api/youtube/channel',{headers:{authorization:'Bearer '+session.access_token}});
+      const d=await r.json();if(!r.ok)throw new Error(d.error||'Lecture de la chaîne impossible.');
+      const c=d.channel;
+      $('#youtubeChannelName').textContent=c.title||'Chaîne YouTube';
+      $('#youtubeChannelId').textContent='ID : '+c.id;
+      const avatar=$('#youtubeChannelAvatar');
+      if(c.thumbnail&&/^https:\/\/yt3\.googleusercontent\.com\//.test(c.thumbnail)){avatar.src=c.thumbnail;avatar.classList.remove('hidden');}else{avatar.removeAttribute('src');avatar.classList.add('hidden');}
+      $('#youtubeChannelLink').href=c.url;$('#youtubeChannelLink').textContent=c.custom_url?'@'+c.custom_url.replace(/^@/,''):'Ouvrir la chaîne YouTube';
+      $('#youtubeSubscribers').textContent=c.subscribers_hidden?'Masqué':(c.subscriber_count===null?'Indisponible':Number(c.subscriber_count).toLocaleString('fr-FR'));
+      $('#youtubeVideos').textContent=c.video_count===null?'—':Number(c.video_count).toLocaleString('fr-FR');
+      $('#youtubeViews').textContent=c.view_count===null?'—':Number(c.view_count).toLocaleString('fr-FR');
+      $('#youtubeChannelDescription').textContent=c.description||'Aucune description publique renseignée.';
+      $('#youtubeChannelPublished').textContent=c.published_at?'Créée le '+new Date(c.published_at).toLocaleDateString('fr-FR'):'';
+      status.textContent='Données actualisées le '+new Date(d.synced_at).toLocaleString('fr-FR')+' · Lecture seule';
+    }catch(e){status.textContent='Synchronisation impossible : '+e.message;toast(e.message,true);}
+    finally{button.disabled=false;}
+  }
   async function youtubeStatus(){
     const box=$('#youtubeStatus'),button=$('#connectYoutube');
     try{
@@ -251,8 +275,10 @@
       button.textContent=d.connected?'Reconnecter YouTube':'Connecter YouTube';
       $('#youtubeTag').textContent=d.connected?'Connecté':'Non connecté';
       $('#youtubeTag').className='tag '+(d.connected?'green':'');
+      if(d.connected)await loadYoutubeChannel();else $('#youtubeChannelPanel')?.classList.add('hidden');
     }catch(e){box.textContent='Statut indisponible : '+e.message;}
   }
+  $('#refreshYoutube').addEventListener('click',loadYoutubeChannel);
   $('#connectYoutube').addEventListener('click',async()=>{
     try{
       const {data:{session}}=await supabase.auth.getSession();if(!session?.access_token)throw new Error('Reconnecte-toi.');
