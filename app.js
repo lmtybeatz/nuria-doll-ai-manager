@@ -118,17 +118,17 @@
         const interactionId=payload.id;
         status.textContent='Gemini travaille en arrière-plan…';
         let completed=false;
-        for(let attempt=0;attempt<40;attempt++){
-          await new Promise(resolve=>setTimeout(resolve,3000));
+        for(let attempt=0;attempt<120;attempt++){
+          await new Promise(resolve=>setTimeout(resolve,5000));
           const check=await fetch('/api/assistant?id='+encodeURIComponent(interactionId),{
             headers:{'authorization':'Bearer '+session.access_token}
           });
           payload=await check.json().catch(()=>({}));
           if(!check.ok)throw new Error(payload.error||'Impossible de récupérer la proposition.');
           if(payload.status==='completed'){completed=true;break;}
-          status.textContent='Gemini prépare toujours la proposition… ('+(attempt+1)+'/40)';
+          status.textContent='Gemini prépare toujours la proposition… ('+Math.round((attempt+1)*5/60)+' min écoulées)';
         }
-        if(!completed)throw new Error('La génération prend plus de temps que prévu. Réessaie dans un instant.');
+        if(!completed)throw new Error('Gemini n’a pas terminé après 10 minutes. La génération peut être encore en cours ; réessaie plus tard.');
       }
       answer.textContent=payload.answer||'Aucune proposition reçue.';
       show(result);status.textContent='Proposition générée. Vérifie-la avant toute utilisation.';
