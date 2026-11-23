@@ -240,5 +240,28 @@
     catch{toast('Copie indisponible sur ce navigateur.',true);}
   });
   $('#mediaInput').addEventListener('change',async e=>{const files=[...e.target.files];if(!files.length)return;for(const file of files){if(file.size>100*1024*1024){toast(`${file.name} dépasse la limite de 100 Mo.`,true);continue;}const safe=file.name.normalize('NFKD').replace(/[^a-zA-Z0-9._-]/g,'_');const path=`${user.id}/${crypto.randomUUID()}-${safe}`;$('#uploadStatus').textContent=`Envoi de ${file.name}…`;const {error:upErr}=await supabase.storage.from('nuria-private-media').upload(path,file,{contentType:file.type,upsert:false});if(upErr){toast(`Échec de ${file.name} : ${upErr.message}`,true);continue;}const category=file.type.startsWith('image/')?'image':file.type.startsWith('video/')?'video':file.type.startsWith('audio/')?'audio':'document';const {error:dbErr}=await supabase.from('ai_media_library').insert({owner_id:user.id,file_name:file.name,storage_path:path,mime_type:file.type,file_size:file.size,category});if(dbErr){await supabase.storage.from('nuria-private-media').remove([path]);toast(`Erreur d'enregistrement : ${dbErr.message}`,true);continue;}toast(`${file.name} ajouté.`);}$('#uploadStatus').textContent='';e.target.value='';await loadMedia();});
+
+  async function youtubeStatus(){
+    const box=$('#youtubeStatus'),button=$('#connectYoutube');
+    try{
+      const {data:{session}}=await supabase.auth.getSession();
+      const r=await fetch('/api/youtube/status',{headers:{authorization:'Bearer '+session.access_token}});
+      const d=await r.json();if(!r.ok)throw new Error(d.error||'État indisponible');
+      box.textContent=d.connected?'Chaîne YouTube connectée · Accès en lecture seule':'Aucune chaîne YouTube connectée';
+      button.textContent=d.connected?'Reconnecter YouTube':'Connecter YouTube';
+      $('#youtubeTag').textContent=d.connected?'Connecté':'Non connecté';
+      $('#youtubeTag').className='tag '+(d.connected?'green':'');
+    }catch(e){box.textContent='Statut indisponible : '+e.message;}
+  }
+  $('#connectYoutube').addEventListener('click',async()=>{
+    try{
+      const {data:{session}}=await supabase.auth.getSession();if(!session?.access_token)throw new Error('Reconnecte-toi.');
+      const r=await fetch('/api/youtube/start',{headers:{authorization:'Bearer '+session.access_token}});
+      const d=await r.json();if(!r.ok||!d.authorization_url)throw new Error(d.error||'Démarrage OAuth impossible.');
+      window.location.assign(d.authorization_url);
+    }catch(e){toast(e.message,true);}
+  });
+  const ytParams=new URLSearchParams(location.search);
+  if(ytParams.has('youtube')){if(ytParams.get('youtube')==='connected')toast('YouTube est connecté en lecture seule.');else toast('La connexion YouTube a échoué. Vérifie la configuration Google et les secrets Cloudflare.',true);history.replaceState({},'',location.pathname);}
   init();
 })();
