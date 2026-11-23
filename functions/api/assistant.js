@@ -148,20 +148,41 @@ export async function onRequestGet({ request, env }) {
   const result = await response.json().catch(() => ({}));
   if (!response.ok) return json({ error: "Gemini n'a pas pu récupérer la proposition.", diagnostic: result?.error?.message || "" }, 502);
   if (result.status === "failed" || result.status === "cancelled" || result.status === "incomplete") {
-    const errorDetails = (typeof result?.error === "string" ? result.error :
-      result?.error?.message || (result?.error ? JSON.stringify(result.error) : "")) ||
-      (Array.isArray(result?.errors) ? result.errors.map(e => typeof e === "string" ? e : e?.message || JSON.stringify(e)).join("; ") : "") ||
-      (typeof result?.errors === "string" ? result.errors : "") ||
-      (result?.status_details ? JSON.stringify(result.status_details) : "");
+    const providerErrors = Array.isArray(result?.errors) ? result.errors : [];
+    const errorDetails = providerErrors.map(e => {
+      if (typeof e === "string") return e;
+      const code = typeof e?.code === "string" ? e.code : "";
+      const message = typeof e?.message === "string" ? e.message : "";
+      return [code, message].filter(Boolean).join(": ") || JSON.stringify(e);
+    }).join(" | ") ||
+      (typeof result?.error === "string" ? result.error :
+        result?.error?.message || (result?.error ? JSON.stringify(result.error) : "")) ||
+      (typeof result?.status_details === "string" ? result.status_details :
+        result?.status_details ? JSON.stringify(result.status_details) : "");
+
     const partialAnswer = (result?.steps || [])
       .filter(step => step.type === "model_output")
       .flatMap(step => step.content || [])
       .filter(part => part.type === "text")
       .map(part => part.text || "")
       .join("\n").trim().slice(0, 1200);
+
+    // Technical metadata only: no API key, authorization data, or user prompt.
+    const diagnosticMeta = {
+      model: result?.model || "non précisé",
+      created: result?.created || null,
+      updated: result?.updated || null,
+      step_types: Array.isArray(result?.steps) ? result.steps.map(step => step?.type).filter(Boolean) : [],
+      usage: result?.usage ? {
+        total_input_tokens: result.usage.total_input_tokens ?? null,
+        total_output_tokens: result.usage.total_output_tokens ?? null
+      } : null
+    };
+
     return json({
       error: "La génération Gemini s'est terminée sans proposition complète (statut : " + result.status + ").",
       diagnostic: errorDetails || "Google n'a pas fourni de motif détaillé.",
+      diagnostic_meta: diagnosticMeta,
       partial_output: partialAnswer || undefined,
       has_continuation: Boolean(result?.continuation_token)
     }, 502);
