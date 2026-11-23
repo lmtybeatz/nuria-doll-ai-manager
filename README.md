@@ -2,6 +2,10 @@
 
 Application web indépendante pour préparer la gestion marketing de NURIA DOLL. Cette première version comprend l'interface, l'authentification Supabase, le profil artistique, la bibliothèque média privée et les préférences de l'agent.
 
+## Déploiement
+
+Le projet est relié à Cloudflare Pages via la branche `main`. Les modifications validées sur cette branche doivent déclencher un nouveau déploiement automatique.
+
 ## Séparation impérative
 
 - Créer un **nouveau projet Supabase** réservé à AI MANAGER.
