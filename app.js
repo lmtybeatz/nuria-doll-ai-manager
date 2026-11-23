@@ -111,8 +111,25 @@
         headers:{'content-type':'application/json','authorization':'Bearer '+session.access_token},
         body:JSON.stringify({task,profile:currentProfile})
       });
-      const payload=await response.json().catch(()=>({}));
+      let payload=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error(payload.error||'Le service IA n’a pas répondu correctement.');
+      // Gemini background generation: poll securely until the interaction completes.
+      if(payload.id){
+        const interactionId=payload.id;
+        status.textContent='Gemini travaille en arrière-plan…';
+        let completed=false;
+        for(let attempt=0;attempt<40;attempt++){
+          await new Promise(resolve=>setTimeout(resolve,3000));
+          const check=await fetch('/api/assistant?id='+encodeURIComponent(interactionId),{
+            headers:{'authorization':'Bearer '+session.access_token}
+          });
+          payload=await check.json().catch(()=>({}));
+          if(!check.ok)throw new Error(payload.error||'Impossible de récupérer la proposition.');
+          if(payload.status==='completed'){completed=true;break;}
+          status.textContent='Gemini prépare toujours la proposition… ('+(attempt+1)+'/40)';
+        }
+        if(!completed)throw new Error('La génération prend plus de temps que prévu. Réessaie dans un instant.');
+      }
       answer.textContent=payload.answer||'Aucune proposition reçue.';
       show(result);status.textContent='Proposition générée. Vérifie-la avant toute utilisation.';
     }catch(err){status.textContent=err.message||'Une erreur est survenue.';toast(status.textContent,true);}
