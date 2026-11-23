@@ -529,7 +529,7 @@
         daily_totals_match:dailyTotalsMatch,
         daily_minutes_match:dailyMinutesMatch,
         daily_views_average:missingDates.length||!dailyTotalsMatch?null:Number((dailyViewsTotal/expectedDays).toFixed(2)),
-        best_day:bestDay?{date:bestDay.date,views:Number(bestDay.views||0)}:null,
+        best_day:dailyTotalsMatch&&bestDay&&Number(bestDay.views||0)>0?{date:bestDay.date,views:Number(bestDay.views||0)}:null,
         last_7_days_views:windowSum(0,7),
         previous_7_days_views:windowSum(7,7),
         top_videos_count:topVideos.length,top_videos_are_top_five_only:true,top_videos_views_sum:topViews,
