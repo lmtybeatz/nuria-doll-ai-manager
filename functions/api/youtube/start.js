@@ -11,7 +11,12 @@ export async function onRequestGet({request,env}){
  if(!artistId)return json({error:"Espace artiste manquant."},400);
  const base=env.SUPABASE_URL.replace(/\/$/,"");
  const artistResponse=await fetch(base+"/rest/v1/ai_artists?id=eq."+encodeURIComponent(artistId)+"&owner_id=eq."+encodeURIComponent(user.id)+"&status=eq.active&select=id",{headers:{apikey:env.SUPABASE_SERVICE_ROLE_KEY,authorization:"Bearer "+env.SUPABASE_SERVICE_ROLE_KEY}});
- if(!artistResponse.ok)return json({error:"Vérification de l'espace artiste impossible."},502);
+ if(!artistResponse.ok){
+  const raw=await artistResponse.text();
+  let detail={};try{const parsed=JSON.parse(raw);detail={code:parsed.code||null,message:parsed.message||null,hint:parsed.hint||null};}catch{detail.message=raw.slice(0,240);}
+  console.error("NURIA_YOUTUBE_ARTIST_VERIFY",JSON.stringify({http_status:artistResponse.status,...detail}));
+  return json({error:"Vérification de l'espace artiste impossible.",diagnostic:{http_status:artistResponse.status,code:detail.code,message:detail.message,hint:detail.hint}},502);
+ }
  if(!(await artistResponse.json()).length)return json({error:"Espace artiste introuvable ou non autorisé."},404);
  const state=random(32),verifier=random(48),challenge=b64u(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(verifier)));
  const payload=b64u(new TextEncoder().encode(JSON.stringify({state,verifier,uid:user.id,artistId,exp:Date.now()+600000})));
