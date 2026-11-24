@@ -16,10 +16,15 @@ export async function onRequestGet({request,env}){
   const tokenResponse=await fetch("https://oauth2.googleapis.com/token",{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body:new URLSearchParams({code,client_id:env.YOUTUBE_CLIENT_ID,client_secret:env.YOUTUBE_CLIENT_SECRET,redirect_uri:env.YOUTUBE_REDIRECT_URI,grant_type:"authorization_code",code_verifier:payload.verifier})});
   const tokens=await tokenResponse.json();if(!tokenResponse.ok||!tokens.access_token)throw new Error("Échange OAuth refusé.");
   if(!tokens.refresh_token)throw new Error("Google n'a pas fourni de jeton de renouvellement. Relance la connexion avec consentement.");
+  if(!payload.artistId)throw new Error("Espace artiste absent de la demande OAuth.");
+  stage="verification_artiste";
+  const base=env.SUPABASE_URL.replace(/\/$/,"");
+  const artistResponse=await fetch(base+"/rest/v1/ai_artists?id=eq."+encodeURIComponent(payload.artistId)+"&owner_id=eq."+encodeURIComponent(payload.uid)+"&status=eq.active&select=id",{headers:{apikey:env.SUPABASE_SERVICE_ROLE_KEY}});
+  if(!artistResponse.ok||!(await artistResponse.json()).length)throw new Error("Espace artiste invalide ou non autorisé.");
   stage="chiffrement_jetons";
   const encrypted=await encrypt(tokens,env.YOUTUBE_TOKEN_ENCRYPTION_KEY);
   stage="enregistrement_supabase";
-  const response=await fetch(env.SUPABASE_URL.replace(/\/$/,"")+"/rest/v1/ai_social_connections?on_conflict=owner_id,provider",{method:"POST",headers:{apikey:env.SUPABASE_SERVICE_ROLE_KEY,"content-type":"application/json",prefer:"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({owner_id:payload.uid,provider:"youtube",token_ciphertext:encrypted,scopes:["https://www.googleapis.com/auth/youtube.readonly","https://www.googleapis.com/auth/yt-analytics.readonly"],connected_at:new Date().toISOString(),updated_at:new Date().toISOString()})});
+  const response=await fetch(base+"/rest/v1/ai_social_connections?on_conflict=owner_id,artist_id,provider",{method:"POST",headers:{apikey:env.SUPABASE_SERVICE_ROLE_KEY,"content-type":"application/json",prefer:"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({owner_id:payload.uid,artist_id:payload.artistId,provider:"youtube",token_ciphertext:encrypted,scopes:["https://www.googleapis.com/auth/youtube.readonly","https://www.googleapis.com/auth/yt-analytics.readonly"],connected_at:new Date().toISOString(),updated_at:new Date().toISOString()})});
   if(!response.ok){
    const detail=await response.text();
    let safe="réponse Supabase non détaillée";
@@ -27,6 +32,6 @@ export async function onRequestGet({request,env}){
    diagnostic="HTTP_"+response.status+"_"+safe;
    throw new Error("Enregistrement Supabase refusé.");
   }
-  return redirect(origin+"/?youtube=connected");
+  return redirect(origin+"/?youtube=connected&artist_id="+encodeURIComponent(payload.artistId));
  }catch(e){console.error("NURIA_YOUTUBE_OAUTH_ERROR",JSON.stringify({stage,message:String(e?.message||"erreur inconnue").slice(0,240)}));return fail("erreur_"+stage+(diagnostic?"_"+diagnostic:""));}
 }

@@ -6,6 +6,7 @@
   let supabase = null, user = null, signupMode = false, profile = null, settings = null, media = [];
   let artists = [], activeArtistId = null, switchingArtist = false;
   let latestYoutubeAnalytics=null;
+  const oauthArtistId=new URLSearchParams(location.search).get('artist_id');
   const recommendationBusy=new Set();
   let campaigns = [], editingCampaignId = null;
   const toast = (msg, bad=false) => { const el=$('#toast'); el.textContent=msg; el.className='toast show'+(bad?' error':''); setTimeout(()=>el.className='toast',3600); };
@@ -55,6 +56,7 @@
     if(error)throw new Error('Chargement des espaces artistes impossible : '+error.message);
     artists=data||[];
     if(!artists.length)throw new Error('Aucun espace artiste trouvé. Vérifie la migration multi-artistes.');
+    if(oauthArtistId&&artists.some(a=>a.id===oauthArtistId))activeArtistId=oauthArtistId;
     if(!activeArtistId||!artists.some(a=>a.id===activeArtistId)){
       activeArtistId=(artists.find(a=>a.is_default)||artists[0]).id;
     }
@@ -83,6 +85,7 @@
   $('#artistSwitcher')?.addEventListener('change',async e=>{
     activeArtistId=e.target.value;
     await reloadArtistWorkspace();
+    await youtubeStatus();
     toast('Espace artiste sélectionné.');
   });
   $('#addArtistButton')?.addEventListener('click',async()=>{
@@ -488,14 +491,16 @@
   $('#mediaInput').addEventListener('change',async e=>{const files=[...e.target.files];if(!files.length)return;for(const file of files){if(file.size>100*1024*1024){toast(`${file.name} dépasse la limite de 100 Mo.`,true);continue;}const safe=file.name.normalize('NFKD').replace(/[^a-zA-Z0-9._-]/g,'_');const path=`${user.id}/${crypto.randomUUID()}-${safe}`;$('#uploadStatus').textContent=`Envoi de ${file.name}…`;const {error:upErr}=await supabase.storage.from('nuria-private-media').upload(path,file,{contentType:file.type,upsert:false});if(upErr){toast(`Échec de ${file.name} : ${upErr.message}`,true);continue;}const category=file.type.startsWith('image/')?'image':file.type.startsWith('video/')?'video':file.type.startsWith('audio/')?'audio':'document';const {error:dbErr}=await supabase.from('ai_media_library').insert({owner_id:user.id,artist_id:activeArtistId,file_name:file.name,storage_path:path,mime_type:file.type,file_size:file.size,category});if(dbErr){await supabase.storage.from('nuria-private-media').remove([path]);toast(`Erreur d'enregistrement : ${dbErr.message}`,true);continue;}toast(`${file.name} ajouté.`);}$('#uploadStatus').textContent='';e.target.value='';await loadMedia();});
 
   async function loadYoutubeChannel(){
+    const artistId=activeArtistId;
     const panel=$('#youtubeChannelPanel'),status=$('#youtubeChannelSync'),button=$('#refreshYoutube');
     if(!panel)return;
     panel.classList.remove('hidden');status.textContent='Lecture des informations de la chaîne…';button.disabled=true;
     try{
       const {data:{session}}=await supabase.auth.getSession();
       if(!session?.access_token)throw new Error('Session expirée. Reconnecte-toi.');
-      const r=await fetch('/api/youtube/channel',{headers:{authorization:'Bearer '+session.access_token}});
+      const r=await fetch('/api/youtube/channel?artist_id='+encodeURIComponent(activeArtistId),{headers:{authorization:'Bearer '+session.access_token}});
       const d=await r.json();if(!r.ok)throw new Error(d.error||'Lecture de la chaîne impossible.');
+      if(artistId!==activeArtistId)return;
       const c=d.channel;
       $('#youtubeChannelName').textContent=c.title||'Chaîne YouTube';
       $('#youtubeChannelId').textContent='ID : '+c.id;
@@ -749,14 +754,16 @@
     }
   }
   async function loadYoutubeAnalytics(range=30){
-    const status=$('#youtubeAnalyticsStatus'),buttonSet=$$('#youtubeAnalyticsRanges button');
+    const artistId=activeArtistId;
+    const status=$('#youtubeAnalyticsStatus'),buttonSet=$('#youtubeAnalyticsRanges button');
     buttonSet.forEach(b=>{b.disabled=true;b.classList.toggle('active',Number(b.dataset.range)===range);});
     status.textContent='Chargement des statistiques YouTube…';
     try{
       const {data:{session}}=await supabase.auth.getSession();
       if(!session?.access_token)throw new Error('Session expirée. Reconnecte-toi.');
-      const r=await fetch('/api/youtube/analytics?range='+range,{headers:{authorization:'Bearer '+session.access_token}});
+      const r=await fetch('/api/youtube/analytics?range='+range+'&artist_id='+encodeURIComponent(activeArtistId),{headers:{authorization:'Bearer '+session.access_token}});
       const d=await r.json();if(!r.ok)throw new Error(d.error||'Lecture des statistiques impossible.');
+      if(artistId!==activeArtistId)return;
       const t=d.totals||{};
       $('#ytViewsPeriod').textContent=ytNumber(t.views);
       $('#ytWatchTime').textContent=ytNumber(Math.round((t.minutes_watched||0)/60))+' h';
@@ -788,17 +795,36 @@
     }catch(e){status.textContent='Statistiques indisponibles : '+e.message;toast(e.message,true);}
     finally{buttonSet.forEach(b=>b.disabled=false);}
   }
+  function resetYoutubeDashboard(){
+    latestYoutubeAnalytics=null;
+    const recommendationResult=$('#ytRecommendationResult');if(recommendationResult)recommendationResult.classList.add('hidden');
+    const recommendationText=$('#ytRecommendationText');if(recommendationText)recommendationText.replaceChildren();
+    const recommendationStatus=$('#ytRecommendationStatus');if(recommendationStatus)recommendationStatus.textContent='Aucune recommandation chargée pour cet artiste.';
+    const approval=$('#ytApprovalControl');if(approval)approval.replaceChildren();
+    ['#ytViewsPeriod','#ytWatchTime','#ytSubsGained','#ytSubsLost','#ytSubsNet'].forEach(selector=>{const el=$(selector);if(el)el.textContent='—';});
+    const chart=$('#ytDailyChart');if(chart)chart.replaceChildren();
+    const labels=$('#ytChartLabels');if(labels)labels.replaceChildren();
+    const videos=$('#ytTopVideos');if(videos)videos.textContent='Aucune donnée disponible pour cet artiste.';
+    const status=$('#youtubeAnalyticsStatus');if(status)status.textContent='Aucune statistique chargée pour cet artiste.';
+    const panel=$('#youtubeChannelPanel');if(panel)panel.classList.add('hidden');
+    ['#youtubeChannelName','#youtubeChannelId','#youtubeSubscribers','#youtubeVideos','#youtubeViews','#youtubeChannelDescription','#youtubeChannelPublished'].forEach(selector=>{const el=$(selector);if(el)el.textContent='—';});
+    const avatar=$('#youtubeChannelAvatar');if(avatar){avatar.removeAttribute('src');avatar.classList.add('hidden');}
+    const link=$('#youtubeChannelLink');if(link){link.removeAttribute('href');link.textContent='Ouvrir la chaîne YouTube';}
+  }
   async function youtubeStatus(){
+    const artistId=activeArtistId;
+    resetYoutubeDashboard();
     const box=$('#youtubeStatus'),button=$('#connectYoutube');
     try{
       const {data:{session}}=await supabase.auth.getSession();
-      const r=await fetch('/api/youtube/status',{headers:{authorization:'Bearer '+session.access_token}});
+      const r=await fetch('/api/youtube/status?artist_id='+encodeURIComponent(activeArtistId),{headers:{authorization:'Bearer '+session.access_token}});
       const d=await r.json();if(!r.ok)throw new Error(d.error||'État indisponible');
+      if(artistId!==activeArtistId)return;
       box.textContent=d.connected?'Chaîne YouTube connectée · Accès en lecture seule':'Aucune chaîne YouTube connectée';
       button.textContent=d.connected?'Reconnecter YouTube':'Connecter YouTube';
       $('#youtubeTag').textContent=d.connected?'Connecté':'Non connecté';
       $('#youtubeTag').className='tag '+(d.connected?'green':'');
-      if(d.connected){await loadYoutubeChannel();await loadYoutubeAnalytics(30);}else $('#youtubeChannelPanel')?.classList.add('hidden');
+      if(d.connected){await loadYoutubeChannel();await loadYoutubeAnalytics(30);}else {$('#youtubeChannelPanel')?.classList.add('hidden');$('#youtubeAnalyticsStatus').textContent='Connecte une chaîne YouTube pour cet artiste afin de consulter ses statistiques.';}
     }catch(e){box.textContent='Statut indisponible : '+e.message;}
   }
   $('#refreshYoutube').addEventListener('click',loadYoutubeChannel);
@@ -807,7 +833,7 @@
   $('#connectYoutube').addEventListener('click',async()=>{
     try{
       const {data:{session}}=await supabase.auth.getSession();if(!session?.access_token)throw new Error('Reconnecte-toi.');
-      const r=await fetch('/api/youtube/start',{headers:{authorization:'Bearer '+session.access_token}});
+      const r=await fetch('/api/youtube/start?artist_id='+encodeURIComponent(activeArtistId),{headers:{authorization:'Bearer '+session.access_token}});
       const d=await r.json();if(!r.ok||!d.authorization_url)throw new Error(d.error||'Démarrage OAuth impossible.');
       window.location.assign(d.authorization_url);
     }catch(e){toast(e.message,true);}
