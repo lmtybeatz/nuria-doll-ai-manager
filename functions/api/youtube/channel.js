@@ -24,7 +24,12 @@ export async function onRequestGet({request,env}){
   const u=await verify(request,env);if(!u?.id)return json({error:"Connexion parent/manager requise."},401);
   stage="lecture_jeton";
   const base=env.SUPABASE_URL.replace(/\/$/,"");
-  const q=await fetch(base+"/rest/v1/ai_social_connections?owner_id=eq."+encodeURIComponent(u.id)+"&provider=eq.youtube&select=token_ciphertext,connected_at,scopes",{headers:{apikey:env.SUPABASE_SERVICE_ROLE_KEY}});
+  const artistId=new URL(request.url).searchParams.get("artist_id");
+  if(!artistId)return json({error:"Espace artiste manquant."},400);
+  const ar=await fetch(base+"/rest/v1/ai_artists?id=eq."+encodeURIComponent(artistId)+"&owner_id=eq."+encodeURIComponent(u.id)+"&status=eq.active&select=id",{headers:{apikey:env.SUPABASE_SERVICE_ROLE_KEY}});
+  if(!ar.ok)return json({error:"Vérification de l'espace artiste impossible."},502);
+  if(!(await ar.json()).length)return json({error:"Espace artiste introuvable ou non autorisé."},404);
+  const q=await fetch(base+"/rest/v1/ai_social_connections?owner_id=eq."+encodeURIComponent(u.id)+"&artist_id=eq."+encodeURIComponent(artistId)+"&provider=eq.youtube&select=token_ciphertext,connected_at,scopes",{headers:{apikey:env.SUPABASE_SERVICE_ROLE_KEY}});
   if(!q.ok)return json({error:"Impossible de lire la connexion YouTube.",stage,http_status:q.status},502);
   const rows=await q.json();if(!rows.length)return json({error:"Aucune chaîne YouTube connectée."},404);
   if(!(rows[0].scopes||[]).includes("https://www.googleapis.com/auth/youtube.readonly"))return json({error:"L'autorisation YouTube en lecture seule est absente. Reconnecte la chaîne."},403);
