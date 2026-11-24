@@ -7,8 +7,14 @@ async function verify(request,env){const m=(request.headers.get("authorization")
 export async function onRequestGet({request,env}){
  if(!env.YOUTUBE_CLIENT_ID||!env.YOUTUBE_REDIRECT_URI||!env.YOUTUBE_OAUTH_STATE_SECRET||!env.SUPABASE_URL||!env.SUPABASE_PUBLISHABLE_KEY)return json({error:"Configuration YouTube incomplète côté serveur."},500);
  const user=await verify(request,env);if(!user?.id)return json({error:"Connexion parent/manager requise."},401);
+ const artistId=new URL(request.url).searchParams.get("artist_id");
+ if(!artistId)return json({error:"Espace artiste manquant."},400);
+ const base=env.SUPABASE_URL.replace(/\/$/,"");
+ const artistResponse=await fetch(base+"/rest/v1/ai_artists?id=eq."+encodeURIComponent(artistId)+"&owner_id=eq."+encodeURIComponent(user.id)+"&status=eq.active&select=id",{headers:{apikey:env.SUPABASE_SERVICE_ROLE_KEY||env.SUPABASE_PUBLISHABLE_KEY,authorization:"Bearer "+(request.headers.get("authorization")||"").replace(/^Bearer\s+/i,"")}});
+ if(!artistResponse.ok)return json({error:"Vérification de l'espace artiste impossible."},502);
+ if(!(await artistResponse.json()).length)return json({error:"Espace artiste introuvable ou non autorisé."},404);
  const state=random(32),verifier=random(48),challenge=b64u(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(verifier)));
- const payload=b64u(new TextEncoder().encode(JSON.stringify({state,verifier,uid:user.id,exp:Date.now()+600000})));
+ const payload=b64u(new TextEncoder().encode(JSON.stringify({state,verifier,uid:user.id,artistId,exp:Date.now()+600000})));
  const sig=await hmac(payload,env.YOUTUBE_OAUTH_STATE_SECRET);
  const url=new URL("https://accounts.google.com/o/oauth2/v2/auth");
  url.searchParams.set("client_id",env.YOUTUBE_CLIENT_ID);url.searchParams.set("redirect_uri",env.YOUTUBE_REDIRECT_URI);url.searchParams.set("response_type","code");url.searchParams.set("scope","https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/yt-analytics.readonly");url.searchParams.set("access_type","offline");url.searchParams.set("prompt","consent");url.searchParams.set("include_granted_scopes","true");url.searchParams.set("state",state);url.searchParams.set("code_challenge",challenge);url.searchParams.set("code_challenge_method","S256");
