@@ -27,3 +27,22 @@ Cette phase prépare le passage de NURIA DOLL AI MANAGER à un espace de managem
 5. Vérifier les résultats avec les deux requêtes de contrôle commentées à la fin du SQL.
 
 Ne pas fusionner ni déployer avant d'avoir vérifié la migration sur le bon projet Supabase.
+
+
+## Phase 2 — interface multi-artistes
+
+La branche comprend maintenant une première interface multi-artistes dans le Manager :
+
+- sélecteur d’artiste actif dans l’espace de travail ;
+- répertoire des artistes du compte manager ;
+- création d’un artiste et de son profil indépendant ;
+- changement d’artiste avec rechargement du profil, des campagnes, des médias et des validations ;
+- association des nouvelles campagnes, des nouveaux médias et des validations à l’artiste sélectionné ;
+- filtrage des campagnes, médias et validations par artiste ;
+- conservation du mode historique si la migration SQL n’a pas encore été exécutée.
+
+### Limites à connaître
+
+Cette étape ne connecte pas encore des comptes sociaux distincts pour chaque artiste. Les connexions sociales et les données YouTube restent à traiter dans une phase dédiée. Les paramètres généraux de l’agent IA restent au niveau du compte manager.
+
+La migration SQL doit être exécutée dans le projet Supabase dédié à l’AI Manager avant d’activer la gestion multi-artistes. Le site public NURIA DOLL n’est pas concerné.
