@@ -17,7 +17,7 @@
     $$('.view').forEach(v=>v.classList.toggle('active-view',v.id===`view-${view}`));
     $$('.nav-item[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===view));
     const names={overview:"Vue d'ensemble",brand:'Identité artistique',strategy:'Stratégie marketing',library:'Bibliothèque média',agent:'Configuration IA',connections:'Réseaux sociaux'};
-    $('#pageTitle').textContent=names[view]; $('#crumb').textContent=view==='overview'?'CENTRE DE COMMANDE':'NURIA DOLL · '+names[view].toUpperCase();
+    $('#pageTitle').textContent=names[view]; $('#crumb').textContent=view==='overview'?'CENTRE DE COMMANDE':(activeArtist?.artist_name||'ARTISTE')+' · '+names[view].toUpperCase();
     $('#backToDashboard').classList.toggle('hidden',view==='overview');
     if(window.innerWidth<=760) $('#sidebar').classList.remove('open');
   }
@@ -445,7 +445,7 @@
       const response=await fetch('/api/assistant',{
         method:'POST',
         headers:{'content-type':'application/json','authorization':'Bearer '+session.access_token},
-        body:JSON.stringify({task,profile:profile||{artist_name:'NURIA DOLL',genre:'Pop enfantine'}})
+        body:JSON.stringify({task,profile:profile||{artist_name:activeArtist?.artist_name||'Artiste sélectionné'}})
       });
       const payload=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error([payload.error||'Le service IA n’a pas répondu correctement.',payload.diagnostic||'',payload.fallback_diagnostic||''].filter(Boolean).join(' — '));
@@ -592,7 +592,8 @@
     const list=$('#ytRecommendationHistory');
     if(!list||!supabase||!user)return;
     const {data,error}=await supabase.from('ai_marketing_recommendations')
-      .select('id,range_days,end_date,source,recommendation,provider,created_at')
+      .select('id,artist_id,range_days,end_date,source,recommendation,provider,created_at')
+      .eq('artist_id',activeArtist?.id||'00000000-0000-0000-0000-000000000000')
       .order('created_at',{ascending:false}).limit(6);
     list.innerHTML='';
     if(error){list.textContent='Historique indisponible. Vérifie que la migration des recommandations a été exécutée.';return;}
@@ -619,7 +620,8 @@
     try{
       if(!manual){
         const {data:existing,error:lookupError}=await supabase.from('ai_marketing_recommendations')
-          .select('id,range_days,end_date,source,recommendation,provider,created_at')
+          .select('id,artist_id,range_days,end_date,source,recommendation,provider,created_at')
+          .eq('artist_id',activeArtist?.id||'00000000-0000-0000-0000-000000000000')
           .eq('range_days',range).eq('end_date',data.end_date).eq('source','automatic')
           .order('created_at',{ascending:false}).limit(1).maybeSingle();
         if(lookupError)throw new Error('Historique indisponible. Exécute la migration SQL des recommandations dans Supabase.');
@@ -678,7 +680,8 @@
           url:v.url
         }))
       };
-      const task='Tu es analyste marketing YouTube senior pour NURIA DOLL, un projet musical familial porté par une enfant et administré exclusivement par son parent. Analyse les données fournies et produis un rapport utile au parent.\n\n'+
+      const artistName=activeArtist?.artist_name||profile?.artist_name||'l’artiste sélectionné';
+      const task='Tu es analyste marketing YouTube senior pour le projet musical '+artistName+'. Analyse les données fournies et produis un rapport utile au gestionnaire de cet artiste. Respecte les contraintes spécifiques indiquées dans le profil.\n\n'+
         'RÈGLES DE FIABILITÉ OBLIGATOIRES :\n'+
         '1) Utilise uniquement les chiffres du bloc DONNÉES. Ne crée aucun chiffre, date, pic, tendance, cause, source de trafic, taux de clic, rétention, commentaire, partage, donnée démographique ou résultat non fourni.\n'+
         '2) Le bloc SNAPSHOT contient des contrôles de qualité. Si missing_daily_dates n’est pas vide, ne traite pas une journée absente comme zéro : indique que la série quotidienne est incomplète. Le meilleur jour est seulement le meilleur parmi les lignes reçues. Une comparaison sur 7 jours n’est valable que si last_7_days_views et previous_7_days_views sont tous deux des nombres ; sinon indique « comparaison indisponible (données quotidiennes incomplètes ou période insuffisante) ». N’utilise jamais les 7 dernières lignes comme si elles représentaient forcément 7 jours calendaires.\n'+
@@ -717,12 +720,12 @@
       const response=await fetch('/api/assistant',{
         method:'POST',
         headers:{'content-type':'application/json','authorization':'Bearer '+sessionData.session.access_token},
-        body:JSON.stringify({task,profile:profile||{artist_name:'NURIA DOLL',genre:'Pop enfantine',target_audience:'Enfants et familles'}})
+        body:JSON.stringify({task,profile:profile||{artist_name:activeArtist?.artist_name||'Artiste sélectionné'}})
       });
       const payload=await response.json().catch(()=>({}));
       if(!response.ok||!payload.answer)throw new Error([payload.error||'La génération IA a échoué.',payload.diagnostic||'',payload.fallback_diagnostic||''].filter(Boolean).join(' — '));
-      const row={owner_id:user.id,range_days:range,start_date:data.start_date,end_date:data.end_date,source:manual?'manual':'automatic',recommendation:payload.answer,provider:payload.provider||'unknown',analytics_snapshot:snapshot};
-      const {data:saved,error:saveError}=await supabase.from('ai_marketing_recommendations').insert(row).select('id,range_days,end_date,source,recommendation,provider,created_at').single();
+      const row={owner_id:user.id,artist_id:activeArtist?.id||null,range_days:range,start_date:data.start_date,end_date:data.end_date,source:manual?'manual':'automatic',recommendation:payload.answer,provider:payload.provider||'unknown',analytics_snapshot:snapshot};
+      const {data:saved,error:saveError}=await supabase.from('ai_marketing_recommendations').insert(row).select('id,artist_id,range_days,end_date,source,recommendation,provider,created_at').single();
       if(saveError)throw new Error('Impossible de sauvegarder la recommandation : '+saveError.message+'. Vérifie la migration SQL.');
       displayYoutubeRecommendation(saved);
       if(status)status.textContent=(manual?'Nouvelle analyse terminée':'Analyse automatique terminée')+' · '+(payload.fallback_used?'Cloudflare AI':'Groq')+' · À valider par le parent.';
