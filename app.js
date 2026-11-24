@@ -3,7 +3,7 @@
   const configured = cfg.SUPABASE_URL && !cfg.SUPABASE_URL.includes('YOUR-PROJECT') && cfg.SUPABASE_ANON_KEY && !cfg.SUPABASE_ANON_KEY.includes('YOUR_');
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => [...document.querySelectorAll(s)];
-  let supabase = null, user = null, signupMode = false, profile = null, settings = null, media = [];
+  let supabase = null, user = null, signupMode = false, profile = null, settings = null, media = [];\n  let artists=[], activeArtist=null, multiArtistReady=false;
   let latestYoutubeAnalytics=null;
   const recommendationBusy=new Set();
   let campaigns = [], editingCampaignId = null;
@@ -17,7 +17,7 @@
     $$('.view').forEach(v=>v.classList.toggle('active-view',v.id===`view-${view}`));
     $$('.nav-item[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===view));
     const names={overview:"Vue d'ensemble",brand:'Identité artistique',strategy:'Stratégie marketing',library:'Bibliothèque média',agent:'Configuration IA',connections:'Réseaux sociaux'};
-    $('#pageTitle').textContent=names[view]; $('#crumb').textContent=view==='overview'?'CENTRE DE COMMANDE':'NURIA DOLL · '+names[view].toUpperCase();
+    $('#pageTitle').textContent=names[view]; $('#crumb').textContent=view==='overview'?'CENTRE DE COMMANDE':(activeArtist?.artist_name||'ARTISTE')+' · '+names[view].toUpperCase();
     $('#backToDashboard').classList.toggle('hidden',view==='overview');
     if(window.innerWidth<=760) $('#sidebar').classList.remove('open');
   }
@@ -43,7 +43,7 @@
       toast('Initialisation impossible : '+(error.message||'erreur inconnue'),true);
     }
   }
-  async function enterApp(){ hide($('#authScreen')); show($('#appShell')); $('#userEmail').textContent=user.email||'Compte connecté'; await Promise.all([loadProfile(),loadSettings(),loadMedia(),loadCampaigns(),loadParentApprovals()]); await youtubeStatus(); }
+  async function enterApp(){ hide($('#authScreen')); show($('#appShell')); $('#userEmail').textContent=user.email||'Compte connecté'; await loadArtists(); await Promise.all([loadProfile(),loadSettings(),loadMedia(),loadCampaigns(),loadParentApprovals()]); await youtubeStatus(); }
 
   let parentApprovals=[];
   function renderNotificationCenter(){
@@ -108,7 +108,7 @@
     }
   });
   async function saveParentApproval(sourceType,sourceKey,title,content){
-    const payload={owner_id:user.id,source_type:sourceType,source_key:sourceKey,title,content,updated_at:new Date().toISOString()};
+    const payload={owner_id:user.id,source_type:sourceType,source_key:sourceKey,title,content,updated_at:new Date().toISOString()};if(multiArtistReady&&activeArtist)payload.artist_id=activeArtist.id;
     const {data,error}=await supabase.from('ai_parent_approvals').upsert(payload,{onConflict:'owner_id,source_type,source_key'}).select('*').single();
     if(error)throw new Error('Enregistrement de la validation impossible : '+error.message+'. Vérifie que la migration parent_approvals.sql a été exécutée.');
     const index=parentApprovals.findIndex(x=>x.id===data.id);
@@ -155,15 +155,89 @@
     });
   }
   async function loadParentApprovals(){
-    const {data,error}=await supabase.from('ai_parent_approvals').select('*').order('created_at',{ascending:false}).limit(50);
+    let query=supabase.from('ai_parent_approvals').select('*').order('created_at',{ascending:false}).limit(50);if(multiArtistReady&&activeArtist)query=query.eq('artist_id',activeArtist.id);const {data,error}=await query;
     if(error){const list=$('#parentApprovalHistory');if(list)list.textContent='Historique indisponible. Exécute la migration SQL parent_approvals.sql dans le projet Supabase de l’AI Manager.';return;}
     parentApprovals=data||[];renderParentApprovals();renderNotificationCenter();
   }
 
-  async function loadProfile(){const {data,error}=await supabase.from('ai_brand_profile').select('*').maybeSingle();if(error){toast('Chargement du profil : '+error.message,true);return;}profile=data;if(data){const f=$('#brandForm');Object.entries(data).forEach(([k,v])=>{const el=f.elements[k];if(el&&v!==null)el.value=v;});$('#profileStatus').textContent='Configuré';$('#brandCheck').classList.add('done');$('#brandCheck').textContent='✓';}else $('#profileStatus').textContent='À compléter';}
+
+  function ensureArtistManagerUI(){
+    if($('#artistWorkspace'))return;
+    const topbar=$('.topbar');if(!topbar)return;
+    const section=document.createElement('section');
+    section.id='artistWorkspace';section.className='artist-workspace';
+    section.innerHTML='<div class="artist-switch-row"><div class="artist-current"><span class="artist-kicker">ARTISTE ACTIF</span><strong id="activeArtistName">Chargement…</strong><small id="artistCountLabel">Répertoire artistique</small></div><label class="artist-select-label">Changer d’artiste<select id="artistSwitcher" aria-label="Sélectionner un artiste"></select></label><button type="button" class="btn secondary artist-manage-toggle" id="artistManageToggle">Gérer les artistes</button></div><div id="artistManagePanel" class="artist-manage-panel hidden"><div class="artist-manage-heading"><div><strong>Mon répertoire d’artistes</strong><p>Chaque artiste possède son identité, ses campagnes et sa bibliothèque média.</p></div><span class="tag">Compte manager</span></div><form id="newArtistForm" class="new-artist-form"><label>Nom du nouvel artiste<input name="artist_name" maxlength="120" required placeholder="Ex. : NURIA DOLL, Eljow, PEPERIPE…"></label><button class="btn primary" type="submit">＋ Ajouter cet artiste</button></form><div id="artistDirectory" class="artist-directory"></div><p id="artistManagerMessage" class="artist-manager-message">Les données historiques de l’artiste principal sont conservées.</p></div>';
+    topbar.insertAdjacentElement('afterend',section);
+    $('#artistManageToggle').addEventListener('click',()=>$('#artistManagePanel').classList.toggle('hidden'));
+    $('#artistSwitcher').addEventListener('change',async e=>{const chosen=artists.find(a=>a.id===e.target.value);if(!chosen||chosen.id===activeArtist?.id)return;activeArtist=chosen;renderArtistWorkspace();await reloadArtistData();});
+    $('#newArtistForm').addEventListener('submit',createArtist);
+    $('#artistDirectory').addEventListener('click',async e=>{const button=e.target.closest('[data-artist-select]');if(!button)return;const chosen=artists.find(a=>a.id===button.dataset.artistSelect);if(!chosen)return;activeArtist=chosen;renderArtistWorkspace();await reloadArtistData();});
+  }
+  async function loadArtists(){
+    ensureArtistManagerUI();
+    const {data,error}=await supabase.from('ai_artists').select('id,artist_name,status,is_default,created_at').order('created_at',{ascending:true});
+    if(error){
+      multiArtistReady=false;artists=[];activeArtist=null;
+      $('#activeArtistName').textContent='Mode historique';
+      $('#artistCountLabel').textContent='Migration multi-artistes à exécuter';
+      $('#artistSwitcher').innerHTML='<option>Mode historique</option>';
+      $('#artistSwitcher').disabled=true;
+      $('#artistManageToggle').disabled=true;
+      $('#artistManagerMessage').textContent='La base multi-artistes n’est pas encore activée. Exécute d’abord supabase/multi_artist_foundation.sql dans le projet Supabase de l’AI Manager.';
+      $('#artistDirectory').innerHTML='<p class="muted">Aucun changement n’est effectué sur tes données existantes.</p>';
+      return;
+    }
+    multiArtistReady=true;artists=data||[];
+    activeArtist=artists.find(a=>a.is_default)||artists[0]||null;
+    renderArtistWorkspace();
+  }
+  function renderArtistWorkspace(){
+    const select=$('#artistSwitcher'),name=$('#activeArtistName');
+    if(!select||!name)return;
+    select.disabled=!artists.length;
+    select.innerHTML='';
+    artists.forEach(a=>{const option=document.createElement('option');option.value=a.id;option.textContent=a.artist_name+(a.status==='paused'?' · En pause':a.status==='archived'?' · Archivé':'');option.selected=a.id===activeArtist?.id;select.append(option);});
+    name.textContent=activeArtist?.artist_name||'Aucun artiste';
+    $('#artistCountLabel').textContent=artists.length+' artiste'+(artists.length>1?'s':'')+' dans ton espace';
+    const directory=$('#artistDirectory');directory.innerHTML='';
+    if(!artists.length){directory.innerHTML='<p class="muted">Ton répertoire est vide. Ajoute ton premier artiste pour commencer.</p>';return;}
+    artists.forEach(a=>{
+      const card=document.createElement('article');card.className='artist-directory-card';
+      const info=document.createElement('div');const title=document.createElement('strong');title.textContent=a.artist_name;
+      const meta=document.createElement('small');meta.textContent=(a.is_default?'Artiste principal · ':'')+(a.status==='active'?'Actif':a.status==='paused'?'En pause':'Archivé');
+      info.append(title,meta);
+      const action=document.createElement('button');action.type='button';action.className='text-btn';action.dataset.artistSelect=a.id;action.textContent=a.id===activeArtist?.id?'Artiste sélectionné':'Ouvrir cet artiste';
+      card.append(info,action);directory.append(card);
+    });
+    $('#artistManageToggle').disabled=false;
+  }
+  async function createArtist(event){
+    event.preventDefault();if(!multiArtistReady||!user)return;
+    const form=event.currentTarget,artistName=String(new FormData(form).get('artist_name')||'').trim();
+    if(!artistName)return;
+    const button=form.querySelector('button');button.disabled=true;button.textContent='Création…';
+    try{
+      const {data:created,error}=await supabase.from('ai_artists').insert({owner_id:user.id,artist_name:artistName,is_default:artists.length===0}).select('id,artist_name,status,is_default,created_at').single();
+      if(error)throw error;
+      const defaults={artist_id:created.id,owner_id:user.id,genre:'',bio:'',target_audience:'',language:'Français',tone:'',parent_guardrails:'Toutes les publications, dépenses et prises de contact doivent être validées par le gestionnaire. Ne jamais divulguer d’informations personnelles.',primary_color:'#6D45A6',secondary_color:'#E8B9D4',updated_at:new Date().toISOString()};
+      const {error:profileError}=await supabase.from('ai_artist_profiles').insert(defaults);
+      if(profileError){await supabase.from('ai_artists').delete().eq('id',created.id);throw profileError;}
+      artists.push(created);activeArtist=created;form.reset();renderArtistWorkspace();await reloadArtistData();
+      $('#artistManagerMessage').textContent=artistName+' a été ajouté. Complète maintenant son identité artistique.';
+      nav('brand');toast('Nouvel artiste ajouté.');
+    }catch(error){$('#artistManagerMessage').textContent='Création impossible : '+error.message;toast('Impossible d’ajouter cet artiste : '+error.message,true);}
+    finally{button.disabled=false;button.textContent='＋ Ajouter cet artiste';}
+  }
+  async function reloadArtistData(){
+    if(!activeArtist)return;
+    resetCampaignForm();
+    await Promise.all([loadProfile(),loadMedia(),loadCampaigns(),loadParentApprovals()]);
+  }
+
+  async function loadProfile(){let data=null,error=null;if(multiArtistReady&&activeArtist){const result=await supabase.from('ai_artist_profiles').select('*').eq('artist_id',activeArtist.id).maybeSingle();data=result.data;error=result.error;}else{const result=await supabase.from('ai_brand_profile').select('*').maybeSingle();data=result.data;error=result.error;}if(error){toast('Chargement du profil : '+error.message,true);return;}profile=data?{...data,artist_name:activeArtist?.artist_name||data.artist_name}:null;const f=$('#brandForm');if(data){Object.entries(profile).forEach(([k,v])=>{const el=f.elements[k];if(el&&v!==null)el.value=v;});$('#profileStatus').textContent='Configuré';$('#brandCheck').classList.add('done');$('#brandCheck').textContent='✓';}else{$('#profileStatus').textContent='À compléter';if(activeArtist)f.elements.artist_name.value=activeArtist.artist_name;}}
   async function loadSettings(){const {data,error}=await supabase.from('ai_settings').select('*').maybeSingle();if(error)return;settings=data;if(data){const f=$('#settingsForm');['primary_goal','planning_horizon','autonomy_mode','monthly_budget_usd'].forEach(k=>{if(f.elements[k]&&data[k]!==null)f.elements[k].value=data[k];});}}
   async function loadMedia(){
-    const {data,error}=await supabase.from('ai_media_library').select('*').order('created_at',{ascending:false});
+    let query=supabase.from('ai_media_library').select('*').order('created_at',{ascending:false});if(multiArtistReady&&activeArtist)query=query.eq('artist_id',activeArtist.id);const {data,error}=await query;
     if(error){toast('Chargement des médias : '+error.message,true);return;}
     media=data||[];
     await renderMedia();
@@ -246,7 +320,7 @@
   $$('.nav-item[data-view]').forEach(b=>b.onclick=()=>nav(b.dataset.view));$$('[data-goto]').forEach(b=>b.onclick=()=>nav(b.dataset.goto));
   $('#mobileMenu').onclick=()=>$('#sidebar').classList.toggle('open');
   $('#backToDashboard').onclick=()=>nav('overview');
-  $('#brandForm').addEventListener('submit',async e=>{e.preventDefault();const f=new FormData(e.currentTarget),payload=Object.fromEntries(f.entries());payload.owner_id=user.id;payload.updated_at=new Date().toISOString();const query=supabase.from('ai_brand_profile').upsert(payload,{onConflict:'owner_id'});const {error}=await query;if(error){$('#brandMessage').textContent=error.message;toast('Impossible d’enregistrer le profil.',true);return;}$('#brandMessage').textContent='Profil enregistré.';toast('Identité artistique enregistrée.');await loadProfile();});
+  $('#brandForm').addEventListener('submit',async e=>{e.preventDefault();const f=new FormData(e.currentTarget),payload=Object.fromEntries(f.entries());payload.owner_id=user.id;payload.updated_at=new Date().toISOString();let error=null;if(multiArtistReady&&activeArtist){const artistName=String(payload.artist_name||activeArtist.artist_name).trim();delete payload.artist_name;payload.artist_id=activeArtist.id;const result=await supabase.from('ai_artist_profiles').upsert(payload,{onConflict:'artist_id'});error=result.error;if(!error&&artistName!==activeArtist.artist_name){const renamed=await supabase.from('ai_artists').update({artist_name:artistName,updated_at:new Date().toISOString()}).eq('id',activeArtist.id);error=renamed.error;if(!error){activeArtist.artist_name=artistName;const item=artists.find(a=>a.id===activeArtist.id);if(item)item.artist_name=artistName;renderArtistWorkspace();}}}else{const query=supabase.from('ai_brand_profile').upsert(payload,{onConflict:'owner_id'});const result=await query;error=result.error;}if(error){$('#brandMessage').textContent=error.message;toast('Impossible d’enregistrer le profil.',true);return;}$('#brandMessage').textContent='Profil enregistré.';toast('Identité artistique enregistrée.');await loadProfile();});
   $('#settingsForm').addEventListener('submit',async e=>{e.preventDefault();const f=new FormData(e.currentTarget),p=Object.fromEntries(f.entries());p.owner_id=user.id;p.monthly_budget_usd=Number(p.monthly_budget_usd);p.planning_horizon=Number(p.planning_horizon);p.updated_at=new Date().toISOString();const {error}=await supabase.from('ai_settings').upsert(p,{onConflict:'owner_id'});if(error){$('#settingsMessage').textContent=error.message;toast(error.message,true);return;}$('#settingsMessage').textContent='Paramètres enregistrés. Aucun service payant n’a été activé.';toast('Paramètres enregistrés.');});
   $('#assistantForm').addEventListener('submit',async e=>{
     e.preventDefault();
@@ -284,7 +358,7 @@
   const campaignStatuses={draft:'Brouillon',planned:'Planifiée',active:'En cours',completed:'Terminée',archived:'Archivée'};
   const money=(amount,currency)=>amount===null||amount===''?'Budget à définir':new Intl.NumberFormat('fr-FR',{maximumFractionDigits:0}).format(Number(amount))+' '+(currency==='XOF'?'FCFA':currency);
   async function loadCampaigns(){
-    const {data,error}=await supabase.from('ai_marketing_campaigns').select('*').order('updated_at',{ascending:false});
+    let query=supabase.from('ai_marketing_campaigns').select('*').order('updated_at',{ascending:false});if(multiArtistReady&&activeArtist)query=query.eq('artist_id',activeArtist.id);const {data,error}=await query;
     if(error){$('#campaignList').innerHTML='<div class="empty-state">Impossible de charger les campagnes : '+escapeText(error.message)+'</div>';return;}
     campaigns=data||[];renderCampaigns();
   }
@@ -328,7 +402,7 @@
   $('#campaignForm').addEventListener('submit',async e=>{
     e.preventDefault();if(!supabase||!user)return;
     const f=e.currentTarget,values=Object.fromEntries(new FormData(f).entries());
-    const payload={owner_id:user.id,project_type:values.project_type,project_name:values.project_name.trim(),objective:values.objective.trim(),duration_days:Number(values.duration_days),budget_amount:values.budget_amount===''?null:Number(values.budget_amount),budget_currency:values.budget_currency,markets:values.markets.trim()||null,channels:values.channels.trim()||null,notes:values.notes.trim()||null,status:values.status,updated_at:new Date().toISOString()};
+    const payload={owner_id:user.id,project_type:values.project_type,project_name:values.project_name.trim(),objective:values.objective.trim(),duration_days:Number(values.duration_days),budget_amount:values.budget_amount===''?null:Number(values.budget_amount),budget_currency:values.budget_currency,markets:values.markets.trim()||null,channels:values.channels.trim()||null,notes:values.notes.trim()||null,status:values.status,updated_at:new Date().toISOString()};if(multiArtistReady&&activeArtist)payload.artist_id=activeArtist.id;
     const editing=Boolean(editingCampaignId);
     const previousCampaign=editing?campaigns.find(c=>c.id===editingCampaignId):null;
     const query=editing?supabase.from('ai_marketing_campaigns').update(payload).eq('id',editingCampaignId):supabase.from('ai_marketing_campaigns').insert(payload);
@@ -344,7 +418,7 @@
     const form=new FormData(e.currentTarget);
     const values=Object.fromEntries(form.entries());
     const task=[
-      "Élabore une stratégie marketing opérationnelle, réaliste et détaillée pour NURIA DOLL.",
+      "Élabore une stratégie marketing opérationnelle, réaliste et détaillée pour "+(activeArtist?.artist_name||profile?.artist_name||"l’artiste sélectionné")+".",
       "PROJET : "+values.project,
       "OBJECTIF PRINCIPAL : "+values.objective,
       "DURÉE : "+values.duration,
@@ -371,7 +445,7 @@
       const response=await fetch('/api/assistant',{
         method:'POST',
         headers:{'content-type':'application/json','authorization':'Bearer '+session.access_token},
-        body:JSON.stringify({task,profile:profile||{artist_name:'NURIA DOLL',genre:'Pop enfantine'}})
+        body:JSON.stringify({task,profile:profile||{artist_name:activeArtist?.artist_name||'Artiste sélectionné'}})
       });
       const payload=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error([payload.error||'Le service IA n’a pas répondu correctement.',payload.diagnostic||'',payload.fallback_diagnostic||''].filter(Boolean).join(' — '));
@@ -398,7 +472,7 @@
     try{await navigator.clipboard.writeText(value);toast('Brouillon copié.');}
     catch{toast('Copie indisponible sur ce navigateur.',true);}
   });
-  $('#mediaInput').addEventListener('change',async e=>{const files=[...e.target.files];if(!files.length)return;for(const file of files){if(file.size>100*1024*1024){toast(`${file.name} dépasse la limite de 100 Mo.`,true);continue;}const safe=file.name.normalize('NFKD').replace(/[^a-zA-Z0-9._-]/g,'_');const path=`${user.id}/${crypto.randomUUID()}-${safe}`;$('#uploadStatus').textContent=`Envoi de ${file.name}…`;const {error:upErr}=await supabase.storage.from('nuria-private-media').upload(path,file,{contentType:file.type,upsert:false});if(upErr){toast(`Échec de ${file.name} : ${upErr.message}`,true);continue;}const category=file.type.startsWith('image/')?'image':file.type.startsWith('video/')?'video':file.type.startsWith('audio/')?'audio':'document';const {error:dbErr}=await supabase.from('ai_media_library').insert({owner_id:user.id,file_name:file.name,storage_path:path,mime_type:file.type,file_size:file.size,category});if(dbErr){await supabase.storage.from('nuria-private-media').remove([path]);toast(`Erreur d'enregistrement : ${dbErr.message}`,true);continue;}toast(`${file.name} ajouté.`);}$('#uploadStatus').textContent='';e.target.value='';await loadMedia();});
+  $('#mediaInput').addEventListener('change',async e=>{const files=[...e.target.files];if(!files.length)return;for(const file of files){if(file.size>100*1024*1024){toast(`${file.name} dépasse la limite de 100 Mo.`,true);continue;}const safe=file.name.normalize('NFKD').replace(/[^a-zA-Z0-9._-]/g,'_');const path=`${user.id}/${crypto.randomUUID()}-${safe}`;$('#uploadStatus').textContent=`Envoi de ${file.name}…`;const {error:upErr}=await supabase.storage.from('nuria-private-media').upload(path,file,{contentType:file.type,upsert:false});if(upErr){toast(`Échec de ${file.name} : ${upErr.message}`,true);continue;}const category=file.type.startsWith('image/')?'image':file.type.startsWith('video/')?'video':file.type.startsWith('audio/')?'audio':'document';const {error:dbErr}=await supabase.from('ai_media_library').insert({owner_id:user.id,artist_id:multiArtistReady&&activeArtist?activeArtist.id:null,file_name:file.name,storage_path:path,mime_type:file.type,file_size:file.size,category});if(dbErr){await supabase.storage.from('nuria-private-media').remove([path]);toast(`Erreur d'enregistrement : ${dbErr.message}`,true);continue;}toast(`${file.name} ajouté.`);}$('#uploadStatus').textContent='';e.target.value='';await loadMedia();});
 
   async function loadYoutubeChannel(){
     const panel=$('#youtubeChannelPanel'),status=$('#youtubeChannelSync'),button=$('#refreshYoutube');
@@ -518,7 +592,8 @@
     const list=$('#ytRecommendationHistory');
     if(!list||!supabase||!user)return;
     const {data,error}=await supabase.from('ai_marketing_recommendations')
-      .select('id,range_days,end_date,source,recommendation,provider,created_at')
+      .select('id,artist_id,range_days,end_date,source,recommendation,provider,created_at')
+      .eq('artist_id',activeArtist?.id||'00000000-0000-0000-0000-000000000000')
       .order('created_at',{ascending:false}).limit(6);
     list.innerHTML='';
     if(error){list.textContent='Historique indisponible. Vérifie que la migration des recommandations a été exécutée.';return;}
@@ -545,7 +620,8 @@
     try{
       if(!manual){
         const {data:existing,error:lookupError}=await supabase.from('ai_marketing_recommendations')
-          .select('id,range_days,end_date,source,recommendation,provider,created_at')
+          .select('id,artist_id,range_days,end_date,source,recommendation,provider,created_at')
+          .eq('artist_id',activeArtist?.id||'00000000-0000-0000-0000-000000000000')
           .eq('range_days',range).eq('end_date',data.end_date).eq('source','automatic')
           .order('created_at',{ascending:false}).limit(1).maybeSingle();
         if(lookupError)throw new Error('Historique indisponible. Exécute la migration SQL des recommandations dans Supabase.');
@@ -604,7 +680,8 @@
           url:v.url
         }))
       };
-      const task='Tu es analyste marketing YouTube senior pour NURIA DOLL, un projet musical familial porté par une enfant et administré exclusivement par son parent. Analyse les données fournies et produis un rapport utile au parent.\n\n'+
+      const artistName=activeArtist?.artist_name||profile?.artist_name||'l’artiste sélectionné';
+      const task='Tu es analyste marketing YouTube senior pour le projet musical '+artistName+'. Analyse les données fournies et produis un rapport utile au gestionnaire de cet artiste. Respecte les contraintes spécifiques indiquées dans le profil.\n\n'+
         'RÈGLES DE FIABILITÉ OBLIGATOIRES :\n'+
         '1) Utilise uniquement les chiffres du bloc DONNÉES. Ne crée aucun chiffre, date, pic, tendance, cause, source de trafic, taux de clic, rétention, commentaire, partage, donnée démographique ou résultat non fourni.\n'+
         '2) Le bloc SNAPSHOT contient des contrôles de qualité. Si missing_daily_dates n’est pas vide, ne traite pas une journée absente comme zéro : indique que la série quotidienne est incomplète. Le meilleur jour est seulement le meilleur parmi les lignes reçues. Une comparaison sur 7 jours n’est valable que si last_7_days_views et previous_7_days_views sont tous deux des nombres ; sinon indique « comparaison indisponible (données quotidiennes incomplètes ou période insuffisante) ». N’utilise jamais les 7 dernières lignes comme si elles représentaient forcément 7 jours calendaires.\n'+
@@ -643,12 +720,12 @@
       const response=await fetch('/api/assistant',{
         method:'POST',
         headers:{'content-type':'application/json','authorization':'Bearer '+sessionData.session.access_token},
-        body:JSON.stringify({task,profile:profile||{artist_name:'NURIA DOLL',genre:'Pop enfantine',target_audience:'Enfants et familles'}})
+        body:JSON.stringify({task,profile:profile||{artist_name:activeArtist?.artist_name||'Artiste sélectionné'}})
       });
       const payload=await response.json().catch(()=>({}));
       if(!response.ok||!payload.answer)throw new Error([payload.error||'La génération IA a échoué.',payload.diagnostic||'',payload.fallback_diagnostic||''].filter(Boolean).join(' — '));
-      const row={owner_id:user.id,range_days:range,start_date:data.start_date,end_date:data.end_date,source:manual?'manual':'automatic',recommendation:payload.answer,provider:payload.provider||'unknown',analytics_snapshot:snapshot};
-      const {data:saved,error:saveError}=await supabase.from('ai_marketing_recommendations').insert(row).select('id,range_days,end_date,source,recommendation,provider,created_at').single();
+      const row={owner_id:user.id,artist_id:activeArtist?.id||null,range_days:range,start_date:data.start_date,end_date:data.end_date,source:manual?'manual':'automatic',recommendation:payload.answer,provider:payload.provider||'unknown',analytics_snapshot:snapshot};
+      const {data:saved,error:saveError}=await supabase.from('ai_marketing_recommendations').insert(row).select('id,artist_id,range_days,end_date,source,recommendation,provider,created_at').single();
       if(saveError)throw new Error('Impossible de sauvegarder la recommandation : '+saveError.message+'. Vérifie la migration SQL.');
       displayYoutubeRecommendation(saved);
       if(status)status.textContent=(manual?'Nouvelle analyse terminée':'Analyse automatique terminée')+' · '+(payload.fallback_used?'Cloudflare AI':'Groq')+' · À valider par le parent.';
