@@ -838,7 +838,7 @@
       const artistId=activeArtistId;if(!artistId)throw new Error('Sélectionne d’abord un espace artiste.');
       const {data:{session}}=await supabase.auth.getSession();if(!session?.access_token)throw new Error('Reconnecte-toi.');
       const r=await fetch('/api/youtube/start?artist_id='+encodeURIComponent(artistId),{headers:{authorization:'Bearer '+session.access_token}});
-      const d=await r.json();if(!r.ok||!d.authorization_url)throw new Error(d.error||'Démarrage OAuth impossible.');
+      const d=await r.json();if(!r.ok||!d.authorization_url){const diagnostic=d.diagnostic?['HTTP '+(d.diagnostic.http_status||''),d.diagnostic.code,d.diagnostic.message,d.diagnostic.hint].filter(Boolean).join(' · '):'';throw new Error([d.error||'Démarrage OAuth impossible.',diagnostic].filter(Boolean).join(' — '));}
       window.location.assign(d.authorization_url);
     }catch(e){toast(e.message,true);}
   });
