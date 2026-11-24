@@ -113,7 +113,8 @@
     if(error)throw new Error('Enregistrement de la validation impossible : '+error.message+'. Vérifie que la migration parent_approvals.sql a été exécutée.');
     const index=parentApprovals.findIndex(x=>x.id===data.id);
     if(index>=0)parentApprovals[index]=data;else parentApprovals.unshift(data);
-    renderParentApprovals();
+    renderParentApprovals();renderNotificationCenter();
+    if(index<0)void notifyParent('Validation parentale requise',title+' attend ta vérification.');
     return data;
   }
   function renderApprovalControl(record,target){
@@ -329,6 +330,7 @@
     const f=e.currentTarget,values=Object.fromEntries(new FormData(f).entries());
     const payload={owner_id:user.id,project_type:values.project_type,project_name:values.project_name.trim(),objective:values.objective.trim(),duration_days:Number(values.duration_days),budget_amount:values.budget_amount===''?null:Number(values.budget_amount),budget_currency:values.budget_currency,markets:values.markets.trim()||null,channels:values.channels.trim()||null,notes:values.notes.trim()||null,status:values.status,updated_at:new Date().toISOString()};
     const editing=Boolean(editingCampaignId);
+    const previousCampaign=editing?campaigns.find(c=>c.id===editingCampaignId):null;
     const query=editing?supabase.from('ai_marketing_campaigns').update(payload).eq('id',editingCampaignId):supabase.from('ai_marketing_campaigns').insert(payload);
     const {error}=await query;
     if(error){$('#campaignMessage').textContent=error.message;toast('Enregistrement impossible : '+error.message,true);return;}
