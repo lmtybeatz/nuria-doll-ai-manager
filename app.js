@@ -394,7 +394,7 @@
           ? 'Proposition générée par Cloudflare AI (secours Groq). Vérifie-la avant toute utilisation.'
           : 'Proposition générée par Groq. Vérifie-la avant toute utilisation.';
       }
-    }catch(err){status.textContent=err.message||'Une erreur est survenue.';toast(status.textContent,true);}
+    }catch(err){if(artistId===activeArtistId){status.textContent=err.message||'Une erreur est survenue.';toast(status.textContent,true);}}
     finally{submit.disabled=false;submit.innerHTML='Générer une proposition <span>→</span>';}
   });
 
@@ -505,8 +505,7 @@
         status.textContent=payload.fallback_used?'Généré par Cloudflare AI (secours Groq).':'Généré par Groq.';
       }
     }catch(err){
-      status.textContent=err.message||'Une erreur est survenue.';
-      toast(status.textContent,true);
+      if(artistId===activeArtistId){status.textContent=err.message||'Une erreur est survenue.';toast(status.textContent,true);}
     }finally{
       submit.disabled=false;submit.innerHTML='Générer ma stratégie <span>→</span>';
     }
@@ -522,7 +521,7 @@
     try{await navigator.clipboard.writeText(value);toast('Brouillon copié.');}
     catch{toast('Copie indisponible sur ce navigateur.',true);}
   });
-  $('#mediaInput').addEventListener('change',async e=>{const files=[...e.target.files];if(!files.length)return;for(const file of files){if(file.size>100*1024*1024){toast(`${file.name} dépasse la limite de 100 Mo.`,true);continue;}const safe=file.name.normalize('NFKD').replace(/[^a-zA-Z0-9._-]/g,'_');const path=`${user.id}/${crypto.randomUUID()}-${safe}`;$('#uploadStatus').textContent=`Envoi de ${file.name}…`;const {error:upErr}=await supabase.storage.from('nuria-private-media').upload(path,file,{contentType:file.type,upsert:false});if(upErr){toast(`Échec de ${file.name} : ${upErr.message}`,true);continue;}const category=file.type.startsWith('image/')?'image':file.type.startsWith('video/')?'video':file.type.startsWith('audio/')?'audio':'document';const {error:dbErr}=await supabase.from('ai_media_library').insert({owner_id:user.id,artist_id:activeArtistId,file_name:file.name,storage_path:path,mime_type:file.type,file_size:file.size,category});if(dbErr){await supabase.storage.from('nuria-private-media').remove([path]);toast(`Erreur d'enregistrement : ${dbErr.message}`,true);continue;}toast(`${file.name} ajouté.`);}$('#uploadStatus').textContent='';e.target.value='';await loadMedia();});
+  $('#mediaInput').addEventListener('change',async e=>{const files=[...e.target.files];if(!files.length)return;const artistId=activeArtistId;for(const file of files){if(file.size>100*1024*1024){toast(`${file.name} dépasse la limite de 100 Mo.`,true);continue;}const safe=file.name.normalize('NFKD').replace(/[^a-zA-Z0-9._-]/g,'_');const path=`${user.id}/${crypto.randomUUID()}-${safe}`;$('#uploadStatus').textContent=`Envoi de ${file.name}…`;const {error:upErr}=await supabase.storage.from('nuria-private-media').upload(path,file,{contentType:file.type,upsert:false});if(upErr){toast(`Échec de ${file.name} : ${upErr.message}`,true);continue;}const category=file.type.startsWith('image/')?'image':file.type.startsWith('video/')?'video':file.type.startsWith('audio/')?'audio':'document';const {error:dbErr}=await supabase.from('ai_media_library').insert({owner_id:user.id,artist_id:artistId,file_name:file.name,storage_path:path,mime_type:file.type,file_size:file.size,category});if(dbErr){await supabase.storage.from('nuria-private-media').remove([path]);toast(`Erreur d'enregistrement : ${dbErr.message}`,true);continue;}toast(`${file.name} ajouté.`);}$('#uploadStatus').textContent='';e.target.value='';await loadMedia();});
 
   async function loadYoutubeChannel(){
     const artistId=activeArtistId;
@@ -547,8 +546,8 @@
       $('#youtubeChannelDescription').textContent=c.description||'Aucune description publique renseignée.';
       $('#youtubeChannelPublished').textContent=c.published_at?'Créée le '+new Date(c.published_at).toLocaleDateString('fr-FR'):'';
       status.textContent='Données actualisées le '+new Date(d.synced_at).toLocaleString('fr-FR')+' · Lecture seule';
-    }catch(e){status.textContent='Synchronisation impossible : '+e.message;toast(e.message,true);}
-    finally{button.disabled=false;}
+    }catch(e){if(artistId===activeArtistId){status.textContent='Synchronisation impossible : '+e.message;toast(e.message,true);}}
+    finally{if(artistId===activeArtistId)button.disabled=false;}
   }
   const ytNumber=value=>new Intl.NumberFormat('fr-FR',{maximumFractionDigits:0}).format(Number(value||0));
   function appendReportInline(parent,text){
@@ -832,8 +831,8 @@
       status.textContent='Statistiques du '+range+' derniers jours · Données arrêtées au '+new Date(d.end_date+'T00:00:00').toLocaleDateString('fr-FR')+' · Actualisé '+new Date(d.synced_at).toLocaleTimeString('fr-FR');
       latestYoutubeAnalytics=d;
       void generateYoutubeRecommendations(d,range,false);
-    }catch(e){status.textContent='Statistiques indisponibles : '+e.message;toast(e.message,true);}
-    finally{buttonSet.forEach(b=>b.disabled=false);}
+    }catch(e){if(artistId===activeArtistId){status.textContent='Statistiques indisponibles : '+e.message;toast(e.message,true);}}
+    finally{if(artistId===activeArtistId)buttonSet.forEach(b=>b.disabled=false);}
   }
   function resetYoutubeDashboard(){
     latestYoutubeAnalytics=null;
@@ -865,7 +864,7 @@
       $('#youtubeTag').textContent=d.connected?'Connecté':'Non connecté';
       $('#youtubeTag').className='tag '+(d.connected?'green':'');
       if(d.connected){await loadYoutubeChannel();await loadYoutubeAnalytics(30);}else {$('#youtubeChannelPanel')?.classList.add('hidden');$('#youtubeAnalyticsStatus').textContent='Connecte une chaîne YouTube pour cet artiste afin de consulter ses statistiques.';}
-    }catch(e){box.textContent='Statut indisponible : '+e.message;}
+    }catch(e){if(artistId===activeArtistId)box.textContent='Statut indisponible : '+e.message;}
   }
   $('#refreshYoutube').addEventListener('click',loadYoutubeChannel);
   $$('#youtubeAnalyticsRanges button').forEach(b=>b.addEventListener('click',()=>loadYoutubeAnalytics(Number(b.dataset.range))));
