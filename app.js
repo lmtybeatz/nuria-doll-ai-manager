@@ -69,7 +69,10 @@
     artists.forEach(artist=>{const option=document.createElement('option');option.value=artist.id;option.textContent=artist.artist_name+(artist.is_default?' · principal':'');select.append(option);});
     select.value=activeArtistId||'';
     const current=artists.find(a=>a.id===activeArtistId);
-    if(current){const name=$('#currentArtistName');if(name)name.textContent=current.artist_name;}
+    if(current){const name=$('#currentArtistName');if(name)name.textContent=current.artist_name;
+      const facebookLabel=$('.social-card-facebook h3 + p');if(facebookLabel)facebookLabel.textContent='Page Facebook de '+current.artist_name;
+      const youtubeLabel=$('.social-card-youtube h3 + p');if(youtubeLabel)youtubeLabel.textContent='Chaîne YouTube de '+current.artist_name;
+    }
   }
   async function reloadArtistWorkspace(){
     if(!activeArtistId)return;
@@ -817,7 +820,7 @@
     const box=$('#youtubeStatus'),button=$('#connectYoutube');
     try{
       const {data:{session}}=await supabase.auth.getSession();
-      const r=await fetch('/api/youtube/status?artist_id='+encodeURIComponent(activeArtistId),{headers:{authorization:'Bearer '+session.access_token}});
+      const r=await fetch('/api/youtube/status?artist_id='+encodeURIComponent(artistId),{headers:{authorization:'Bearer '+session.access_token}});
       const d=await r.json();if(!r.ok)throw new Error(d.error||'État indisponible');
       if(artistId!==activeArtistId)return;
       box.textContent=d.connected?'Chaîne YouTube connectée · Accès en lecture seule':'Aucune chaîne YouTube connectée';
@@ -832,13 +835,14 @@
   $('#generateYtRecommendations').addEventListener('click',()=>{if(latestYoutubeAnalytics)generateYoutubeRecommendations(latestYoutubeAnalytics,Number(latestYoutubeAnalytics.range||30),true);else $('#ytRecommendationStatus').textContent='Charge d’abord les statistiques YouTube.';});
   $('#connectYoutube').addEventListener('click',async()=>{
     try{
+      const artistId=activeArtistId;if(!artistId)throw new Error('Sélectionne d’abord un espace artiste.');
       const {data:{session}}=await supabase.auth.getSession();if(!session?.access_token)throw new Error('Reconnecte-toi.');
-      const r=await fetch('/api/youtube/start?artist_id='+encodeURIComponent(activeArtistId),{headers:{authorization:'Bearer '+session.access_token}});
+      const r=await fetch('/api/youtube/start?artist_id='+encodeURIComponent(artistId),{headers:{authorization:'Bearer '+session.access_token}});
       const d=await r.json();if(!r.ok||!d.authorization_url)throw new Error(d.error||'Démarrage OAuth impossible.');
       window.location.assign(d.authorization_url);
     }catch(e){toast(e.message,true);}
   });
   const ytParams=new URLSearchParams(location.search);
-  if(ytParams.has('youtube')){if(ytParams.get('youtube')==='connected')toast('YouTube est connecté en lecture seule.');else{const reasons={cookie_absent:"Le navigateur n’a pas renvoyé le cookie de sécurité. Vérifie que la connexion s’effectue dans le même navigateur.",secret_etat_absent:"Le secret YOUTUBE_OAUTH_STATE_SECRET manque dans Cloudflare.",signature_cookie_invalide:"Le cookie de sécurité OAuth est invalide ou a été modifié.",autorisation_google_refusee:"Google a refusé ou interrompu l’autorisation.",code_ou_etat_absent:"Google n’a pas renvoyé le code ou l’état OAuth attendu.",etat_invalide:"L’état de sécurité ne correspond pas à la demande initiale.",delai_depasse:"La demande de connexion a expiré. Il faut recommencer.",erreur_echange_google:"Échec de l’échange du code auprès de Google. Vérifie le client ID, le secret et l’URL de redirection.",erreur_chiffrement_jetons:"Échec du chiffrement des jetons YouTube. Vérifie YOUTUBE_TOKEN_ENCRYPTION_KEY.",erreur_enregistrement_supabase:"Échec de l’enregistrement sécurisé dans Supabase. Vérifie la clé secrète et la table ai_social_connections."};const reason=ytParams.get("reason");toast(reasons[reason]||("Échec YouTube : "+(reason||"cause non précisée")+". Le diagnostic ne contient aucune clé secrète."),true);}history.replaceState({},'',location.pathname);}
+  if(ytParams.has('youtube')){if(ytParams.get('youtube')==='connected')toast('YouTube est connecté en lecture seule.');else{const reasons={cookie_absent:"Le navigateur n’a pas renvoyé le cookie de sécurité. Vérifie que la connexion s’effectue dans le même navigateur.",secret_etat_absent:"Le secret YOUTUBE_OAUTH_STATE_SECRET manque dans Cloudflare.",signature_cookie_invalide:"Le cookie de sécurité OAuth est invalide ou a été modifié.",autorisation_google_refusee:"Google a refusé ou interrompu l’autorisation.",code_ou_etat_absent:"Google n’a pas renvoyé le code ou l’état OAuth attendu.",etat_invalide:"L’état de sécurité ne correspond pas à la demande initiale.",delai_depasse:"La demande de connexion a expiré. Il faut recommencer.",erreur_echange_google:"Échec de l’échange du code auprès de Google. Vérifie le client ID, le secret et l’URL de redirection.",erreur_chiffrement_jetons:"Échec du chiffrement des jetons YouTube. Vérifie YOUTUBE_TOKEN_ENCRYPTION_KEY.",erreur_enregistrement_supabase:"Échec de l’enregistrement sécurisé dans Supabase. Vérifie la clé secrète et la table ai_social_connections.",erreur_verification_artiste:"Google a terminé l’autorisation, mais le serveur n’a pas réussi à vérifier cet artiste dans Supabase. Vérifie la configuration serveur."};const reason=ytParams.get("reason");toast(reasons[reason]||("Échec YouTube : "+(reason||"cause non précisée")+". Le diagnostic ne contient aucune clé secrète."),true);}history.replaceState({},'',location.pathname);}
   init();
 })();

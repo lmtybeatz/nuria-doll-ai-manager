@@ -18,13 +18,15 @@ export async function onRequestGet({request,env}){
   if(!tokens.refresh_token)throw new Error("Google n'a pas fourni de jeton de renouvellement. Relance la connexion avec consentement.");
   if(!payload.artistId)throw new Error("Espace artiste absent de la demande OAuth.");
   stage="verification_artiste";
+  if(!env.SUPABASE_URL||!env.SUPABASE_SERVICE_ROLE_KEY)throw new Error("Configuration Supabase serveur incomplète.");
   const base=env.SUPABASE_URL.replace(/\/$/,"");
-  const artistResponse=await fetch(base+"/rest/v1/ai_artists?id=eq."+encodeURIComponent(payload.artistId)+"&owner_id=eq."+encodeURIComponent(payload.uid)+"&status=eq.active&select=id",{headers:{apikey:env.SUPABASE_SERVICE_ROLE_KEY}});
+  const adminHeaders={apikey:env.SUPABASE_SERVICE_ROLE_KEY,authorization:"Bearer "+env.SUPABASE_SERVICE_ROLE_KEY};
+  const artistResponse=await fetch(base+"/rest/v1/ai_artists?id=eq."+encodeURIComponent(payload.artistId)+"&owner_id=eq."+encodeURIComponent(payload.uid)+"&status=eq.active&select=id",{headers:adminHeaders});
   if(!artistResponse.ok||!(await artistResponse.json()).length)throw new Error("Espace artiste invalide ou non autorisé.");
   stage="chiffrement_jetons";
   const encrypted=await encrypt(tokens,env.YOUTUBE_TOKEN_ENCRYPTION_KEY);
   stage="enregistrement_supabase";
-  const response=await fetch(base+"/rest/v1/ai_social_connections?on_conflict=owner_id,artist_id,provider",{method:"POST",headers:{apikey:env.SUPABASE_SERVICE_ROLE_KEY,"content-type":"application/json",prefer:"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({owner_id:payload.uid,artist_id:payload.artistId,provider:"youtube",token_ciphertext:encrypted,scopes:["https://www.googleapis.com/auth/youtube.readonly","https://www.googleapis.com/auth/yt-analytics.readonly"],connected_at:new Date().toISOString(),updated_at:new Date().toISOString()})});
+  const response=await fetch(base+"/rest/v1/ai_social_connections?on_conflict=owner_id,artist_id,provider",{method:"POST",headers:{...adminHeaders,"content-type":"application/json",prefer:"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({owner_id:payload.uid,artist_id:payload.artistId,provider:"youtube",token_ciphertext:encrypted,scopes:["https://www.googleapis.com/auth/youtube.readonly","https://www.googleapis.com/auth/yt-analytics.readonly"],connected_at:new Date().toISOString(),updated_at:new Date().toISOString()})});
   if(!response.ok){
    const detail=await response.text();
    let safe="réponse Supabase non détaillée";
