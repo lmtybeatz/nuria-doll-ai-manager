@@ -418,7 +418,7 @@
     const form=new FormData(e.currentTarget);
     const values=Object.fromEntries(form.entries());
     const task=[
-      "Élabore une stratégie marketing opérationnelle, réaliste et détaillée pour NURIA DOLL.",
+      "Élabore une stratégie marketing opérationnelle, réaliste et détaillée pour "+(activeArtist?.artist_name||profile?.artist_name||"l’artiste sélectionné")+".",
       "PROJET : "+values.project,
       "OBJECTIF PRINCIPAL : "+values.objective,
       "DURÉE : "+values.duration,
