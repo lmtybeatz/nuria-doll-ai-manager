@@ -5,12 +5,12 @@ const random=n=>{const a=new Uint8Array(n);crypto.getRandomValues(a);return b64u
 async function hmac(value,secret){const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(secret),{name:"HMAC",hash:"SHA-256"},false,["sign"]);return b64u(await crypto.subtle.sign("HMAC",key,new TextEncoder().encode(value)));}
 async function verify(request,env){const m=(request.headers.get("authorization")||"").match(/^Bearer\s+(.+)$/i);if(!m)return null;const r=await fetch(env.SUPABASE_URL.replace(/\/$/,"")+"/auth/v1/user",{headers:{apikey:env.SUPABASE_PUBLISHABLE_KEY,authorization:"Bearer "+m[1]}});return r.ok?await r.json():null;}
 export async function onRequestGet({request,env}){
- if(!env.YOUTUBE_CLIENT_ID||!env.YOUTUBE_REDIRECT_URI||!env.YOUTUBE_OAUTH_STATE_SECRET||!env.SUPABASE_URL||!env.SUPABASE_PUBLISHABLE_KEY)return json({error:"Configuration YouTube incomplète côté serveur."},500);
+ if(!env.YOUTUBE_CLIENT_ID||!env.YOUTUBE_REDIRECT_URI||!env.YOUTUBE_OAUTH_STATE_SECRET||!env.SUPABASE_URL||!env.SUPABASE_PUBLISHABLE_KEY||!env.SUPABASE_SERVICE_ROLE_KEY)return json({error:"Configuration YouTube incomplète côté serveur."},500);
  const user=await verify(request,env);if(!user?.id)return json({error:"Connexion parent/manager requise."},401);
  const artistId=new URL(request.url).searchParams.get("artist_id");
  if(!artistId)return json({error:"Espace artiste manquant."},400);
  const base=env.SUPABASE_URL.replace(/\/$/,"");
- const artistResponse=await fetch(base+"/rest/v1/ai_artists?id=eq."+encodeURIComponent(artistId)+"&owner_id=eq."+encodeURIComponent(user.id)+"&status=eq.active&select=id",{headers:{apikey:env.SUPABASE_SERVICE_ROLE_KEY||env.SUPABASE_PUBLISHABLE_KEY,authorization:"Bearer "+(request.headers.get("authorization")||"").replace(/^Bearer\s+/i,"")}});
+ const artistResponse=await fetch(base+"/rest/v1/ai_artists?id=eq."+encodeURIComponent(artistId)+"&owner_id=eq."+encodeURIComponent(user.id)+"&status=eq.active&select=id",{headers:{apikey:env.SUPABASE_SERVICE_ROLE_KEY,authorization:"Bearer "+env.SUPABASE_SERVICE_ROLE_KEY}});
  if(!artistResponse.ok)return json({error:"Vérification de l'espace artiste impossible."},502);
  if(!(await artistResponse.json()).length)return json({error:"Espace artiste introuvable ou non autorisé."},404);
  const state=random(32),verifier=random(48),challenge=b64u(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(verifier)));
