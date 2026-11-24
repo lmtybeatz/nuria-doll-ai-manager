@@ -19,10 +19,10 @@ export async function onRequestGet({request,env}){
   const base=env.SUPABASE_URL.replace(/\/$/,"");
   const artistId=new URL(request.url).searchParams.get("artist_id");
   if(!artistId)return Response.json({error:"Espace artiste manquant."},{status:400,headers:H});
-  const ar=await fetch(base+"/rest/v1/ai_artists?id=eq."+encodeURIComponent(artistId)+"&owner_id=eq."+encodeURIComponent(u.id)+"&status=eq.active&select=id",{headers:{apikey:env.SUPABASE_SERVICE_ROLE_KEY}});
+  const ar=await fetch(base+"/rest/v1/ai_artists?id=eq."+encodeURIComponent(artistId)+"&owner_id=eq."+encodeURIComponent(u.id)+"&status=eq.active&select=id",{headers:{apikey:env.SUPABASE_SERVICE_ROLE_KEY,authorization:"Bearer "+env.SUPABASE_SERVICE_ROLE_KEY}});
   if(!ar.ok)return Response.json({error:"Vérification de l'espace artiste impossible."},{status:502,headers:H});
   if(!(await ar.json()).length)return Response.json({error:"Espace artiste introuvable ou non autorisé."},{status:404,headers:H});
-  const r=await fetch(base+"/rest/v1/ai_social_connections?owner_id=eq."+encodeURIComponent(u.id)+"&artist_id=eq."+encodeURIComponent(artistId)+"&provider=eq.youtube&select=connected_at,scopes",{headers:{apikey:env.SUPABASE_SERVICE_ROLE_KEY}});
+  const r=await fetch(base+"/rest/v1/ai_social_connections?owner_id=eq."+encodeURIComponent(u.id)+"&artist_id=eq."+encodeURIComponent(artistId)+"&provider=eq.youtube&select=connected_at,scopes",{headers:{apikey:env.SUPABASE_SERVICE_ROLE_KEY,authorization:"Bearer "+env.SUPABASE_SERVICE_ROLE_KEY}});
   if(!r.ok){
    console.error("NURIA_YOUTUBE_STATUS_ERROR",JSON.stringify({stage,http_status:r.status}));
    return Response.json({error:"État de connexion indisponible.",stage,http_status:r.status},{status:502,headers:H});
