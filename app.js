@@ -4,6 +4,7 @@
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => [...document.querySelectorAll(s)];
   let supabase = null, user = null, signupMode = false, profile = null, settings = null, media = [];
+  let artists = [], activeArtistId = null, switchingArtist = false;
   let latestYoutubeAnalytics=null;
   const recommendationBusy=new Set();
   let campaigns = [], editingCampaignId = null;
@@ -17,7 +18,7 @@
     $$('.view').forEach(v=>v.classList.toggle('active-view',v.id===`view-${view}`));
     $$('.nav-item[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===view));
     const names={overview:"Vue d'ensemble",brand:'Identité artistique',strategy:'Stratégie marketing',library:'Bibliothèque média',agent:'Configuration IA',connections:'Réseaux sociaux'};
-    $('#pageTitle').textContent=names[view]; $('#crumb').textContent=view==='overview'?'CENTRE DE COMMANDE':'NURIA DOLL · '+names[view].toUpperCase();
+    $('#pageTitle').textContent=names[view]; $('#crumb').textContent=view==='overview'?'CENTRE DE COMMANDE':activeArtistName().toUpperCase()+' · '+names[view].toUpperCase();
     $('#backToDashboard').classList.toggle('hidden',view==='overview');
     if(window.innerWidth<=760) $('#sidebar').classList.remove('open');
   }
@@ -43,7 +44,64 @@
       toast('Initialisation impossible : '+(error.message||'erreur inconnue'),true);
     }
   }
-  async function enterApp(){ hide($('#authScreen')); show($('#appShell')); $('#userEmail').textContent=user.email||'Compte connecté'; await Promise.all([loadProfile(),loadSettings(),loadMedia(),loadCampaigns(),loadParentApprovals()]); await youtubeStatus(); }
+  async function enterApp(){
+    hide($('#authScreen')); show($('#appShell')); $('#userEmail').textContent=user.email||'Compte connecté';
+    await loadArtists();
+    await reloadArtistWorkspace();
+    await youtubeStatus();
+  }
+  async function loadArtists(){
+    const {data,error}=await supabase.from('ai_artists').select('id,artist_name,is_default,status,created_at').eq('status','active').order('is_default',{ascending:false}).order('artist_name');
+    if(error)throw new Error('Chargement des espaces artistes impossible : '+error.message);
+    artists=data||[];
+    if(!artists.length)throw new Error('Aucun espace artiste trouvé. Vérifie la migration multi-artistes.');
+    if(!activeArtistId||!artists.some(a=>a.id===activeArtistId)){
+      activeArtistId=(artists.find(a=>a.is_default)||artists[0]).id;
+    }
+    renderArtistSwitcher();
+  }
+  function activeArtistName(){return artists.find(a=>a.id===activeArtistId)?.artist_name||'artiste sélectionné';}
+  function renderArtistSwitcher(){
+    const select=$('#artistSwitcher');if(!select)return;
+    select.innerHTML='';
+    artists.forEach(artist=>{const option=document.createElement('option');option.value=artist.id;option.textContent=artist.artist_name+(artist.is_default?' · principal':'');select.append(option);});
+    select.value=activeArtistId||'';
+    const current=artists.find(a=>a.id===activeArtistId);
+    if(current){const name=$('#currentArtistName');if(name)name.textContent=current.artist_name;}
+  }
+  async function reloadArtistWorkspace(){
+    if(!activeArtistId)return;
+    switchingArtist=true;
+    try{
+      await Promise.all([loadProfile(),loadSettings(),loadMedia(),loadCampaigns(),loadParentApprovals(),loadYoutubeRecommendationHistory()]);
+      const current=artists.find(a=>a.id===activeArtistId);
+      const heading=$('#activeArtistLabel');if(heading)heading.textContent=current?.artist_name||'Artiste sélectionné';
+      const welcome=$('#welcomeArtistName');if(welcome)welcome.textContent=current?.artist_name||'ton artiste';
+      const crumb=$('#crumb');if(crumb&&$('#pageTitle').textContent!=="Vue d'ensemble")crumb.textContent=(current?.artist_name||'ARTISTE')+' · '+$('#pageTitle').textContent.toUpperCase();
+    }finally{switchingArtist=false;}
+  }
+  $('#artistSwitcher')?.addEventListener('change',async e=>{
+    activeArtistId=e.target.value;
+    await reloadArtistWorkspace();
+    toast('Espace artiste sélectionné.');
+  });
+  $('#addArtistButton')?.addEventListener('click',async()=>{
+    const name=prompt('Nom du nouvel artiste :');
+    if(name===null)return;
+    const artistName=name.trim();
+    if(!artistName){toast('Saisis un nom d’artiste.',true);return;}
+    if(artists.some(a=>a.artist_name.trim().toLocaleLowerCase()===artistName.toLocaleLowerCase())){toast('Cet artiste existe déjà dans ton espace.',true);return;}
+    const button=$('#addArtistButton');button.disabled=true;
+    try{
+      const {data,error}=await supabase.from('ai_artists').insert({owner_id:user.id,artist_name:artistName,status:'active',is_default:false}).select('id,artist_name,is_default,status,created_at').single();
+      if(error)throw error;
+      artists.push(data);activeArtistId=data.id;renderArtistSwitcher();
+      await reloadArtistWorkspace();
+      toast('Espace « '+artistName+' » créé. Tu peux maintenant compléter son identité.');
+      nav('brand');
+    }catch(error){toast('Création impossible : '+error.message,true);}
+    finally{button.disabled=false;}
+  });
 
   let parentApprovals=[];
   function renderNotificationCenter(){
@@ -108,7 +166,7 @@
     }
   });
   async function saveParentApproval(sourceType,sourceKey,title,content){
-    const payload={owner_id:user.id,source_type:sourceType,source_key:sourceKey,title,content,updated_at:new Date().toISOString()};
+    const payload={owner_id:user.id,artist_id:activeArtistId,source_type:sourceType,source_key:activeArtistId+':'+sourceKey,title,content,updated_at:new Date().toISOString()};
     const {data,error}=await supabase.from('ai_parent_approvals').upsert(payload,{onConflict:'owner_id,source_type,source_key'}).select('*').single();
     if(error)throw new Error('Enregistrement de la validation impossible : '+error.message+'. Vérifie que la migration parent_approvals.sql a été exécutée.');
     const index=parentApprovals.findIndex(x=>x.id===data.id);
@@ -155,15 +213,44 @@
     });
   }
   async function loadParentApprovals(){
-    const {data,error}=await supabase.from('ai_parent_approvals').select('*').order('created_at',{ascending:false}).limit(50);
+    const {data,error}=await supabase.from('ai_parent_approvals').select('*').eq('artist_id',activeArtistId).order('created_at',{ascending:false}).limit(50);
     if(error){const list=$('#parentApprovalHistory');if(list)list.textContent='Historique indisponible. Exécute la migration SQL parent_approvals.sql dans le projet Supabase de l’AI Manager.';return;}
     parentApprovals=data||[];renderParentApprovals();renderNotificationCenter();
   }
 
-  async function loadProfile(){const {data,error}=await supabase.from('ai_brand_profile').select('*').maybeSingle();if(error){toast('Chargement du profil : '+error.message,true);return;}profile=data;if(data){const f=$('#brandForm');Object.entries(data).forEach(([k,v])=>{const el=f.elements[k];if(el&&v!==null)el.value=v;});$('#profileStatus').textContent='Configuré';$('#brandCheck').classList.add('done');$('#brandCheck').textContent='✓';}else $('#profileStatus').textContent='À compléter';}
-  async function loadSettings(){const {data,error}=await supabase.from('ai_settings').select('*').maybeSingle();if(error)return;settings=data;if(data){const f=$('#settingsForm');['primary_goal','planning_horizon','autonomy_mode','monthly_budget_usd'].forEach(k=>{if(f.elements[k]&&data[k]!==null)f.elements[k].value=data[k];});}}
+  function resetBrandFormForArtist(){
+    const f=$('#brandForm');
+    f.reset();
+    Array.from(f.elements).forEach(el=>{
+      if(!el.name)return;
+      if(el.type==='color')el.value=el.name==='primary_color'?'#7047A6':'#E8E8E8';
+      else if(el.type==='checkbox'||el.type==='radio')el.checked=false;
+      else if(el.tagName==='SELECT')el.selectedIndex=0;
+      else el.value='';
+    });
+    if(f.elements.artist_name)f.elements.artist_name.value=activeArtistName();
+    $('#brandMessage').textContent='Complète les informations propres à cet artiste puis enregistre.';
+  }
+  async function loadProfile(){
+    profile=null;
+    resetBrandFormForArtist();
+    $('#brandCheck').classList.remove('done');
+    $('#brandCheck').textContent='3';
+    $('#profileStatus').textContent='À compléter';
+    const {data,error}=await supabase.from('ai_brand_profile').select('*').eq('artist_id',activeArtistId).maybeSingle();
+    if(error){toast('Chargement du profil : '+error.message,true);return;}
+    profile=data;
+    const f=$('#brandForm');
+    if(data){
+      Object.entries(data).forEach(([k,v])=>{const el=f.elements[k];if(el&&v!==null)el.value=v;});
+      $('#profileStatus').textContent='Configuré';
+      $('#brandCheck').classList.add('done');
+      $('#brandCheck').textContent='✓';
+    }
+  }
+  async function loadSettings(){const {data,error}=await supabase.from('ai_settings').select('*').eq('artist_id',activeArtistId).maybeSingle();if(error){settings=null;return;}settings=data;const f=$('#settingsForm');f.reset();if(data){['primary_goal','planning_horizon','autonomy_mode','monthly_budget_usd'].forEach(k=>{if(f.elements[k]&&data[k]!==null)f.elements[k].value=data[k];});}}
   async function loadMedia(){
-    const {data,error}=await supabase.from('ai_media_library').select('*').order('created_at',{ascending:false});
+    const {data,error}=await supabase.from('ai_media_library').select('*').eq('artist_id',activeArtistId).order('created_at',{ascending:false});
     if(error){toast('Chargement des médias : '+error.message,true);return;}
     media=data||[];
     await renderMedia();
@@ -246,8 +333,8 @@
   $$('.nav-item[data-view]').forEach(b=>b.onclick=()=>nav(b.dataset.view));$$('[data-goto]').forEach(b=>b.onclick=()=>nav(b.dataset.goto));
   $('#mobileMenu').onclick=()=>$('#sidebar').classList.toggle('open');
   $('#backToDashboard').onclick=()=>nav('overview');
-  $('#brandForm').addEventListener('submit',async e=>{e.preventDefault();const f=new FormData(e.currentTarget),payload=Object.fromEntries(f.entries());payload.owner_id=user.id;payload.updated_at=new Date().toISOString();const query=supabase.from('ai_brand_profile').upsert(payload,{onConflict:'owner_id'});const {error}=await query;if(error){$('#brandMessage').textContent=error.message;toast('Impossible d’enregistrer le profil.',true);return;}$('#brandMessage').textContent='Profil enregistré.';toast('Identité artistique enregistrée.');await loadProfile();});
-  $('#settingsForm').addEventListener('submit',async e=>{e.preventDefault();const f=new FormData(e.currentTarget),p=Object.fromEntries(f.entries());p.owner_id=user.id;p.monthly_budget_usd=Number(p.monthly_budget_usd);p.planning_horizon=Number(p.planning_horizon);p.updated_at=new Date().toISOString();const {error}=await supabase.from('ai_settings').upsert(p,{onConflict:'owner_id'});if(error){$('#settingsMessage').textContent=error.message;toast(error.message,true);return;}$('#settingsMessage').textContent='Paramètres enregistrés. Aucun service payant n’a été activé.';toast('Paramètres enregistrés.');});
+  $('#brandForm').addEventListener('submit',async e=>{e.preventDefault();const f=new FormData(e.currentTarget),payload=Object.fromEntries(f.entries());payload.owner_id=user.id;payload.artist_id=activeArtistId;payload.updated_at=new Date().toISOString();const query=supabase.from('ai_brand_profile').upsert(payload,{onConflict:'artist_id'});const {error}=await query;if(error){$('#brandMessage').textContent=error.message;toast('Impossible d’enregistrer le profil.',true);return;}$('#brandMessage').textContent='Profil enregistré.';toast('Identité artistique enregistrée.');await loadProfile();});
+  $('#settingsForm').addEventListener('submit',async e=>{e.preventDefault();const f=new FormData(e.currentTarget),p=Object.fromEntries(f.entries());p.owner_id=user.id;p.artist_id=activeArtistId;p.monthly_budget_usd=Number(p.monthly_budget_usd);p.planning_horizon=Number(p.planning_horizon);p.updated_at=new Date().toISOString();const {error}=await supabase.from('ai_settings').upsert(p,{onConflict:'artist_id'});if(error){$('#settingsMessage').textContent=error.message;toast(error.message,true);return;}$('#settingsMessage').textContent='Paramètres enregistrés. Aucun service payant n’a été activé.';toast('Paramètres enregistrés.');});
   $('#assistantForm').addEventListener('submit',async e=>{
     e.preventDefault();
     if(!supabase||!user)return;
@@ -284,7 +371,7 @@
   const campaignStatuses={draft:'Brouillon',planned:'Planifiée',active:'En cours',completed:'Terminée',archived:'Archivée'};
   const money=(amount,currency)=>amount===null||amount===''?'Budget à définir':new Intl.NumberFormat('fr-FR',{maximumFractionDigits:0}).format(Number(amount))+' '+(currency==='XOF'?'FCFA':currency);
   async function loadCampaigns(){
-    const {data,error}=await supabase.from('ai_marketing_campaigns').select('*').order('updated_at',{ascending:false});
+    const {data,error}=await supabase.from('ai_marketing_campaigns').select('*').eq('artist_id',activeArtistId).order('updated_at',{ascending:false});
     if(error){$('#campaignList').innerHTML='<div class="empty-state">Impossible de charger les campagnes : '+escapeText(error.message)+'</div>';return;}
     campaigns=data||[];renderCampaigns();
   }
@@ -328,7 +415,7 @@
   $('#campaignForm').addEventListener('submit',async e=>{
     e.preventDefault();if(!supabase||!user)return;
     const f=e.currentTarget,values=Object.fromEntries(new FormData(f).entries());
-    const payload={owner_id:user.id,project_type:values.project_type,project_name:values.project_name.trim(),objective:values.objective.trim(),duration_days:Number(values.duration_days),budget_amount:values.budget_amount===''?null:Number(values.budget_amount),budget_currency:values.budget_currency,markets:values.markets.trim()||null,channels:values.channels.trim()||null,notes:values.notes.trim()||null,status:values.status,updated_at:new Date().toISOString()};
+    const payload={owner_id:user.id,artist_id:activeArtistId,project_type:values.project_type,project_name:values.project_name.trim(),objective:values.objective.trim(),duration_days:Number(values.duration_days),budget_amount:values.budget_amount===''?null:Number(values.budget_amount),budget_currency:values.budget_currency,markets:values.markets.trim()||null,channels:values.channels.trim()||null,notes:values.notes.trim()||null,status:values.status,updated_at:new Date().toISOString()};
     const editing=Boolean(editingCampaignId);
     const previousCampaign=editing?campaigns.find(c=>c.id===editingCampaignId):null;
     const query=editing?supabase.from('ai_marketing_campaigns').update(payload).eq('id',editingCampaignId):supabase.from('ai_marketing_campaigns').insert(payload);
@@ -344,7 +431,7 @@
     const form=new FormData(e.currentTarget);
     const values=Object.fromEntries(form.entries());
     const task=[
-      "Élabore une stratégie marketing opérationnelle, réaliste et détaillée pour NURIA DOLL.",
+      "Élabore une stratégie marketing opérationnelle, réaliste et détaillée pour "+activeArtistName()+". Appuie-toi sur son profil artistique actif.",
       "PROJET : "+values.project,
       "OBJECTIF PRINCIPAL : "+values.objective,
       "DURÉE : "+values.duration,
@@ -371,7 +458,7 @@
       const response=await fetch('/api/assistant',{
         method:'POST',
         headers:{'content-type':'application/json','authorization':'Bearer '+session.access_token},
-        body:JSON.stringify({task,profile:profile||{artist_name:'NURIA DOLL',genre:'Pop enfantine'}})
+        body:JSON.stringify({task,profile:profile||{artist_name:activeArtistName()}})
       });
       const payload=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error([payload.error||'Le service IA n’a pas répondu correctement.',payload.diagnostic||'',payload.fallback_diagnostic||''].filter(Boolean).join(' — '));
@@ -398,7 +485,7 @@
     try{await navigator.clipboard.writeText(value);toast('Brouillon copié.');}
     catch{toast('Copie indisponible sur ce navigateur.',true);}
   });
-  $('#mediaInput').addEventListener('change',async e=>{const files=[...e.target.files];if(!files.length)return;for(const file of files){if(file.size>100*1024*1024){toast(`${file.name} dépasse la limite de 100 Mo.`,true);continue;}const safe=file.name.normalize('NFKD').replace(/[^a-zA-Z0-9._-]/g,'_');const path=`${user.id}/${crypto.randomUUID()}-${safe}`;$('#uploadStatus').textContent=`Envoi de ${file.name}…`;const {error:upErr}=await supabase.storage.from('nuria-private-media').upload(path,file,{contentType:file.type,upsert:false});if(upErr){toast(`Échec de ${file.name} : ${upErr.message}`,true);continue;}const category=file.type.startsWith('image/')?'image':file.type.startsWith('video/')?'video':file.type.startsWith('audio/')?'audio':'document';const {error:dbErr}=await supabase.from('ai_media_library').insert({owner_id:user.id,file_name:file.name,storage_path:path,mime_type:file.type,file_size:file.size,category});if(dbErr){await supabase.storage.from('nuria-private-media').remove([path]);toast(`Erreur d'enregistrement : ${dbErr.message}`,true);continue;}toast(`${file.name} ajouté.`);}$('#uploadStatus').textContent='';e.target.value='';await loadMedia();});
+  $('#mediaInput').addEventListener('change',async e=>{const files=[...e.target.files];if(!files.length)return;for(const file of files){if(file.size>100*1024*1024){toast(`${file.name} dépasse la limite de 100 Mo.`,true);continue;}const safe=file.name.normalize('NFKD').replace(/[^a-zA-Z0-9._-]/g,'_');const path=`${user.id}/${crypto.randomUUID()}-${safe}`;$('#uploadStatus').textContent=`Envoi de ${file.name}…`;const {error:upErr}=await supabase.storage.from('nuria-private-media').upload(path,file,{contentType:file.type,upsert:false});if(upErr){toast(`Échec de ${file.name} : ${upErr.message}`,true);continue;}const category=file.type.startsWith('image/')?'image':file.type.startsWith('video/')?'video':file.type.startsWith('audio/')?'audio':'document';const {error:dbErr}=await supabase.from('ai_media_library').insert({owner_id:user.id,artist_id:activeArtistId,file_name:file.name,storage_path:path,mime_type:file.type,file_size:file.size,category});if(dbErr){await supabase.storage.from('nuria-private-media').remove([path]);toast(`Erreur d'enregistrement : ${dbErr.message}`,true);continue;}toast(`${file.name} ajouté.`);}$('#uploadStatus').textContent='';e.target.value='';await loadMedia();});
 
   async function loadYoutubeChannel(){
     const panel=$('#youtubeChannelPanel'),status=$('#youtubeChannelSync'),button=$('#refreshYoutube');
@@ -519,7 +606,7 @@
     if(!list||!supabase||!user)return;
     const {data,error}=await supabase.from('ai_marketing_recommendations')
       .select('id,range_days,end_date,source,recommendation,provider,created_at')
-      .order('created_at',{ascending:false}).limit(6);
+      .eq('artist_id',activeArtistId).order('created_at',{ascending:false}).limit(6);
     list.innerHTML='';
     if(error){list.textContent='Historique indisponible. Vérifie que la migration des recommandations a été exécutée.';return;}
     if(!data?.length){list.textContent='Aucune analyse enregistrée pour le moment.';return;}
@@ -546,7 +633,7 @@
       if(!manual){
         const {data:existing,error:lookupError}=await supabase.from('ai_marketing_recommendations')
           .select('id,range_days,end_date,source,recommendation,provider,created_at')
-          .eq('range_days',range).eq('end_date',data.end_date).eq('source','automatic')
+          .eq('artist_id',activeArtistId).eq('range_days',range).eq('end_date',data.end_date).eq('source','automatic')
           .order('created_at',{ascending:false}).limit(1).maybeSingle();
         if(lookupError)throw new Error('Historique indisponible. Exécute la migration SQL des recommandations dans Supabase.');
         if(existing){
@@ -604,7 +691,7 @@
           url:v.url
         }))
       };
-      const task='Tu es analyste marketing YouTube senior pour NURIA DOLL, un projet musical familial porté par une enfant et administré exclusivement par son parent. Analyse les données fournies et produis un rapport utile au parent.\n\n'+
+      const task='Tu es analyste marketing YouTube senior pour '+activeArtistName()+'. Analyse les données de la chaîne associée à cet artiste et produis un rapport utile à son gestionnaire. Appuie-toi sur le profil actif et ses consignes de communication.\n\n'+
         'RÈGLES DE FIABILITÉ OBLIGATOIRES :\n'+
         '1) Utilise uniquement les chiffres du bloc DONNÉES. Ne crée aucun chiffre, date, pic, tendance, cause, source de trafic, taux de clic, rétention, commentaire, partage, donnée démographique ou résultat non fourni.\n'+
         '2) Le bloc SNAPSHOT contient des contrôles de qualité. Si missing_daily_dates n’est pas vide, ne traite pas une journée absente comme zéro : indique que la série quotidienne est incomplète. Le meilleur jour est seulement le meilleur parmi les lignes reçues. Une comparaison sur 7 jours n’est valable que si last_7_days_views et previous_7_days_views sont tous deux des nombres ; sinon indique « comparaison indisponible (données quotidiennes incomplètes ou période insuffisante) ». N’utilise jamais les 7 dernières lignes comme si elles représentaient forcément 7 jours calendaires.\n'+
@@ -636,18 +723,18 @@
         'C. INTERPRÉTATIONS À TESTER : au maximum 3 hypothèses, chacune accompagnée de la donnée qui pourrait la confirmer.\n'+
         'D. DONNÉES MANQUANTES : liste précise des métriques nécessaires pour mieux décider (ex. impressions/CTR, rétention, sources de trafic), sans prétendre les connaître.\n'+
         'E. 3 ACTIONS PRIORITAIRES : pour chacune, objectif, justification fondée sur les données, étapes pratiques, effort (faible/moyen/élevé), indicateur à surveiller. Classe-les par priorité et commence par les actions gratuites et sûres.\n'+
-        'F. 3 IDÉES DE CONTENUS : adaptées à la pop enfantine et aux familles, avec format, durée indicative, angle créatif et appel à l’action destiné aux parents/familles.\n'+
+        'F. 3 IDÉES DE CONTENUS : adaptées au genre, au positionnement et au public cible indiqués dans le profil actif, avec format, durée indicative, angle créatif et appel à l’action approprié.\n'+
         'G. MINI-PLAN SUR 7 JOURS : tâches réalistes côté parent/manager, sans obligation de publier chaque jour.\n'+
         'H. VALIDATION PARENTALE : rappelle clairement qu’aucune action publique ne sera effectuée sans accord du parent.\n'+
         'Évite les recommandations génériques ou risquées. N’invente pas de playlist déjà créée, de campagne existante ou de partenariat. Si les données sont insuffisantes pour une recommandation, dis-le.\n\nDONNÉES MESURÉES (source : YouTube Analytics) :\n'+JSON.stringify(snapshot);
       const response=await fetch('/api/assistant',{
         method:'POST',
         headers:{'content-type':'application/json','authorization':'Bearer '+sessionData.session.access_token},
-        body:JSON.stringify({task,profile:profile||{artist_name:'NURIA DOLL',genre:'Pop enfantine',target_audience:'Enfants et familles'}})
+        body:JSON.stringify({task,profile:profile||{artist_name:activeArtistName()}})
       });
       const payload=await response.json().catch(()=>({}));
       if(!response.ok||!payload.answer)throw new Error([payload.error||'La génération IA a échoué.',payload.diagnostic||'',payload.fallback_diagnostic||''].filter(Boolean).join(' — '));
-      const row={owner_id:user.id,range_days:range,start_date:data.start_date,end_date:data.end_date,source:manual?'manual':'automatic',recommendation:payload.answer,provider:payload.provider||'unknown',analytics_snapshot:snapshot};
+      const row={owner_id:user.id,artist_id:activeArtistId,range_days:range,start_date:data.start_date,end_date:data.end_date,source:manual?'manual':'automatic',recommendation:payload.answer,provider:payload.provider||'unknown',analytics_snapshot:snapshot};
       const {data:saved,error:saveError}=await supabase.from('ai_marketing_recommendations').insert(row).select('id,range_days,end_date,source,recommendation,provider,created_at').single();
       if(saveError)throw new Error('Impossible de sauvegarder la recommandation : '+saveError.message+'. Vérifie la migration SQL.');
       displayYoutubeRecommendation(saved);

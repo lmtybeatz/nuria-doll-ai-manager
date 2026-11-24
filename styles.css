@@ -216,21 +216,20 @@
 }
 
 
-/* Installation PWA — bouton accessible depuis l'écran de connexion et le tableau de bord */
+/* Installation PWA — commande discrète dans la barre supérieure, sans recouvrir le contenu */
 .pwa-install-button{
-  position:fixed;right:18px;bottom:18px;z-index:1000;
-  display:inline-flex;align-items:center;justify-content:center;gap:9px;
-  min-height:46px;padding:0 17px;border:1px solid #d9c5eb;border-radius:999px;
-  background:#7047a6;color:#fff;box-shadow:0 8px 26px rgba(42,24,62,.22);
-  font:700 12px Manrope,'DM Sans',sans-serif;cursor:pointer;
-  transition:transform .18s ease,box-shadow .18s ease,background .18s ease;
+  position:static;z-index:auto;display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  flex:0 0 auto;min-height:36px;padding:0 11px;border:1px solid #d9c5eb;border-radius:9px;
+  background:#f7f2fb;color:#68458a;box-shadow:none;
+  font:700 10px Manrope,'DM Sans',sans-serif;cursor:pointer;
+  transition:background .18s ease,border-color .18s ease;
 }
-.pwa-install-button span:first-child{font-size:19px;line-height:1}
-.pwa-install-button:hover{background:#5d388f;transform:translateY(-2px);box-shadow:0 11px 30px rgba(42,24,62,.28)}
-.pwa-install-button:focus-visible{outline:3px solid #c9a9e6;outline-offset:3px}
+.pwa-install-button span:first-child{font-size:14px;line-height:1}
+.pwa-install-button:hover{background:#eee5f6;border-color:#cbb4df}
+.pwa-install-button:focus-visible{outline:3px solid #c9a9e6;outline-offset:2px}
 .pwa-install-button[hidden]{display:none!important}
 @media(max-width:760px){
-  .pwa-install-button{right:12px;bottom:12px;min-height:44px;padding:0 14px;font-size:11px}
+  .pwa-install-button{min-height:34px;padding:0 9px;font-size:10px}
 }
 @media(prefers-reduced-motion:reduce){.pwa-install-button{transition:none}}
 
@@ -260,3 +259,11 @@
  .notification-panel{position:fixed;top:72px;right:12px;width:min(360px,calc(100vw - 24px))}
  .top-actions{gap:8px}
 }
+
+/* Phase 2.2 — sélecteur multi-artistes */
+.artist-switcher-wrap{display:flex;align-items:center;gap:7px;padding:6px 8px;border:1px solid #e9e2ef;border-radius:11px;background:#fff}
+.artist-switcher-wrap label{font-size:8px;letter-spacing:1px;font-weight:800;color:#94889d;white-space:nowrap}
+.artist-switcher-wrap select{max-width:145px;min-width:100px;border:0;background:transparent;color:#4b365e;font-size:10px;font-weight:700;outline:none}
+.add-artist-button{border:0;border-radius:8px;background:#f0e8f8;color:#68458a;padding:8px 10px;font-size:10px;font-weight:800;white-space:nowrap}
+.add-artist-button:hover{background:#e7d9f1}
+@media(max-width:760px){.top-actions{gap:8px}.artist-switcher-wrap{order:0;max-width:calc(100vw - 32px);flex-wrap:wrap}.artist-switcher-wrap label{width:100%}.artist-switcher-wrap select{flex:1;max-width:none}.topbar{align-items:flex-start}.top-actions{flex-wrap:wrap;justify-content:flex-end}}
