@@ -60,6 +60,7 @@
     }
     renderArtistSwitcher();
   }
+  function activeArtistName(){return artists.find(a=>a.id===activeArtistId)?.artist_name||'artiste sélectionné';}
   function renderArtistSwitcher(){
     const select=$('#artistSwitcher');if(!select)return;
     select.innerHTML='';
@@ -401,7 +402,7 @@
     const form=new FormData(e.currentTarget);
     const values=Object.fromEntries(form.entries());
     const task=[
-      "Élabore une stratégie marketing opérationnelle, réaliste et détaillée pour NURIA DOLL.",
+      "Élabore une stratégie marketing opérationnelle, réaliste et détaillée pour "+activeArtistName()+". Appuie-toi sur son profil artistique actif.",
       "PROJET : "+values.project,
       "OBJECTIF PRINCIPAL : "+values.objective,
       "DURÉE : "+values.duration,
@@ -428,7 +429,7 @@
       const response=await fetch('/api/assistant',{
         method:'POST',
         headers:{'content-type':'application/json','authorization':'Bearer '+session.access_token},
-        body:JSON.stringify({task,profile:profile||{artist_name:'NURIA DOLL',genre:'Pop enfantine'}})
+        body:JSON.stringify({task,profile:profile||{artist_name:activeArtistName()}})
       });
       const payload=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error([payload.error||'Le service IA n’a pas répondu correctement.',payload.diagnostic||'',payload.fallback_diagnostic||''].filter(Boolean).join(' — '));
@@ -661,7 +662,7 @@
           url:v.url
         }))
       };
-      const task='Tu es analyste marketing YouTube senior pour NURIA DOLL, un projet musical familial porté par une enfant et administré exclusivement par son parent. Analyse les données fournies et produis un rapport utile au parent.\n\n'+
+      const task='Tu es analyste marketing YouTube senior pour '+activeArtistName()+'. Analyse les données de la chaîne associée à cet artiste et produis un rapport utile à son gestionnaire. Appuie-toi sur le profil actif et ses consignes de communication.\n\n'+
         'RÈGLES DE FIABILITÉ OBLIGATOIRES :\n'+
         '1) Utilise uniquement les chiffres du bloc DONNÉES. Ne crée aucun chiffre, date, pic, tendance, cause, source de trafic, taux de clic, rétention, commentaire, partage, donnée démographique ou résultat non fourni.\n'+
         '2) Le bloc SNAPSHOT contient des contrôles de qualité. Si missing_daily_dates n’est pas vide, ne traite pas une journée absente comme zéro : indique que la série quotidienne est incomplète. Le meilleur jour est seulement le meilleur parmi les lignes reçues. Une comparaison sur 7 jours n’est valable que si last_7_days_views et previous_7_days_views sont tous deux des nombres ; sinon indique « comparaison indisponible (données quotidiennes incomplètes ou période insuffisante) ». N’utilise jamais les 7 dernières lignes comme si elles représentaient forcément 7 jours calendaires.\n'+
@@ -693,14 +694,14 @@
         'C. INTERPRÉTATIONS À TESTER : au maximum 3 hypothèses, chacune accompagnée de la donnée qui pourrait la confirmer.\n'+
         'D. DONNÉES MANQUANTES : liste précise des métriques nécessaires pour mieux décider (ex. impressions/CTR, rétention, sources de trafic), sans prétendre les connaître.\n'+
         'E. 3 ACTIONS PRIORITAIRES : pour chacune, objectif, justification fondée sur les données, étapes pratiques, effort (faible/moyen/élevé), indicateur à surveiller. Classe-les par priorité et commence par les actions gratuites et sûres.\n'+
-        'F. 3 IDÉES DE CONTENUS : adaptées à la pop enfantine et aux familles, avec format, durée indicative, angle créatif et appel à l’action destiné aux parents/familles.\n'+
+        'F. 3 IDÉES DE CONTENUS : adaptées au genre, au positionnement et au public cible indiqués dans le profil actif, avec format, durée indicative, angle créatif et appel à l’action approprié.\n'+
         'G. MINI-PLAN SUR 7 JOURS : tâches réalistes côté parent/manager, sans obligation de publier chaque jour.\n'+
         'H. VALIDATION PARENTALE : rappelle clairement qu’aucune action publique ne sera effectuée sans accord du parent.\n'+
         'Évite les recommandations génériques ou risquées. N’invente pas de playlist déjà créée, de campagne existante ou de partenariat. Si les données sont insuffisantes pour une recommandation, dis-le.\n\nDONNÉES MESURÉES (source : YouTube Analytics) :\n'+JSON.stringify(snapshot);
       const response=await fetch('/api/assistant',{
         method:'POST',
         headers:{'content-type':'application/json','authorization':'Bearer '+sessionData.session.access_token},
-        body:JSON.stringify({task,profile:profile||{artist_name:'NURIA DOLL',genre:'Pop enfantine',target_audience:'Enfants et familles'}})
+        body:JSON.stringify({task,profile:profile||{artist_name:activeArtistName()}})
       });
       const payload=await response.json().catch(()=>({}));
       if(!response.ok||!payload.answer)throw new Error([payload.error||'La génération IA a échoué.',payload.diagnostic||'',payload.fallback_diagnostic||''].filter(Boolean).join(' — '));
