@@ -46,6 +46,67 @@
   async function enterApp(){ hide($('#authScreen')); show($('#appShell')); $('#userEmail').textContent=user.email||'Compte connecté'; await Promise.all([loadProfile(),loadSettings(),loadMedia(),loadCampaigns(),loadParentApprovals()]); await youtubeStatus(); }
 
   let parentApprovals=[];
+  function renderNotificationCenter(){
+    const count=$('#notificationCount'),items=$('#notificationItems'),summary=$('#notificationSummary');
+    if(!count||!items)return;
+    const pending=parentApprovals.filter(x=>!x.approved);
+    count.textContent=String(pending.length);
+    count.classList.toggle('hidden',pending.length===0);
+    if(summary)summary.textContent=pending.length?pending.length+' proposition(s) à vérifier':'Aucune validation en attente';
+    items.innerHTML='';
+    if(!pending.length){
+      const empty=document.createElement('p');empty.className='notification-empty';empty.textContent='Tout est à jour. Aucune proposition ne demande ton attention.';items.append(empty);
+    }else{
+      pending.slice(0,8).forEach(record=>{
+        const row=document.createElement('article');row.className='notification-item';
+        const dot=document.createElement('span');dot.className='notification-dot';
+        const body=document.createElement('div');body.className='notification-item-body';
+        const title=document.createElement('strong');title.textContent=record.title||'Proposition à valider';
+        const detail=document.createElement('small');detail.textContent=(record.source_type==='youtube'?'Recommandations YouTube':record.source_type==='strategy'?'Stratégie marketing':'Proposition IA')+' · '+new Date(record.created_at).toLocaleString('fr-FR');
+        body.append(title,detail);row.append(dot,body);items.append(row);
+      });
+    }
+    const permission=$('#notificationPermissionStatus'),enable=$('#enableNotifications');
+    if(permission&&enable){
+      const supported='Notification' in window;
+      permission.textContent=!supported?'Alertes système non prises en charge par ce navigateur.':Notification.permission==='granted'?'Alertes du navigateur activées.':Notification.permission==='denied'?'Alertes bloquées dans les réglages du navigateur.':'Tu peux autoriser les alertes sur cet appareil.';
+      enable.textContent=Notification.permission==='granted'?'Alertes activées':Notification.permission==='denied'?'Voir les réglages du navigateur':'Activer les alertes';
+      enable.disabled=!supported||Notification.permission==='granted';
+    }
+  }
+  async function notifyParent(title,body){
+    if(!('Notification' in window)||Notification.permission!=='granted')return;
+    try{
+      const registration=await navigator.serviceWorker?.getRegistration('/');
+      if(registration?.showNotification){
+        await registration.showNotification(title,{body,icon:'/assets/icon.svg',badge:'/assets/icon.svg',tag:'nuria-ai-manager-parent',renotify:true,data:{url:'/'}});
+      }else{
+        new Notification(title,{body,icon:'/assets/icon.svg',tag:'nuria-ai-manager-parent'});
+      }
+    }catch(error){console.warn('Notification navigateur indisponible :',error);}
+  }
+  const bell=$('#notificationBell'),panel=$('#notificationPanel');
+  bell?.addEventListener('click',()=>{
+    const opening=panel.classList.contains('hidden');
+    panel.classList.toggle('hidden',!opening);
+    bell.setAttribute('aria-expanded',String(opening));
+    if(opening)renderNotificationCenter();
+  });
+  $('#notificationClose')?.addEventListener('click',()=>{panel.classList.add('hidden');bell?.setAttribute('aria-expanded','false');});
+  $('#enableNotifications')?.addEventListener('click',async()=>{
+    if(!('Notification' in window)){toast('Ce navigateur ne prend pas en charge les notifications.',true);return;}
+    try{
+      const permission=await Notification.requestPermission();
+      renderNotificationCenter();
+      if(permission==='granted'){await notifyParent('NURIA DOLL AI MANAGER','Les alertes parentales sont activées sur cet appareil.');toast('Notifications activées sur cet appareil.');}
+      else toast(permission==='denied'?'Autorisation refusée. Modifie-la dans les réglages du navigateur.':'Autorisation non accordée.',true);
+    }catch(error){toast('Impossible d’activer les notifications : '+error.message,true);}
+  });
+  document.addEventListener('click',event=>{
+    if(panel&&!panel.classList.contains('hidden')&&!event.target.closest('.notification-wrap')){
+      panel.classList.add('hidden');bell?.setAttribute('aria-expanded','false');
+    }
+  });
   async function saveParentApproval(sourceType,sourceKey,title,content){
     const payload={owner_id:user.id,source_type:sourceType,source_key:sourceKey,title,content,updated_at:new Date().toISOString()};
     const {data,error}=await supabase.from('ai_parent_approvals').upsert(payload,{onConflict:'owner_id,source_type,source_key'}).select('*').single();
@@ -95,7 +156,7 @@
   async function loadParentApprovals(){
     const {data,error}=await supabase.from('ai_parent_approvals').select('*').order('created_at',{ascending:false}).limit(50);
     if(error){const list=$('#parentApprovalHistory');if(list)list.textContent='Historique indisponible. Exécute la migration SQL parent_approvals.sql dans le projet Supabase de l’AI Manager.';return;}
-    parentApprovals=data||[];renderParentApprovals();
+    parentApprovals=data||[];renderParentApprovals();renderNotificationCenter();
   }
 
   async function loadProfile(){const {data,error}=await supabase.from('ai_brand_profile').select('*').maybeSingle();if(error){toast('Chargement du profil : '+error.message,true);return;}profile=data;if(data){const f=$('#brandForm');Object.entries(data).forEach(([k,v])=>{const el=f.elements[k];if(el&&v!==null)el.value=v;});$('#profileStatus').textContent='Configuré';$('#brandCheck').classList.add('done');$('#brandCheck').textContent='✓';}else $('#profileStatus').textContent='À compléter';}
@@ -271,7 +332,7 @@
     const query=editing?supabase.from('ai_marketing_campaigns').update(payload).eq('id',editingCampaignId):supabase.from('ai_marketing_campaigns').insert(payload);
     const {error}=await query;
     if(error){$('#campaignMessage').textContent=error.message;toast('Enregistrement impossible : '+error.message,true);return;}
-    toast(editing?'Campagne mise à jour.':'Campagne créée.');resetCampaignForm();await loadCampaigns();
+    toast(editing?'Campagne mise à jour.':'Campagne créée.');if(payload.status==='completed'&&previousCampaign?.status!=='completed')void notifyParent('Campagne terminée',payload.project_name+' est maintenant marquée comme terminée.');resetCampaignForm();await loadCampaigns();
   });
   $('#campaignCancel').addEventListener('click',resetCampaignForm);
 
