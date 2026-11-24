@@ -218,7 +218,36 @@
     parentApprovals=data||[];renderParentApprovals();renderNotificationCenter();
   }
 
-  async function loadProfile(){const {data,error}=await supabase.from('ai_brand_profile').select('*').eq('artist_id',activeArtistId).maybeSingle();if(error){profile=null;toast('Chargement du profil : '+error.message,true);return;}profile=data;const f=$('#brandForm');f.reset();$('#brandCheck').classList.remove('done');$('#brandCheck').textContent='3';if(data){Object.entries(data).forEach(([k,v])=>{const el=f.elements[k];if(el&&v!==null)el.value=v;});$('#profileStatus').textContent='Configuré';$('#brandCheck').classList.add('done');$('#brandCheck').textContent='✓';}else $('#profileStatus').textContent='À compléter';}
+  function resetBrandFormForArtist(){
+    const f=$('#brandForm');
+    f.reset();
+    Array.from(f.elements).forEach(el=>{
+      if(!el.name)return;
+      if(el.type==='color')el.value=el.name==='primary_color'?'#7047A6':'#E8E8E8';
+      else if(el.type==='checkbox'||el.type==='radio')el.checked=false;
+      else if(el.tagName==='SELECT')el.selectedIndex=0;
+      else el.value='';
+    });
+    if(f.elements.artist_name)f.elements.artist_name.value=activeArtistName();
+    $('#brandMessage').textContent='Complète les informations propres à cet artiste puis enregistre.';
+  }
+  async function loadProfile(){
+    profile=null;
+    resetBrandFormForArtist();
+    $('#brandCheck').classList.remove('done');
+    $('#brandCheck').textContent='3';
+    $('#profileStatus').textContent='À compléter';
+    const {data,error}=await supabase.from('ai_brand_profile').select('*').eq('artist_id',activeArtistId).maybeSingle();
+    if(error){toast('Chargement du profil : '+error.message,true);return;}
+    profile=data;
+    const f=$('#brandForm');
+    if(data){
+      Object.entries(data).forEach(([k,v])=>{const el=f.elements[k];if(el&&v!==null)el.value=v;});
+      $('#profileStatus').textContent='Configuré';
+      $('#brandCheck').classList.add('done');
+      $('#brandCheck').textContent='✓';
+    }
+  }
   async function loadSettings(){const {data,error}=await supabase.from('ai_settings').select('*').eq('artist_id',activeArtistId).maybeSingle();if(error){settings=null;return;}settings=data;const f=$('#settingsForm');f.reset();if(data){['primary_goal','planning_horizon','autonomy_mode','monthly_budget_usd'].forEach(k=>{if(f.elements[k]&&data[k]!==null)f.elements[k].value=data[k];});}}
   async function loadMedia(){
     const {data,error}=await supabase.from('ai_media_library').select('*').eq('artist_id',activeArtistId).order('created_at',{ascending:false});
