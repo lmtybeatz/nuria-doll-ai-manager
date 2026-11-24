@@ -1,0 +1,21 @@
+{
+  "id": "/",
+  "name": "NURIA DOLL AI MANAGER",
+  "short_name": "NURIA AI",
+  "description": "Espace privé de gestion et de préparation de la communication de NURIA DOLL.",
+  "lang": "fr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f7f5fa",
+  "theme_color": "#171024",
+  "icons": [
+    {
+      "src": "/assets/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
