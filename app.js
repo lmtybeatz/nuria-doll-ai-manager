@@ -387,7 +387,7 @@
         body:JSON.stringify({task,profile:artistProfile})
       });
       const payload=await response.json().catch(()=>({}));
-      if(!response.ok)throw new Error([payload.error||'Le service IA n’a pas répondu correctement.',payload.diagnostic||'',payload.fallback_diagnostic||''].filter(Boolean).join(' — '));
+      if(!response.ok)throw new Error([payload.error||'Le service IA n’a pas répondu correctement.',Array.isArray(payload.missing)&&payload.missing.length?'Variables manquantes : '+payload.missing.join(', '):'',payload.diagnostic||'',payload.fallback_diagnostic||''].filter(Boolean).join(' — '));
       if(!payload.answer)throw new Error('Aucune proposition exploitable reçue.');
       const approval=await saveParentApproval('assistant',crypto.randomUUID(),'Proposition de l’assistant',payload.answer,artistId);
       if(artistId===activeArtistId){
@@ -500,7 +500,7 @@
         body:JSON.stringify({task,profile:artistProfile})
       });
       const payload=await response.json().catch(()=>({}));
-      if(!response.ok)throw new Error([payload.error||'Le service IA n’a pas répondu correctement.',payload.diagnostic||'',payload.fallback_diagnostic||''].filter(Boolean).join(' — '));
+      if(!response.ok)throw new Error([payload.error||'Le service IA n’a pas répondu correctement.',Array.isArray(payload.missing)&&payload.missing.length?'Variables manquantes : '+payload.missing.join(', '):'',payload.diagnostic||'',payload.fallback_diagnostic||''].filter(Boolean).join(' — '));
       if(!payload.answer)throw new Error('Aucune stratégie exploitable reçue.');
       const approval=await saveParentApproval('strategy',crypto.randomUUID(),'Stratégie marketing',payload.answer,artistId);
       if(artistId===activeArtistId){
@@ -861,7 +861,7 @@
     try{
       const {data:{session}}=await supabase.auth.getSession();
       const r=await fetch('/api/youtube/status?artist_id='+encodeURIComponent(artistId),{headers:{authorization:'Bearer '+session.access_token}});
-      const d=await r.json();if(!r.ok)throw new Error(d.error||'État indisponible');
+      const d=await r.json();if(!r.ok)throw new Error([d.error||'État indisponible',Array.isArray(d.missing)&&d.missing.length?'Variables manquantes : '+d.missing.join(', '):''].filter(Boolean).join(' — '));
       if(artistId!==activeArtistId)return;
       box.textContent=d.connected?'Chaîne YouTube connectée · Accès en lecture seule':'Aucune chaîne YouTube connectée';
       button.textContent=d.connected?'Reconnecter YouTube':'Connecter YouTube';
