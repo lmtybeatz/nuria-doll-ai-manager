@@ -97,10 +97,16 @@ begin
     'ai_brand_profile','ai_settings','ai_media_library',
     'ai_marketing_campaigns','ai_parent_approvals','ai_marketing_recommendations'
   ] loop
-    execute format(
-      'alter table public.%I add constraint %I foreign key (artist_id) references public.ai_artists(id) on delete cascade',
-      t, t || '_artist_id_fkey'
-    );
+    if not exists (
+      select 1 from pg_constraint
+      where conname = t || '_artist_id_fkey'
+        and conrelid = format('public.%I', t)::regclass
+    ) then
+      execute format(
+        'alter table public.%I add constraint %I foreign key (artist_id) references public.ai_artists(id) on delete cascade',
+        t, t || '_artist_id_fkey'
+      );
+    end if;
     execute format('create index if not exists %I on public.%I(owner_id, artist_id)', t || '_owner_artist_idx', t);
   end loop;
 end $$;
