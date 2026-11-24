@@ -87,6 +87,8 @@
   }
   $('#artistSwitcher')?.addEventListener('change',async e=>{
     activeArtistId=e.target.value;
+    // Mettre à jour immédiatement tous les libellés dépendant de l’artiste actif.
+    renderArtistSwitcher();
     await reloadArtistWorkspace();
     await youtubeStatus();
     toast('Espace artiste sélectionné.');
