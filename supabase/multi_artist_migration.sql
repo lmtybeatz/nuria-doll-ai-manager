@@ -42,7 +42,27 @@ select
   coalesce(nullif(trim(p.artist_name), ''), 'Mon artiste'),
   true
 from public.ai_brand_profile p
-on conflict (id) do nothing;
+where not exists (
+  select 1
+  from public.ai_artists a
+  where a.owner_id = p.owner_id
+    and lower(trim(a.artist_name)) =
+        lower(trim(coalesce(nullif(p.artist_name, ''), 'Mon artiste')))
+)
+on conflict do nothing;
+
+-- Si l'artiste existe déjà sous un autre identifiant, le conserver et le définir
+-- comme espace par défaut lorsqu'aucun autre artiste par défaut n'existe.
+update public.ai_artists a
+set is_default = true
+from public.ai_brand_profile p
+where a.owner_id = p.owner_id
+  and lower(trim(a.artist_name)) =
+      lower(trim(coalesce(nullif(p.artist_name, ''), 'Mon artiste')))
+  and not exists (
+    select 1 from public.ai_artists d
+    where d.owner_id = a.owner_id and d.is_default
+  );
 
 -- Les comptes sans profil artistique reçoivent un espace vide.
 insert into public.ai_artists (owner_id, artist_name, is_default)
@@ -66,7 +86,13 @@ alter table public.ai_marketing_campaigns add column if not exists artist_id uui
 alter table public.ai_parent_approvals add column if not exists artist_id uuid;
 alter table public.ai_marketing_recommendations add column if not exists artist_id uuid;
 
-update public.ai_brand_profile p set artist_id = p.id where p.artist_id is null;
+update public.ai_brand_profile p
+set artist_id = a.id
+from public.ai_artists a
+where p.artist_id is null
+  and a.owner_id = p.owner_id
+  and lower(trim(a.artist_name)) =
+      lower(trim(coalesce(nullif(p.artist_name, ''), 'Mon artiste')));
 update public.ai_settings s
 set artist_id = a.id
 from public.ai_artists a
