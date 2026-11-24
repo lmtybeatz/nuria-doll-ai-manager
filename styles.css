@@ -260,3 +260,11 @@
  .notification-panel{position:fixed;top:72px;right:12px;width:min(360px,calc(100vw - 24px))}
  .top-actions{gap:8px}
 }
+
+/* Phase 2.2 — sélecteur multi-artistes */
+.artist-switcher-wrap{display:flex;align-items:center;gap:7px;padding:6px 8px;border:1px solid #e9e2ef;border-radius:11px;background:#fff}
+.artist-switcher-wrap label{font-size:8px;letter-spacing:1px;font-weight:800;color:#94889d;white-space:nowrap}
+.artist-switcher-wrap select{max-width:145px;min-width:100px;border:0;background:transparent;color:#4b365e;font-size:10px;font-weight:700;outline:none}
+.add-artist-button{border:0;border-radius:8px;background:#f0e8f8;color:#68458a;padding:8px 10px;font-size:10px;font-weight:800;white-space:nowrap}
+.add-artist-button:hover{background:#e7d9f1}
+@media(max-width:760px){.top-actions{gap:8px}.artist-switcher-wrap{order:0;max-width:calc(100vw - 32px);flex-wrap:wrap}.artist-switcher-wrap label{width:100%}.artist-switcher-wrap select{flex:1;max-width:none}.topbar{align-items:flex-start}.top-actions{flex-wrap:wrap;justify-content:flex-end}}
