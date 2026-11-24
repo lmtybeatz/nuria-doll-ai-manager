@@ -260,3 +260,30 @@
  .notification-panel{position:fixed;top:72px;right:12px;width:min(360px,calc(100vw - 24px))}
  .top-actions{gap:8px}
 }
+
+/* Phase 2 — espace multi-artistes */
+.artist-workspace{margin:-5px 0 20px;padding:13px 16px;border:1px solid #e9e0f0;border-radius:14px;background:#fff;box-shadow:0 7px 22px rgba(38,23,55,.035)}
+.artist-switch-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.artist-current{display:grid;gap:3px;min-width:150px;flex:1}
+.artist-kicker{font-size:8px;font-weight:800;letter-spacing:1.2px;color:#927ca4}
+.artist-current strong{font:800 15px Manrope;color:#3e2d4c}
+.artist-current small{font-size:9px;color:#9a8fa2}
+.artist-select-label{display:grid;gap:4px;font-size:9px;font-weight:700;color:#7c6b88}
+.artist-select-label select{min-width:170px;max-width:230px;border:1px solid #e6deec;border-radius:8px;padding:9px;background:#fbf9fd;color:#4c3b58;font:600 11px 'DM Sans',sans-serif}
+.artist-manage-toggle{margin:0!important;white-space:nowrap}
+.artist-manage-panel{border-top:1px solid #eee8f2;margin-top:13px;padding-top:13px}
+.artist-manage-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.artist-manage-heading strong{font:800 12px Manrope;color:#463451}
+.artist-manage-heading p{font-size:10px;color:#91869a;margin:4px 0 0}
+.new-artist-form{display:flex;align-items:flex-end;gap:10px;margin:14px 0}
+.new-artist-form label{display:grid;gap:5px;flex:1;font-size:10px;font-weight:700;color:#675674}
+.new-artist-form input{width:100%;border:1px solid #e6deec;border-radius:8px;padding:10px;font:12px 'DM Sans',sans-serif}
+.new-artist-form .btn{margin:0;white-space:nowrap}
+.artist-directory{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.artist-directory-card{display:flex;align-items:center;justify-content:space-between;gap:9px;padding:10px;border:1px solid #eee8f2;border-radius:9px;background:#fcfbfd;min-width:0}
+.artist-directory-card>div{display:grid;gap:4px;min-width:0}
+.artist-directory-card strong{font-size:10px;color:#4a3a55;overflow-wrap:anywhere}
+.artist-directory-card small{font-size:9px;color:#96899f}
+.artist-directory-card .text-btn{font-size:9px;white-space:nowrap}
+.artist-manager-message{font-size:9px;color:#8d8196;margin:10px 0 0}
+@media(max-width:760px){.artist-workspace{margin:-3px 0 16px;padding:12px}.artist-switch-row{align-items:stretch;display:grid;grid-template-columns:1fr 1fr;gap:10px}.artist-current{grid-column:1/-1}.artist-select-label select{width:100%;max-width:none}.artist-manage-toggle{width:100%;min-height:38px}.new-artist-form{align-items:stretch;flex-direction:column}.new-artist-form .btn{width:100%}.artist-directory{grid-template-columns:1fr}.artist-manage-heading{flex-direction:column}}
