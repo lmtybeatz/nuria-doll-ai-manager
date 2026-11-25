@@ -14,8 +14,8 @@ create table if not exists public.ai_brand_profile (
   language text default 'Français',
   tone text,
   parent_guardrails text,
-  primary_color text default '#6D45A6',
-  secondary_color text default '#E8B9D4',
+  primary_color text default '#7047A6',
+  secondary_color text default '#E8E8E8',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
