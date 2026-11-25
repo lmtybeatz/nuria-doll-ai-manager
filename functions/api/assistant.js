@@ -93,7 +93,7 @@ export async function onRequestPost({request,env}){
   const session=await verifySession(request,env);
   if(session.error)return session.error;
   let body;
-  try{const raw=await request.text();if(raw.length>30000)return json({error:"Demande trop volumineuse (30 000 caractères maximum)."},413);body=JSON.parse(raw);}
+  try{const raw=await request.text();if(raw.length>8*1024*1024)return json({error:"Demande trop volumineuse (8 Mo maximum, images comprises)."},413);body=JSON.parse(raw);}
   catch{return json({error:"Format de demande invalide."},400);}
   const task=typeof body.task==="string"?body.task.trim():"";
   const artistId=typeof body.artist_id==="string"?body.artist_id.trim():"";
