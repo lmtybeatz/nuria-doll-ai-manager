@@ -14,13 +14,13 @@ export async function onRequestGet({request,env}){
   if(u.searchParams.has("error"))return fail("autorisation_refusee");
   if(!p||!code||u.searchParams.get("state")!==p.state||p.exp<Date.now())return fail("state_invalide");
   const token=await apiToken(code,env);
-  const profile=await api("/v2/user/info/",token.access_token,"fields=open_id,avatar_url,display_name,username,profile_deep_link,bio_description,follower_count,following_count,likes_count,video_count");
+  const profile=await api("/v2/user/info/",token.access_token,"fields=open_id,avatar_url,display_name,follower_count,following_count,likes_count,video_count");
   const account=profile.user||{};if(!account.open_id)throw new Error("TikTok n’a pas retourné l’identifiant du compte.");
   const encrypted=await encrypt({access_token:token.access_token,refresh_token:token.refresh_token,open_id:token.open_id||account.open_id,expires_at:Date.now()+Number(token.expires_in||86400)*1000,refresh_expires_at:Date.now()+Number(token.refresh_expires_in||31536000)*1000,scope:token.scope||""},env.META_TOKEN_ENCRYPTION_KEY);
   const base=env.SUPABASE_URL.replace(/\/$/,""),h={apikey:env.SUPABASE_SERVICE_ROLE_KEY,authorization:"Bearer "+env.SUPABASE_SERVICE_ROLE_KEY};
   const a=await fetch(base+"/rest/v1/ai_artists?id=eq."+encodeURIComponent(p.artistId)+"&owner_id=eq."+encodeURIComponent(p.uid)+"&status=eq.active&select=id",{headers:h});
   if(!a.ok||!(await a.json()).length)throw new Error("Espace artiste non autorisé.");
-  const metadata={open_id:token.open_id||account.open_id,display_name:account.display_name||"",username:account.username||"",avatar_url:account.avatar_url||"",profile_deep_link:account.profile_deep_link||"",bio_description:account.bio_description||"",follower_count:account.follower_count??null,following_count:account.following_count??null,likes_count:account.likes_count??null,video_count:account.video_count??null,scope:token.scope||"",connected_at:new Date().toISOString(),token_expires_at:new Date(Date.now()+Number(token.expires_in||86400)*1000).toISOString()};
+  const metadata={open_id:token.open_id||account.open_id,display_name:account.display_name||"",avatar_url:account.avatar_url||"",follower_count:account.follower_count??null,following_count:account.following_count??null,likes_count:account.likes_count??null,video_count:account.video_count??null,scope:token.scope||"",connected_at:new Date().toISOString(),token_expires_at:new Date(Date.now()+Number(token.expires_in||86400)*1000).toISOString()};
   const save=await fetch(base+"/rest/v1/ai_social_connections?on_conflict=owner_id,artist_id,provider",{method:"POST",headers:{...h,"content-type":"application/json",prefer:"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({owner_id:p.uid,artist_id:p.artistId,provider:"tiktok",token_ciphertext:encrypted,scopes:(token.scope||"").split(",").filter(Boolean),account_metadata:metadata,connected_at:new Date().toISOString(),updated_at:new Date().toISOString()})});
   if(!save.ok)throw new Error("Enregistrement sécurisé TikTok impossible.");
   return redirect(origin,"connected");
