@@ -93,6 +93,29 @@
     renderArtistSwitcher();
   }
   function activeArtistName(){return artists.find(a=>a.id===activeArtistId)?.artist_name||'artiste sélectionné';}
+  function isNuriaDollArtist(name=activeArtistName()){
+    return String(name||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').trim().toLocaleUpperCase('fr-FR')==='NURIA DOLL';
+  }
+  function applyArtistContext(){
+    const name=activeArtistName(),child=isNuriaDollArtist(name);
+    document.querySelectorAll('[data-nuria-only]').forEach(el=>el.classList.toggle('hidden',!child));
+    const description=$('#strategyDescription');if(description)description.textContent='Construis un plan d’action réaliste pour développer le projet musical de '+name+'.';
+    const brandOption=$('#campaignBrandOption');if(brandOption)brandOption.textContent='Marque de '+name;
+    const role=$('#userRoleLabel');if(role)role.textContent=child?'Parent / Manager':'Artiste / Manager';
+    const bellWrap=$('.notification-wrap');if(bellWrap)bellWrap.classList.toggle('hidden',!child);
+    const history=$('.parent-approval-history');if(history)history.classList.toggle('hidden',!child);
+    const guardrails=$('#brandForm')?.elements.parent_guardrails?.closest('label');if(guardrails)guardrails.classList.toggle('hidden',!child);
+    const prompts={
+      calendar:'Propose un calendrier éditorial de 7 jours pour '+name+', avec une idée de contenu par jour.',
+      captions:'Écris 3 légendes différentes pour annoncer une nouvelle chanson de '+name+', adaptées à son public cible.',
+      videos:'Propose 5 idées de vidéos courtes et simples pour faire découvrir l’univers musical de '+name+'.'
+    };
+    document.querySelectorAll('[data-prompt-template]').forEach(button=>{button.dataset.prompt=prompts[button.dataset.promptTemplate]||'';});
+    const strategyForm=$('#strategyForm');
+    if(strategyForm&&strategyForm.dataset.artistId!==activeArtistId){strategyForm.reset();strategyForm.dataset.artistId=activeArtistId;}
+    const settingsForm=$('#settingsForm');
+    if(settingsForm?.elements.autonomy_mode)settingsForm.elements.autonomy_mode.value=child?'parent_guarded':'draft_only';
+  }
   function renderArtistSwitcher(){
     const select=$('#artistSwitcher');if(!select)return;
     select.innerHTML='';
@@ -105,14 +128,21 @@
       const bioField=$('#brandForm')?.elements.bio;
       if(bioField)bioField.placeholder='Présente '+current.artist_name+' en quelques phrases...';
     }
+    applyArtistContext();
   }
   async function reloadArtistWorkspace(){
     if(!activeArtistId)return;
     const version=++workspaceLoadVersion;
     const artistId=activeArtistId;
     switchingArtist=true;
+    applyArtistContext();
+    if(!isNuriaDollArtist()){parentApprovals=[];renderNotificationCenter();}
     try{
-      await Promise.all([loadProfile(version),loadSettings(version),loadMedia(version),loadCampaigns(version),loadParentApprovals(version),loadYoutubeRecommendationHistory(version)]);
+      const tasks=[loadProfile(version),loadSettings(version),loadMedia(version),loadCampaigns(version),loadYoutubeRecommendationHistory(version)];
+      if(isNuriaDollArtist())tasks.push(loadParentApprovals(version));
+      else {parentApprovals=[];renderParentApprovals();}
+      await Promise.all(tasks);
+      applyArtistContext();
       if(version!==workspaceLoadVersion||artistId!==activeArtistId)return;
       const current=artists.find(a=>a.id===artistId);
       const heading=$('#activeArtistLabel');if(heading)heading.textContent=current?.artist_name||'Artiste sélectionné';
@@ -181,7 +211,7 @@
     }
   }
   async function notifyParent(title,body){
-    if(!('Notification' in window)||Notification.permission!=='granted')return;
+    if(!isNuriaDollArtist()||!('Notification' in window)||Notification.permission!=='granted')return;
     try{
       const registration=await navigator.serviceWorker?.getRegistration('/');
       if(registration?.showNotification){
@@ -214,6 +244,8 @@
     }
   });
   async function saveParentApproval(sourceType,sourceKey,title,content,targetArtistId=activeArtistId){
+    const targetArtist=artists.find(a=>a.id===targetArtistId);
+    if(!isNuriaDollArtist(targetArtist?.artist_name))return null;
     const artistId=targetArtistId;
     const payload={owner_id:user.id,artist_id:artistId,source_type:sourceType,source_key:artistId+':'+sourceKey,title,content,updated_at:new Date().toISOString()};
     const {data,error}=await supabase.from('ai_parent_approvals').upsert(payload,{onConflict:'owner_id,source_type,source_key'}).select('*').single();
@@ -264,6 +296,7 @@
     });
   }
   async function loadParentApprovals(version=workspaceLoadVersion){
+    if(!isNuriaDollArtist()){parentApprovals=[];renderParentApprovals();renderNotificationCenter();return;}
     const artistId=activeArtistId;
     const {data,error}=await supabase.from('ai_parent_approvals').select('*').eq('artist_id',artistId).order('created_at',{ascending:false}).limit(50);
     if(version!==workspaceLoadVersion||artistId!==activeArtistId)return;
@@ -422,11 +455,11 @@
       const payload=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error([payload.error||'Le service IA n’a pas répondu correctement.',Array.isArray(payload.missing)&&payload.missing.length?'Variables manquantes : '+payload.missing.join(', '):'',payload.diagnostic||'',payload.fallback_diagnostic||''].filter(Boolean).join(' — '));
       if(!payload.answer)throw new Error('Aucune proposition exploitable reçue.');
-      const approval=await saveParentApproval('assistant',crypto.randomUUID(),'Proposition de l’assistant',payload.answer,artistId);
+      const approval=isNuriaDollArtist(artists.find(a=>a.id===artistId)?.artist_name)?await saveParentApproval('assistant',crypto.randomUUID(),'Proposition de l’assistant',payload.answer,artistId):null;
       if(artistId===activeArtistId){
         answer.textContent=payload.answer;
         show(result);
-        renderApprovalControl(approval,$('#assistantApprovalControl'));
+        if(approval)renderApprovalControl(approval,$('#assistantApprovalControl'));else $('#assistantApprovalControl').innerHTML='';
         status.textContent=payload.fallback_used
           ? 'Proposition générée par Cloudflare AI (secours Groq). Vérifie-la avant toute utilisation.'
           : 'Proposition générée par Groq. Vérifie-la avant toute utilisation.';
@@ -520,7 +553,8 @@
       "5. Prépare un volet relations radios, médias, presse et labels : types de contacts à cibler, éléments à préparer et approche. N'invente aucun nom de contact, partenariat ou accord.",
       "6. Propose les contenus à produire pour les réseaux et plateformes indiqués.",
       "7. Termine par une liste de préparation, les risques/points à confirmer et les 5 prochaines actions prioritaires.",
-      "Adapte absolument la communication à un projet musical porté par une enfant : le parent est l'interlocuteur unique, aucune sollicitation privée de l'enfant, aucune information personnelle, localisation, école ou emploi du temps. Toutes les prises de contact, dépenses et publications restent à valider et exécuter par le parent. Signale clairement les informations manquantes au lieu de les inventer."
+      ...(isNuriaDollArtist(artistName)?["CADRE SPÉCIFIQUE NURIA DOLL : projet musical porté par une enfant. Le parent est l'interlocuteur unique. Aucune sollicitation privée de l'enfant, aucune information personnelle, localisation, école ou emploi du temps. Toutes les prises de contact, dépenses et publications restent à valider et exécuter par le parent."]:[]),
+      "Signale clairement les informations manquantes au lieu de les inventer."
     ].join("\n");
     const submit=$('#strategySubmit'),result=$('#strategyResult'),status=$('#strategyStatus'),answer=$('#strategyAnswer');
     submit.disabled=true;submit.textContent='Analyse et préparation…';status.textContent='L’assistant prépare le plan stratégique…';show(result);answer.textContent='';
@@ -535,10 +569,10 @@
       const payload=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error([payload.error||'Le service IA n’a pas répondu correctement.',Array.isArray(payload.missing)&&payload.missing.length?'Variables manquantes : '+payload.missing.join(', '):'',payload.diagnostic||'',payload.fallback_diagnostic||''].filter(Boolean).join(' — '));
       if(!payload.answer)throw new Error('Aucune stratégie exploitable reçue.');
-      const approval=await saveParentApproval('strategy',crypto.randomUUID(),'Stratégie marketing',payload.answer,artistId);
+      const approval=isNuriaDollArtist(artists.find(a=>a.id===artistId)?.artist_name)?await saveParentApproval('strategy',crypto.randomUUID(),'Stratégie marketing',payload.answer,artistId):null;
       if(artistId===activeArtistId){
         answer.textContent=payload.answer;
-        renderApprovalControl(approval,$('#strategyApprovalControl'));
+        if(approval)renderApprovalControl(approval,$('#strategyApprovalControl'));else $('#strategyApprovalControl').innerHTML='';
         status.textContent=payload.fallback_used?'Généré par Cloudflare AI (secours Groq).':'Généré par Groq.';
       }
     }catch(err){
@@ -658,7 +692,7 @@
     show($('#ytRecommendationResult'));
     $('#ytRecommendationMeta').textContent=(row.source==='automatic'?'Analyse automatique':'Analyse demandée')+' · '+Number(row.range_days)+' jours · '+new Date(row.created_at).toLocaleString('fr-FR');
     const approvalTarget=$('#ytApprovalControl');
-    if(approvalTarget){approvalTarget.innerHTML='';(async()=>{try{let record=parentApprovals.find(x=>x.source_type==='youtube'&&x.source_key===artistId+':'+String(row.id));if(!record)record=await saveParentApproval('youtube',String(row.id),'Recommandations YouTube · '+Number(row.range_days)+' jours',row.recommendation||'',artistId);if(artistId===activeArtistId)renderApprovalControl(record,approvalTarget);}catch(error){if(artistId===activeArtistId)approvalTarget.textContent=error.message;}})();}
+    if(approvalTarget){approvalTarget.innerHTML='';if(isNuriaDollArtist()){(async()=>{try{let record=parentApprovals.find(x=>x.source_type==='youtube'&&x.source_key===artistId+':'+String(row.id));if(!record)record=await saveParentApproval('youtube',String(row.id),'Recommandations YouTube · '+Number(row.range_days)+' jours',row.recommendation||'',artistId);if(artistId===activeArtistId&&record)renderApprovalControl(record,approvalTarget);}catch(error){if(artistId===activeArtistId)approvalTarget.textContent=error.message;}})();}}
   }
   const printReport=()=>{
     document.body.classList.add('printing-youtube-report');
@@ -818,7 +852,7 @@
       if(saveError)throw new Error('Impossible de sauvegarder la recommandation : '+saveError.message+'. Vérifie la migration SQL.');
       if(artistId===activeArtistId){
         displayYoutubeRecommendation(saved,artistId);
-        if(status)status.textContent=(manual?'Nouvelle analyse terminée':'Analyse automatique terminée')+' · '+(payload.fallback_used?'Cloudflare AI':'Groq')+' · À valider par le parent.';
+        if(status)status.textContent=(manual?'Nouvelle analyse terminée':'Analyse automatique terminée')+' · '+(payload.fallback_used?'Cloudflare AI':'Groq')+(isNuriaDollArtist(artistName)?' · À valider par le parent.':' · Rapport prêt à examiner.');
         await loadYoutubeRecommendationHistory();
       }
     }catch(error){
