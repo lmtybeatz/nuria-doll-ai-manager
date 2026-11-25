@@ -72,7 +72,7 @@
     $('#backToDashboard').classList.toggle('hidden',view==='overview');
     if(window.innerWidth<=760) $('#sidebar').classList.remove('open');
     // Charger YouTube uniquement à l'ouverture de la rubrique Réseaux sociaux.
-    if(view==='connections'&&user&&supabase)void youtubeStatus();
+    if(view==='connections'&&user&&supabase){void youtubeStatus();void metaStatus();}
   }
   function authMode(){ $('#authTitle').textContent=signupMode?'Créer ton compte':'Connexion'; $('#authSubtitle').textContent=signupMode?'Crée ton accès privé de gestionnaire.':'Connecte-toi à ton espace de gestion privé.'; $('#authSubmit').innerHTML=signupMode?'Créer mon compte <span>→</span>':'Se connecter <span>→</span>'; $('#authSwitchText').textContent=signupMode?'Tu as déjà un compte ?':'Pas encore de compte ?'; $('#authSwitch').textContent=signupMode?'Se connecter':'Créer un compte'; $('#authPassword').autocomplete=signupMode?'new-password':'current-password'; }
   async function init(){
@@ -225,7 +225,7 @@
     // Mettre à jour immédiatement tous les libellés dépendant de l’artiste actif.
     renderArtistSwitcher();
     await reloadArtistWorkspace();
-    if($('#view-connections').classList.contains('active-view'))await youtubeStatus();
+    if($('#view-connections').classList.contains('active-view')){await Promise.all([youtubeStatus(),metaStatus()]);}
     toast('Espace artiste sélectionné.');
   });
   $('#addArtistButton')?.addEventListener('click',async()=>{
@@ -1295,6 +1295,35 @@
       if(d.connected){await loadYoutubeChannel();await loadYoutubeAnalytics(30);}else {$('#youtubeChannelPanel')?.classList.add('hidden');$('#youtubeAnalyticsStatus').textContent='Connecte une chaîne YouTube pour cet artiste afin de consulter ses statistiques.';}
     }catch(e){if(artistId===activeArtistId){const missing=Array.isArray(e.missing)?' Variables manquantes : '+e.missing.join(', '):'';box.textContent='Statut indisponible : '+e.message+missing;}}
   }
+  async function metaStatus(){
+    const artistId=activeArtistId,box=$('#metaStatus'),button=$('#connectMeta'),accounts=$('#metaAccounts');
+    if(!box||!button||!artistId)return;
+    box.textContent='Vérification de la connexion Meta…';accounts?.replaceChildren();
+    try{
+      const {data:{session}}=await supabase.auth.getSession();if(!session?.access_token)throw new Error('Reconnecte-toi.');
+      const r=await fetch('/api/meta/status?artist_id='+encodeURIComponent(artistId),{headers:{authorization:'Bearer '+session.access_token}});
+      const d=await r.json();if(!r.ok)throw new Error([d.error||'État Meta indisponible',Array.isArray(d.missing)&&d.missing.length?'Variables manquantes : '+d.missing.join(', '):''].filter(Boolean).join(' — '));
+      if(artistId!==activeArtistId)return;
+      const connected=!!d.connected;box.textContent=connected?'Comptes Meta reliés à « '+activeArtistName()+' ».':'Aucune connexion Meta pour cet artiste.';
+      button.textContent=connected?'Reconnecter Facebook / Instagram':'Connecter Facebook / Instagram';
+      const tags=['#metaFacebookTag','#metaInstagramTag'];tags.forEach(sel=>{const el=$(sel);if(el){el.textContent=connected?'Connecté':'À connecter';el.className='tag '+(connected?'green':'amber');}});
+      if(connected&&accounts){
+        (d.pages||[]).forEach(page=>{const item=document.createElement('div');item.className='youtube-channel-sync';
+          const strong=document.createElement('strong');strong.textContent=page.page_name||'Page Facebook';
+          const detail=document.createElement('span');detail.textContent=' · Instagram : '+(page.instagram_username?'@'+page.instagram_username:'compte professionnel détecté');
+          item.append(strong,detail);accounts.append(item);});
+      }
+    }catch(e){if(artistId===activeArtistId)box.textContent='Statut Meta indisponible : '+e.message;}
+  }
+  $('#connectMeta')?.addEventListener('click',async()=>{
+    try{
+      const artistId=activeArtistId;if(!artistId)throw new Error('Sélectionne d’abord un espace artiste.');
+      const {data:{session}}=await supabase.auth.getSession();if(!session?.access_token)throw new Error('Reconnecte-toi.');
+      const r=await fetch('/api/meta/start?artist_id='+encodeURIComponent(artistId),{headers:{authorization:'Bearer '+session.access_token}});
+      const d=await r.json();if(!r.ok||!d.authorization_url)throw new Error([d.error||'Démarrage de la connexion Meta impossible.',Array.isArray(d.missing)&&d.missing.length?'Variables manquantes : '+d.missing.join(', '):''].filter(Boolean).join(' — '));
+      window.location.assign(d.authorization_url);
+    }catch(e){toast(e.message,true);}
+  });
   $('#refreshYoutube').addEventListener('click',loadYoutubeChannel);
   $$('#youtubeAnalyticsRanges button').forEach(b=>b.addEventListener('click',()=>loadYoutubeAnalytics(Number(b.dataset.range))));
   $('#generateYtRecommendations').addEventListener('click',()=>{if(latestYoutubeAnalytics)generateYoutubeRecommendations(latestYoutubeAnalytics,Number(latestYoutubeAnalytics.range||30),true);else $('#ytRecommendationStatus').textContent='Charge d’abord les statistiques YouTube.';});
@@ -1309,5 +1338,7 @@
   });
   const ytParams=new URLSearchParams(location.search);
   if(ytParams.has('youtube')){if(ytParams.get('youtube')==='connected')toast('YouTube est connecté en lecture seule.');else{const reasons={cookie_absent:"Le navigateur n’a pas renvoyé le cookie de sécurité. Vérifie que la connexion s’effectue dans le même navigateur.",secret_etat_absent:"Le secret YOUTUBE_OAUTH_STATE_SECRET manque dans Cloudflare.",signature_cookie_invalide:"Le cookie de sécurité OAuth est invalide ou a été modifié.",autorisation_google_refusee:"Google a refusé ou interrompu l’autorisation.",code_ou_etat_absent:"Google n’a pas renvoyé le code ou l’état OAuth attendu.",etat_invalide:"L’état de sécurité ne correspond pas à la demande initiale.",delai_depasse:"La demande de connexion a expiré. Il faut recommencer.",erreur_echange_google:"Échec de l’échange du code auprès de Google. Vérifie le client ID, le secret et l’URL de redirection.",erreur_chiffrement_jetons:"Échec du chiffrement des jetons YouTube. Vérifie YOUTUBE_TOKEN_ENCRYPTION_KEY.",erreur_enregistrement_supabase:"Échec de l’enregistrement sécurisé dans Supabase. Vérifie la clé secrète et la table ai_social_connections.",erreur_verification_artiste:"Google a terminé l’autorisation, mais le serveur n’a pas réussi à vérifier cet artiste dans Supabase. Vérifie la configuration serveur."};const reason=ytParams.get("reason");toast(reasons[reason]||("Échec YouTube : "+(reason||"cause non précisée")+". Le diagnostic ne contient aucune clé secrète."),true);}history.replaceState({},'',location.pathname);}
+  const metaParams=new URLSearchParams(location.search);
+  if(metaParams.has('meta')){if(metaParams.get('meta')==='connected')toast('Facebook et Instagram ont été reliés à cet artiste.');else toast('Connexion Meta interrompue ou impossible. Vérifie les accès à la Page et les paramètres OAuth.',true);history.replaceState({},'',location.pathname);}
   init();
 })();
