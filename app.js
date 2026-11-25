@@ -1345,7 +1345,14 @@
       button.textContent=connected?'Reconnecter Facebook / Instagram':'Connecter Facebook / Instagram';
       const fbTag=$('#metaFacebookTag'),igTag=$('#metaInstagramTag'),fbDetailTag=$('#facebookDetailTag'),igDetailTag=$('#instagramDetailTag');
       if(fbTag){fbTag.textContent=facebookConnected?'Connecté':'À connecter';fbTag.className='tag '+(facebookConnected?'green':'amber');}
-      if(igTag){igTag.textContent=instagramConnected?'Connecté':'À connecter';igTag.className='tag '+(instagramConnected?'green':'amber');}\n      if(fbDetailTag){fbDetailTag.textContent=facebookConnected?'Connecté':'À connecter';fbDetailTag.className='tag '+(facebookConnected?'green':'amber');}\n      if(igDetailTag){igDetailTag.textContent=instagramConnected?'Connecté':'À connecter';igDetailTag.className='tag '+(instagramConnected?'green':'amber');}\n      const fbInsightStatus=$('#facebookInsightsStatus'),igInsightStatus=$('#instagramInsightsStatus');\n      const hasPageInsights=(d.scopes||[]).includes('read_insights'),hasInstagramInsights=(d.scopes||[]).includes('instagram_manage_insights');\n      if(fbInsightStatus)fbInsightStatus.textContent=facebookConnected?(hasPageInsights?'Accès aux insights autorisé. Les données seront chargées lors de la prochaine synchronisation.':'Connexion active. Pour afficher les chiffres détaillés, ajoute « read_insights » à la configuration Meta et reconnecte le compte.'):'Connecte une Page Facebook pour consulter ses statistiques.';\n      if(igInsightStatus)igInsightStatus.textContent=instagramConnected?(hasInstagramInsights?'Accès aux insights autorisé. Les données seront chargées lors de la prochaine synchronisation.':'Connexion active. Pour afficher les chiffres détaillés, ajoute « instagram_manage_insights » à la configuration Meta et reconnecte le compte.'):'Connecte un compte Instagram professionnel pour consulter ses statistiques.';\n      const igSummary=$('#instagramAccountSummary');if(igSummary)igSummary.textContent=instagramConnected?'Compte(s) Instagram professionnel(s) relié(s) à « '+activeArtistName()+' ».':'Aucun compte Instagram professionnel détecté pour cet artiste.';
+      if(igTag){igTag.textContent=instagramConnected?'Connecté':'À connecter';igTag.className='tag '+(instagramConnected?'green':'amber');}
+      if(fbDetailTag){fbDetailTag.textContent=facebookConnected?'Connecté':'À connecter';fbDetailTag.className='tag '+(facebookConnected?'green':'amber');}
+      if(igDetailTag){igDetailTag.textContent=instagramConnected?'Connecté':'À connecter';igDetailTag.className='tag '+(instagramConnected?'green':'amber');}
+      const fbInsightStatus=$('#facebookInsightsStatus'),igInsightStatus=$('#instagramInsightsStatus');
+      const hasPageInsights=(d.scopes||[]).includes('read_insights'),hasInstagramInsights=(d.scopes||[]).includes('instagram_manage_insights');
+      if(fbInsightStatus)fbInsightStatus.textContent=facebookConnected?(hasPageInsights?'Accès aux insights autorisé. Les données seront chargées lors de la prochaine synchronisation.':'Connexion active. Pour afficher les chiffres détaillés, ajoute « read_insights » à la configuration Meta et reconnecte le compte.'):'Connecte une Page Facebook pour consulter ses statistiques.';
+      if(igInsightStatus)igInsightStatus.textContent=instagramConnected?(hasInstagramInsights?'Accès aux insights autorisé. Les données seront chargées lors de la prochaine synchronisation.':'Connexion active. Pour afficher les chiffres détaillés, ajoute « instagram_manage_insights » à la configuration Meta et reconnecte le compte.'):'Connecte un compte Instagram professionnel pour consulter ses statistiques.';
+      const igSummary=$('#instagramAccountSummary');if(igSummary)igSummary.textContent=instagramConnected?'Compte(s) Instagram professionnel(s) relié(s) à « '+activeArtistName()+' ».':'Aucun compte Instagram professionnel détecté pour cet artiste.';
       if(connected&&accounts){
         pages.forEach(page=>{
           const item=document.createElement('div');item.className='youtube-channel-sync';
@@ -1370,7 +1377,9 @@
       const d=await r.json();if(!r.ok||!d.authorization_url)throw new Error([d.error||'Démarrage de la connexion Meta impossible.',Array.isArray(d.missing)&&d.missing.length?'Variables manquantes : '+d.missing.join(', '):''].filter(Boolean).join(' — '));
       window.location.assign(d.authorization_url);
     }catch(e){toast(e.message,true);}
-  });
+  };
+  $('#connectMeta')?.addEventListener('click',startMetaConnection);
+  $('#connectMetaInstagram')?.addEventListener('click',startMetaConnection);
   $('#refreshYoutube').addEventListener('click',loadYoutubeChannel);
   $$('#youtubeAnalyticsRanges button').forEach(b=>b.addEventListener('click',()=>loadYoutubeAnalytics(Number(b.dataset.range))));
   $('#generateYtRecommendations').addEventListener('click',()=>{if(latestYoutubeAnalytics)generateYoutubeRecommendations(latestYoutubeAnalytics,Number(latestYoutubeAnalytics.range||30),true);else $('#ytRecommendationStatus').textContent='Charge d’abord les statistiques YouTube.';});
