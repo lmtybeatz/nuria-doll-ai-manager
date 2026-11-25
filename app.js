@@ -605,7 +605,7 @@
   $('#assistantForm').addEventListener('submit',event=>{event.preventDefault();void submitAssistantTask($('#assistantTask').value);});
   $('#regenerateAssistant').addEventListener('click',()=>{const task=lastAssistantTasks.get(activeArtistId)||'';if(task)void submitAssistantTask(task);});
   const assistantTemplates={calendar:'Prépare un calendrier éditorial réaliste de 7 jours pour l’artiste actif, avec des idées de contenus et les objectifs de chaque journée.',captions:'Propose plusieurs légendes adaptées à une prochaine sortie musicale de l’artiste actif, avec des tons différents.',videos:'Propose 5 idées de vidéos courtes adaptées à l’univers et au public de l’artiste actif.'};
-  $('[data-prompt-template]').forEach(button=>button.addEventListener('click',()=>{$('#assistantTask').value=button.dataset.prompt||assistantTemplates[button.dataset.promptTemplate]||'';updateAssistantDraft();$('#assistantTask').focus();}));
+  $$('[data-prompt-template]').forEach(button=>button.addEventListener('click',()=>{$('#assistantTask').value=button.dataset.prompt||assistantTemplates[button.dataset.promptTemplate]||'';updateAssistantDraft();$('#assistantTask').focus();}));
   $('#copyAssistant').addEventListener('click',async()=>{const value=$('#assistantAnswer').textContent;try{await navigator.clipboard.writeText(value);toast('Réponse copiée.');}catch{toast('Copie indisponible sur ce navigateur.',true);}});
   resizeAssistantComposer();
 
