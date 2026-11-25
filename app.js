@@ -1329,10 +1329,11 @@
       const d=await r.json();
       if(!r.ok){
         if(r.status===403&&Array.isArray(d.missing_permissions)){
-          const missing=d.missing_permissions.join(', ');
-          const message='Autorisations Meta à ajouter puis à valider : '+missing+'. Reconnecte ensuite les comptes.';
-          if(statusFacebook)statusFacebook.textContent=message;
-          if(statusInstagram)statusInstagram.textContent=message;
+          const missing=d.missing_permissions;
+          const fbMissing=missing.filter(x=>x==='read_insights'||x==='pages_read_engagement');
+          const igMissing=missing.filter(x=>x==='instagram_manage_insights');
+          if(statusFacebook)statusFacebook.textContent=fbMissing.length?'Autorisation(s) à ajouter dans Meta pour les statistiques Facebook : '+fbMissing.join(', ')+'. Reconnecte ensuite le compte.':'Statistiques Facebook en attente de synchronisation.';
+          if(statusInstagram)statusInstagram.textContent=igMissing.length?'Autorisation à ajouter dans Meta pour les statistiques Instagram : '+igMissing.join(', ')+'. Reconnecte ensuite le compte.':'Statistiques Instagram en attente de synchronisation.';
           return;
         }
         throw new Error(d.error||'Statistiques Meta indisponibles.');
@@ -1355,6 +1356,8 @@
       }
     }
   }
+  $('#refreshFacebookInsights')?.addEventListener('click',()=>loadMetaInsights(activeArtistId));
+  $('#refreshInstagramInsights')?.addEventListener('click',()=>loadMetaInsights(activeArtistId));
   async function metaStatus(){
     const artistId=activeArtistId,box=$('#metaStatus'),button=$('#connectMeta'),accounts=$('#metaAccounts');
     if(!box||!button||!artistId)return;
