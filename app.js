@@ -116,7 +116,17 @@
     };
     document.querySelectorAll('[data-prompt-template]').forEach(button=>{button.dataset.prompt=prompts[button.dataset.promptTemplate]||'';});
     const strategyForm=$('#strategyForm');
-    if(strategyForm&&strategyForm.dataset.artistId!==activeArtistId){strategyForm.reset();strategyForm.dataset.artistId=activeArtistId;}
+    if(strategyForm&&strategyForm.dataset.artistId!==activeArtistId){
+      strategyForm.reset();strategyForm.dataset.artistId=activeArtistId;
+      if(child){
+        strategyForm.elements.project.value='Papa dis moi — premier single de DOLL & FRIENDS';
+        strategyForm.elements.budget.value='25 000 à 50 000 FCFA';
+        strategyForm.elements.markets.value='Bénin, France et Europe francophone';
+        strategyForm.elements.channels.value='Radios, médias web, presse, labels, YouTube, TikTok, Instagram et Facebook';
+      }
+    }
+    const assistantStatus=$('#assistantStatus');if(assistantStatus)assistantStatus.textContent=child?'Les réponses sont des brouillons à vérifier par le parent.':'Les réponses sont des propositions à examiner avant utilisation.';
+    const assistantTask=$('#assistantTask');if(assistantTask)assistantTask.placeholder=child?'Ex. : Prépare une campagne de communication sur 10 jours pour la chanson Papa dis moi.':'Ex. : Prépare une campagne de communication sur 10 jours pour mon prochain single.';
     const settingsForm=$('#settingsForm');
     if(settingsForm?.elements.autonomy_mode)settingsForm.elements.autonomy_mode.value=child?'parent_guarded':'draft_only';
   }
@@ -329,6 +339,13 @@
       else el.value='';
     });
     if(f.elements.artist_name)f.elements.artist_name.value=activeArtistName();
+    if(isNuriaDollArtist()){
+      f.elements.genre.value='Pop enfantine, Afro-pop, Pop';
+      f.elements.target_audience.value="Enfants et adultes sensibles à l'univers de l'enfance";
+      f.elements.tone.value='Joyeux, bienveillant, créatif, familial et adapté à un public intergénérationnel.';
+      f.elements.parent_guardrails.value="Ne jamais divulguer d'informations personnelles, de localisation, d'école, d'emploi du temps ou de coordonnées de l'enfant. Toute demande sensible, rencontre, proposition commerciale ou message privé doit être transmise au parent. Ne jamais inventer de faits biographiques.";
+      f.elements.primary_color.value='#6D45A6';f.elements.secondary_color.value='#E8B9D4';
+    }
     $('#brandMessage').textContent='Complète les informations propres à cet artiste puis enregistre.';
   }
   async function loadProfile(version=workspaceLoadVersion){
