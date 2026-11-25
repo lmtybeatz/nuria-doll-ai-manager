@@ -283,6 +283,3 @@
     padding-bottom:10px;
   }
 }
-
-/* Masquer le contenu pendant la restauration de la page et de l'artiste */
-.app-shell.workspace-restoring .main-area{visibility:hidden}

@@ -66,21 +66,14 @@
   async function enterApp(){
     hide($('#authScreen'));
     const shell=$('#appShell');
-    shell.classList.add('workspace-restoring');
     show(shell);
     $('#userEmail').textContent=user.email||'Compte connecté';
-    try{
-      await loadArtists();
-      await reloadArtistWorkspace();
-      const savedView=readWorkspaceState().view;
-      const validViews=['overview','brand','strategy','library','agent','connections'];
-      nav(validViews.includes(savedView)?savedView:'overview');
-      shell.classList.remove('workspace-restoring');
-      await youtubeStatus();
-    }catch(error){
-      shell.classList.remove('workspace-restoring');
-      throw error;
-    }
+    await loadArtists();
+    const savedView=readWorkspaceState().view;
+    const validViews=['overview','brand','strategy','library','agent','connections'];
+    nav(validViews.includes(savedView)?savedView:'overview');
+    await reloadArtistWorkspace();
+    await youtubeStatus();
   }
   async function loadArtists(){
     const {data,error}=await supabase.from('ai_artists').select('id,artist_name,is_default,status,created_at').eq('status','active').order('is_default',{ascending:false}).order('artist_name');
