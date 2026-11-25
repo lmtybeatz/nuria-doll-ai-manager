@@ -1321,6 +1321,40 @@
     card.addEventListener('click',()=>openSocialPlatform(card.dataset.socialPlatform));
   });
   $('#socialBackButton')?.addEventListener('click',closeSocialPlatform);
+  async function loadMetaInsights(artistId){
+    const statusFacebook=$('#facebookInsightsStatus'),statusInstagram=$('#instagramInsightsStatus');
+    try{
+      const {data:{session}}=await supabase.auth.getSession();if(!session?.access_token)throw new Error('Session expirée. Reconnecte-toi.');
+      const r=await fetch('/api/meta/analytics?artist_id='+encodeURIComponent(artistId),{headers:{authorization:'Bearer '+session.access_token}});
+      const d=await r.json();
+      if(!r.ok){
+        if(r.status===403&&Array.isArray(d.missing_permissions)){
+          const missing=d.missing_permissions.join(', ');
+          const message='Autorisations Meta à ajouter puis à valider : '+missing+'. Reconnecte ensuite les comptes.';
+          if(statusFacebook)statusFacebook.textContent=message;
+          if(statusInstagram)statusInstagram.textContent=message;
+          return;
+        }
+        throw new Error(d.error||'Statistiques Meta indisponibles.');
+      }
+      if(artistId!==activeArtistId)return;
+      const fb=d.facebook||{},ig=d.instagram||{};
+      $('#fbReach').textContent=fb.reach==null?'—':ytNumber(fb.reach);
+      $('#fbEngagement').textContent=fb.engagement==null?'—':ytNumber(fb.engagement);
+      $('#fbViews').textContent=fb.views==null?'—':ytNumber(fb.views);
+      $('#igReach').textContent=ig.reach==null?'—':ytNumber(ig.reach);
+      $('#igInteractions').textContent=ig.interactions==null?'—':ytNumber(ig.interactions);
+      $('#igViews').textContent=ig.views==null?'—':ytNumber(ig.views);
+      const synced=d.synced_at?new Date(d.synced_at).toLocaleString('fr-FR'):'';
+      if(statusFacebook)statusFacebook.textContent='Données Meta · période glissante de 28 jours · actualisé '+synced;
+      if(statusInstagram)statusInstagram.textContent='Données Meta · période glissante de 28 jours · actualisé '+synced;
+    }catch(e){
+      if(artistId===activeArtistId){
+        if(statusFacebook)statusFacebook.textContent='Statistiques Facebook indisponibles : '+e.message;
+        if(statusInstagram)statusInstagram.textContent='Statistiques Instagram indisponibles : '+e.message;
+      }
+    }
+  }
   async function metaStatus(){
     const artistId=activeArtistId,box=$('#metaStatus'),button=$('#connectMeta'),accounts=$('#metaAccounts');
     if(!box||!button||!artistId)return;
@@ -1350,7 +1384,7 @@
       if(fbInsightStatus)fbInsightStatus.textContent=facebookConnected?(hasPageInsights?'Accès aux insights autorisé.':'Connexion active. Pour afficher les chiffres détaillés, ajoute « read_insights » à la configuration Meta et reconnecte le compte.'):'Connecte une Page Facebook pour consulter ses statistiques.';
       if(igInsightStatus)igInsightStatus.textContent=instagramConnected?(hasInstagramInsights?'Accès aux insights autorisé.':'Connexion active. Pour afficher les chiffres détaillés, ajoute « instagram_manage_insights » à la configuration Meta et reconnecte le compte.'):'Connecte un compte Instagram professionnel pour consulter ses statistiques.';
       const igSummary=$('#instagramAccountSummary');if(igSummary)igSummary.textContent=instagramConnected?'Compte(s) Instagram professionnel(s) relié(s) à « '+activeArtistName()+' ».':'Aucun compte Instagram professionnel détecté pour cet artiste.';
-      if(connected&&accounts){
+      if(connected){void loadMetaInsights(artistId);}\n      if(connected&&accounts){
         pages.forEach(page=>{
           const item=document.createElement('div');item.className='youtube-channel-sync';
           const strong=document.createElement('strong');strong.textContent=page.page_name||'Page Facebook';
