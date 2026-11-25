@@ -28,6 +28,20 @@ async function searchTavily(apiKey,query){
   return Array.isArray(payload.results)?payload.results:[];
 }
 
+
+export async function onRequestGet({request,env}){
+  const missing=["SUPABASE_URL","SUPABASE_PUBLISHABLE_KEY"].filter(key=>!env[key]);
+  if(missing.length)return json({error:"Configuration serveur incomplète.",missing},503);
+  const session=await verifySession(request,env);
+  if(session.error)return session.error;
+  const url=new URL(request.url),artistId=url.searchParams.get("artist_id")||"";
+  if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(artistId))return json({error:"Identifiant d’artiste invalide."},400);
+  const query=new URLSearchParams({artist_id:"eq."+artistId,owner_id:"eq."+session.user.id,select:"id,subject_name,status,source_count,sources,researched_at,created_at",order:"researched_at.desc",limit:"10"});
+  const response=await fetch(env.SUPABASE_URL.replace(/\/$/,"")+"/rest/v1/ai_artist_research?"+query,{headers:sbHeaders(env,session.token)});
+  if(!response.ok)return json({error:"Historique de recherche indisponible. Vérifie la migration SQL ai_artist_research."},502);
+  return json({research:await response.json()});
+}
+
 export async function onRequestPost({request,env}){
   const missing=["SUPABASE_URL","SUPABASE_PUBLISHABLE_KEY","TAVILY_API_KEY"].filter(key=>!env[key]);
   if(missing.length)return json({error:"Configuration serveur incomplète.",missing},503);
