@@ -48,11 +48,11 @@ export async function onRequestGet({request,env}){
   const accessToken=tokenData.access_token;
   // Retrieve both asset families. Pages are read without requesting page tokens until Page-management permissions are approved.
   const [pagesRaw,instagramRaw]=await Promise.all([
-   graphCollection(version,"me/accounts",accessToken,"id,name,instagram_business_account{id,username}"),
+   graphCollection(version,"me/accounts",accessToken,"id,name,access_token,instagram_business_account{id,username}"),
    graphCollection(version,"me/assigned_instagram_accounts",accessToken,"id,username,name,profile_picture_url,permitted_roles")
   ]);
   const pages=pagesRaw.map(p=>({
-   id:String(p.id),name:p.name||"",
+   id:String(p.id),name:p.name||"",access_token:p.access_token||null,
    instagram_business_account:p.instagram_business_account?.id?{
     id:String(p.instagram_business_account.id),username:p.instagram_business_account.username||null
    }:null
@@ -96,7 +96,7 @@ export async function onRequestGet({request,env}){
   const base=env.SUPABASE_URL.replace(/\/$/,""),admin={apikey:env.SUPABASE_SERVICE_ROLE_KEY,authorization:"Bearer "+env.SUPABASE_SERVICE_ROLE_KEY};
   const artist=await fetch(base+"/rest/v1/ai_artists?id=eq."+encodeURIComponent(payload.artistId)+"&owner_id=eq."+encodeURIComponent(payload.uid)+"&status=eq.active&select=id",{headers:admin});
   if(!artist.ok||!(await artist.json()).length)throw new Error("Espace artiste invalide ou non autorisé.");
-  const scopes=["business_management","pages_show_list","instagram_basic","instagram_content_publish","instagram_manage_comments","instagram_manage_messages"];
+  const scopes=["business_management","pages_show_list","pages_read_engagement","read_insights","instagram_basic","instagram_manage_insights","instagram_content_publish","instagram_manage_comments","instagram_manage_messages"];
   const save=await fetch(base+"/rest/v1/ai_social_connections?on_conflict=owner_id,artist_id,provider",{
    method:"POST",headers:{...admin,"content-type":"application/json",prefer:"resolution=merge-duplicates,return=minimal"},
    body:JSON.stringify({owner_id:payload.uid,artist_id:payload.artistId,provider:"meta",token_ciphertext:encrypted,scopes,account_metadata:metadata,connected_at:new Date().toISOString(),updated_at:new Date().toISOString()})
