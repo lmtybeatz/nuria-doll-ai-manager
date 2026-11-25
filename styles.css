@@ -498,3 +498,6 @@
  .social-insights-grid strong{font-size:14px}
  .social-insights-grid small{font-size:8px}
 }
+
+/* Recommandations marketing par réseau social */
+.social-recommendations{margin-top:18px;padding:16px;border:1px solid #e9e1f0;border-radius:12px;background:#fcfaff}.social-recommendations .yt-recommendations-head{align-items:center}.social-recommendations .yt-recommendation-history{margin-top:14px}.social-recommendations .yt-recommendation-text{max-height:none}.social-recommendations .yt-recommendation-text.is-collapsed{max-height:330px;overflow:hidden;mask-image:linear-gradient(#000 78%,transparent)}
