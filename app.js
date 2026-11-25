@@ -140,7 +140,15 @@
     const artistId=activeArtistId;
     switchingArtist=true;
     applyArtistContext();
+    profile=null;settings=null;media=[];campaigns=[];
+    resetCampaignForm();resetYoutubeDashboard();
+    $('#mediaCount').textContent='0';$('#libraryCount').textContent='0 fichier';
+    $('#mediaList').innerHTML='<div class="empty-state">Chargement des médias…</div>';
+    $('#campaignCount').textContent='0 campagne';
+    $('#campaignList').innerHTML='<div class="empty-state">Chargement des campagnes…</div>';
+    $('#settingsForm')?.reset();
     if(!isNuriaDollArtist()){parentApprovals=[];renderNotificationCenter();}
+    else {parentApprovals=[];const history=$('#parentApprovalHistory');if(history)history.textContent='Chargement des validations…';}
     try{
       const tasks=[loadProfile(version),loadSettings(version),loadMedia(version),loadCampaigns(version),loadYoutubeRecommendationHistory(version)];
       if(isNuriaDollArtist())tasks.push(loadParentApprovals(version));
@@ -929,6 +937,7 @@
     const chart=$('#ytDailyChart');if(chart)chart.replaceChildren();
     const labels=$('#ytChartLabels');if(labels)labels.replaceChildren();
     const videos=$('#ytTopVideos');if(videos)videos.textContent='Aucune donnée disponible pour cet artiste.';
+    const history=$('#ytRecommendationHistory');if(history)history.textContent='Chargement de l’historique…';
     const status=$('#youtubeAnalyticsStatus');if(status)status.textContent='Aucune statistique chargée pour cet artiste.';
     const panel=$('#youtubeChannelPanel');if(panel)panel.classList.add('hidden');
     ['#youtubeChannelName','#youtubeChannelId','#youtubeSubscribers','#youtubeVideos','#youtubeViews','#youtubeChannelDescription','#youtubeChannelPublished'].forEach(selector=>{const el=$(selector);if(el)el.textContent='—';});
