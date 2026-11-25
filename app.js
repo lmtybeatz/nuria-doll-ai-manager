@@ -576,7 +576,6 @@
     const form=new FormData(e.currentTarget);
     const values=Object.fromEntries(form.entries());
     const artistId=activeArtistId, artistName=activeArtistName();
-    const artistProfile=profile?{...profile}:Object.fromEntries(new FormData($('#brandForm')).entries());
     const task=[
       "Élabore une stratégie marketing opérationnelle, réaliste et détaillée pour "+artistName+". Appuie-toi sur son profil artistique actif.",
       "PROJET : "+values.project,
@@ -606,16 +605,17 @@
       const response=await fetch('/api/assistant',{
         method:'POST',
         headers:{'content-type':'application/json','authorization':'Bearer '+session.access_token},
-        body:JSON.stringify({task,profile:artistProfile})
+        body:JSON.stringify({task,artist_id:artistId})
       });
       const payload=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error([payload.error||'Le service IA n’a pas répondu correctement.',Array.isArray(payload.missing)&&payload.missing.length?'Variables manquantes : '+payload.missing.join(', '):'',payload.diagnostic||'',payload.fallback_diagnostic||''].filter(Boolean).join(' — '));
       if(!payload.answer)throw new Error('Aucune stratégie exploitable reçue.');
-      const approval=isNuriaDollArtist(artists.find(a=>a.id===artistId)?.artist_name)?await saveParentApproval('strategy',crypto.randomUUID(),'Stratégie marketing',payload.answer,artistId):null;
+      const approval=payload.approval_required===true?await saveParentApproval('strategy',crypto.randomUUID(),'Stratégie marketing',payload.answer,artistId):null;
       if(artistId===activeArtistId){
         answer.textContent=payload.answer;
         if(approval)renderApprovalControl(approval,$('#strategyApprovalControl'));else $('#strategyApprovalControl').innerHTML='';
-        status.textContent=payload.fallback_used?'Généré par Cloudflare AI (secours Groq).':'Généré par Groq.';
+        const providerLabel=payload.provider==='cloudflare_workers_ai'?'Cloudflare AI (secours)':'Groq';
+        status.textContent='Généré par '+providerLabel+' · Mode préparation uniquement · ID : '+(payload.request_id||'non disponible')+'.';
       }
     }catch(err){
       if(artistId===activeArtistId){status.textContent=err.message||'Une erreur est survenue.';toast(status.textContent,true);}
@@ -778,7 +778,6 @@
     const status=$('#ytRecommendationStatus'),button=$('#generateYtRecommendations');
     if(!data||!user)return;
     const artistId=activeArtistId, artistName=activeArtistName();
-    const artistProfile=profile?{...profile}:{artist_name:artistName};
     const jobKey=artistId+':'+range+':'+data.end_date;
     if(recommendationBusy.has(jobKey))return;
     recommendationBusy.add(jobKey);
