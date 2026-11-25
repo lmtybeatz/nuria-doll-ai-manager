@@ -267,3 +267,19 @@
 .add-artist-button{border:0;border-radius:8px;background:#f0e8f8;color:#68458a;padding:8px 10px;font-size:10px;font-weight:800;white-space:nowrap}
 .add-artist-button:hover{background:#e7d9f1}
 @media(max-width:760px){.top-actions{gap:8px}.artist-switcher-wrap{order:0;max-width:calc(100vw - 32px);flex-wrap:wrap}.artist-switcher-wrap label{width:100%}.artist-switcher-wrap select{flex:1;max-width:none}.topbar{align-items:flex-start}.top-actions{flex-wrap:wrap;justify-content:flex-end}}
+
+/* En-tête principale persistante pendant le défilement */
+.topbar{
+  position:sticky;
+  top:0;
+  z-index:20;
+  background:var(--bg);
+  box-shadow:0 8px 18px rgba(38,23,55,.035);
+}
+@media(max-width:760px){
+  .topbar{
+    top:0;
+    padding-top:10px;
+    padding-bottom:10px;
+  }
+}
