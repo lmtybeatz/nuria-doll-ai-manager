@@ -817,7 +817,7 @@
       if(artistId===activeArtistId){
         renderAssistantConversation(artistId);
         const providerLabel=payload.provider==='cloudflare_workers_ai'?'Cloudflare AI (secours)':'Groq';
-        status.textContent='Réponse générée par '+providerLabel+'. Mode préparation uniquement · Vérifie-la avant toute utilisation.';
+        status.textContent='Réponse générée par '+providerLabel+'. Contexte : '+(payload.context?.settings_loaded?'profil et paramètres de '+(payload.context.artist||'l’artiste'):'profil artiste')+'. '+(payload.approval_required?'Validation humaine requise. ':'')+'Mode préparation uniquement · Vérifie-la avant toute utilisation.';
         clearAssistantAttachments();$('#assistantTask').value='';updateAssistantDraft();
       }
     }catch(error){if(artistId===activeArtistId){status.textContent=error.message||'Une erreur est survenue.';toast(status.textContent,true);}}
