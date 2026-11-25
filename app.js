@@ -1384,7 +1384,8 @@
       if(fbInsightStatus)fbInsightStatus.textContent=facebookConnected?(hasPageInsights?'Accès aux insights autorisé.':'Connexion active. Pour afficher les chiffres détaillés, ajoute « read_insights » à la configuration Meta et reconnecte le compte.'):'Connecte une Page Facebook pour consulter ses statistiques.';
       if(igInsightStatus)igInsightStatus.textContent=instagramConnected?(hasInstagramInsights?'Accès aux insights autorisé.':'Connexion active. Pour afficher les chiffres détaillés, ajoute « instagram_manage_insights » à la configuration Meta et reconnecte le compte.'):'Connecte un compte Instagram professionnel pour consulter ses statistiques.';
       const igSummary=$('#instagramAccountSummary');if(igSummary)igSummary.textContent=instagramConnected?'Compte(s) Instagram professionnel(s) relié(s) à « '+activeArtistName()+' ».':'Aucun compte Instagram professionnel détecté pour cet artiste.';
-      if(connected){void loadMetaInsights(artistId);}\n      if(connected&&accounts){
+      if(connected){void loadMetaInsights(artistId);}
+      if(connected&&accounts){
         pages.forEach(page=>{
           const item=document.createElement('div');item.className='youtube-channel-sync';
           const strong=document.createElement('strong');strong.textContent=page.page_name||'Page Facebook';
