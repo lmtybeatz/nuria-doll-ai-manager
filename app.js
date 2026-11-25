@@ -22,8 +22,19 @@
     const n=$('#setupNotice'); n.innerHTML='<strong>Configuration nécessaire.</strong> Crée un nouveau projet Supabase, exécute <code>supabase/schema.sql</code>, puis renseigne son URL et sa clé publique dans <code>config.js</code>. Aucun secret privé ne doit être placé dans ce fichier.'; show(n); show($('#authScreen'));
     $('#authTitle').textContent='Configuration requise'; $('#authSubtitle').textContent='L’interface est prête. Connecte d’abord ton nouveau projet Supabase.'; $('#authForm').classList.add('disabled-form'); $('#authSubmit').disabled=true;
   }
+  function workspaceStateKey(){return user?.id?`nuriaAiManager:workspace:${user.id}`:null;}
+  function readWorkspaceState(){
+    const key=workspaceStateKey();if(!key)return {};
+    try{return JSON.parse(localStorage.getItem(key)||'{}')||{};}catch{return {};}
+  }
+  function saveWorkspaceState(patch={}){
+    const key=workspaceStateKey();if(!key)return;
+    try{localStorage.setItem(key,JSON.stringify({...readWorkspaceState(),...patch}));}catch{}
+  }
   function nav(view) {
-    $$('.view').forEach(v=>v.classList.toggle('active-view',v.id===`view-${view}`));
+    if(!view||!$(`#view-${view}`))return;
+    saveWorkspaceState({view,artistId:activeArtistId||null});
+    $('.view').forEach(v=>v.classList.toggle('active-view',v.id===`view-${view}`));
     $$('.nav-item[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===view));
     const names={overview:"Vue d'ensemble",brand:'Identité artistique',strategy:'Stratégie marketing',library:'Bibliothèque média',agent:'Configuration IA',connections:'Réseaux sociaux'};
     $('#pageTitle').textContent=names[view]; $('#crumb').textContent=view==='overview'?'CENTRE DE COMMANDE':activeArtistName().toUpperCase()+' · '+names[view].toUpperCase();
@@ -56,6 +67,9 @@
     hide($('#authScreen')); show($('#appShell')); $('#userEmail').textContent=user.email||'Compte connecté';
     await loadArtists();
     await reloadArtistWorkspace();
+    const savedView=readWorkspaceState().view;
+    const validViews=['overview','brand','strategy','library','agent','connections'];
+    nav(validViews.includes(savedView)?savedView:'overview');
     await youtubeStatus();
   }
   async function loadArtists(){
@@ -63,10 +77,13 @@
     if(error)throw new Error('Chargement des espaces artistes impossible : '+error.message);
     artists=data||[];
     if(!artists.length)throw new Error('Aucun espace artiste trouvé. Vérifie la migration multi-artistes.');
+    const savedState=readWorkspaceState();
     if(oauthArtistId&&artists.some(a=>a.id===oauthArtistId))activeArtistId=oauthArtistId;
+    else if(savedState.artistId&&artists.some(a=>a.id===savedState.artistId))activeArtistId=savedState.artistId;
     if(!activeArtistId||!artists.some(a=>a.id===activeArtistId)){
       activeArtistId=(artists.find(a=>a.is_default)||artists[0]).id;
     }
+    saveWorkspaceState({artistId:activeArtistId});
     renderArtistSwitcher();
   }
   function activeArtistName(){return artists.find(a=>a.id===activeArtistId)?.artist_name||'artiste sélectionné';}
@@ -98,6 +115,7 @@
   $('#artistSwitcher')?.addEventListener('change',async e=>{
     if(activeArtistId)assistantDrafts.set(activeArtistId,$('#assistantTask')?.value||'');
     activeArtistId=e.target.value;
+    saveWorkspaceState({artistId:activeArtistId});
     clearAssistantResult();
     $('#assistantTask').value=assistantDrafts.get(activeArtistId)||'';
     // Mettre à jour immédiatement tous les libellés dépendant de l’artiste actif.
@@ -117,7 +135,7 @@
       const {data,error}=await supabase.from('ai_artists').insert({owner_id:user.id,artist_name:artistName,status:'active',is_default:false}).select('id,artist_name,is_default,status,created_at').single();
       if(error)throw error;
       if(activeArtistId)assistantDrafts.set(activeArtistId,$('#assistantTask')?.value||'');
-      artists.push(data);activeArtistId=data.id;clearAssistantResult();$('#assistantTask').value=assistantDrafts.get(activeArtistId)||'';renderArtistSwitcher();
+      artists.push(data);activeArtistId=data.id;saveWorkspaceState({artistId:activeArtistId});clearAssistantResult();$('#assistantTask').value=assistantDrafts.get(activeArtistId)||'';renderArtistSwitcher();
       await reloadArtistWorkspace();
       toast('Espace « '+artistName+' » créé. Tu peux maintenant compléter son identité.');
       nav('brand');
