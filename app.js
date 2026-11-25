@@ -12,7 +12,7 @@
   let assistantRecorder = null;
   let assistantRecordingChunks = [];
   let assistantRecordingTimeout = null;
-  let lastAssistantTask = '';
+  const lastAssistantTasks = new Map();
   let latestYoutubeAnalytics=null;
   const oauthArtistId=new URLSearchParams(location.search).get('artist_id');
   const recommendationBusy=new Set();
@@ -182,6 +182,7 @@
   }
   $('#artistSwitcher')?.addEventListener('change',async e=>{
     if(activeArtistId)assistantDrafts.set(activeArtistId,$('#assistantTask')?.value||'');
+    clearAssistantAttachments();
     activeArtistId=e.target.value;
     saveWorkspaceState({artistId:activeArtistId});
     clearAssistantResult();
@@ -518,7 +519,7 @@
     const messages=assistantConversations.get(artistId)||[];
     if(!messages.length){const empty=document.createElement('div');empty.className='assistant-empty';const symbol=document.createElement('span');symbol.textContent='✧';const title=document.createElement('strong');title.textContent='Comment puis-je t’aider ?';const detail=document.createElement('p');detail.textContent='Décris ton objectif ou commence avec une suggestion ci-dessus.';empty.append(symbol,title,detail);container.append(empty);hide($('#assistantResult'));return;}
     messages.forEach(message=>{const article=document.createElement('article');article.className='assistant-message '+(message.role==='user'?'user':'assistant');const label=document.createElement('span');label.className='assistant-message-label';label.textContent=message.role==='user'?'Toi':'Assistant';const body=document.createElement('div');body.className='assistant-message-content';if(message.role==='assistant')renderAssistantMarkdown(body,message.content);else body.textContent=message.content;article.append(label,body);container.append(article);});
-    const last=[...messages].reverse().find(message=>message.role==='assistant');if(last){$('#assistantAnswer').textContent=last.content;show($('#assistantResult'));const approval=assistantApprovals.get(artistId);if(approval)renderApprovalControl(approval,$('#assistantApprovalControl'));}
+    const last=[...messages].reverse().find(message=>message.role==='assistant');if(last){$('#assistantAnswer').textContent=last.content;show($('#assistantResult'));const approval=assistantApprovals.get(artistId);if(approval)renderApprovalControl(approval,$('#assistantApprovalControl'));else $('#assistantApprovalControl').replaceChildren();}
     container.scrollTop=container.scrollHeight;
   }
   function resizeAssistantComposer(){const field=$('#assistantTask');if(!field)return;field.style.height='auto';field.style.height=Math.min(field.scrollHeight,220)+'px';}
@@ -550,7 +551,7 @@
   });
   async function submitAssistantTask(task){
     const cleanTask=String(task||'').trim();if(!cleanTask&&!assistantAttachments.length)return;
-    const artistId=activeArtistId,submit=$('#assistantSubmit'),status=$('#assistantStatus');lastAssistantTask=cleanTask;
+    const artistId=activeArtistId,submit=$('#assistantSubmit'),status=$('#assistantStatus');lastAssistantTasks.set(artistId,cleanTask);
     submit.disabled=true;status.textContent='L’assistant prépare une réponse…';hide($('#assistantResult'));
     try{
       const {data:{session},error:sessionError}=await supabase.auth.getSession();if(sessionError||!session?.access_token)throw new Error('Session expirée. Reconnecte-toi.');
@@ -567,11 +568,11 @@
     finally{submit.disabled=false;submit.textContent='↑';submit.setAttribute('aria-label','Envoyer le message');}
   }
   $('#assistantForm').addEventListener('submit',event=>{event.preventDefault();void submitAssistantTask($('#assistantTask').value);});
-  $('#regenerateAssistant').addEventListener('click',()=>{if(lastAssistantTask)void submitAssistantTask(lastAssistantTask);});
-  $$('#prompt-chip').forEach(()=>{});
+  $('#regenerateAssistant').addEventListener('click',()=>{const task=lastAssistantTasks.get(activeArtistId)||'';if(task)void submitAssistantTask(task);});
   const assistantTemplates={calendar:'Prépare un calendrier éditorial réaliste de 7 jours pour l’artiste actif, avec des idées de contenus et les objectifs de chaque journée.',captions:'Propose plusieurs légendes adaptées à une prochaine sortie musicale de l’artiste actif, avec des tons différents.',videos:'Propose 5 idées de vidéos courtes adaptées à l’univers et au public de l’artiste actif.'};
   $$('[data-prompt-template]').forEach(button=>button.addEventListener('click',()=>{$('#assistantTask').value=assistantTemplates[button.dataset.promptTemplate]||'';updateAssistantDraft();$('#assistantTask').focus();}));
   $('#copyAssistant').addEventListener('click',async()=>{const value=$('#assistantAnswer').textContent;try{await navigator.clipboard.writeText(value);toast('Réponse copiée.');}catch{toast('Copie indisponible sur ce navigateur.',true);}});
+  resizeAssistantComposer();
 
 
   const campaignTypes={single:'Single / sortie',album:'Album / EP',brand:'Marque'};
