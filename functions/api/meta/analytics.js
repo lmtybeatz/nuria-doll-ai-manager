@@ -1,8 +1,8 @@
 const H={"content-type":"application/json; charset=utf-8","cache-control":"no-store"};
 const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:H});
 async function verify(request,env){
- const m=(request.headers.get("authorization")||"").match(/^Bearer\\s+(.+)$/i);if(!m)return null;
- const r=await fetch(env.SUPABASE_URL.replace(/\\/$/,"")+"/auth/v1/user",{headers:{apikey:env.SUPABASE_PUBLISHABLE_KEY,authorization:"Bearer "+m[1]}});
+ const m=(request.headers.get("authorization")||"").match(/^Bearer\s+(.+)$/i);if(!m)return null;
+ const r=await fetch(env.SUPABASE_URL.replace(/\/$/,"")+"/auth/v1/user",{headers:{apikey:env.SUPABASE_PUBLISHABLE_KEY,authorization:"Bearer "+m[1]}});
  return r.ok?await r.json():null;
 }
 async function decrypt(value,keyB64){
@@ -64,7 +64,7 @@ export async function onRequestGet({request,env}){
   if(missing.length)return json({error:"Configuration serveur incomplète.",missing},503);
   stage="verification_session";const u=await verify(request,env);if(!u?.id)return json({error:"Connexion requise."},401);
   const artistId=new URL(request.url).searchParams.get("artist_id");if(!artistId)return json({error:"Espace artiste manquant."},400);
-  const base=env.SUPABASE_URL.replace(/\\/$/,""),headers={apikey:env.SUPABASE_SERVICE_ROLE_KEY,authorization:"Bearer "+env.SUPABASE_SERVICE_ROLE_KEY};
+  const base=env.SUPABASE_URL.replace(/\/$/,""),headers={apikey:env.SUPABASE_SERVICE_ROLE_KEY,authorization:"Bearer "+env.SUPABASE_SERVICE_ROLE_KEY};
   stage="verification_artiste";
   const artist=await fetch(base+"/rest/v1/ai_artists?id=eq."+encodeURIComponent(artistId)+"&owner_id=eq."+encodeURIComponent(u.id)+"&status=eq.active&select=id",{headers});
   if(!artist.ok||!(await artist.json()).length)return json({error:"Espace artiste introuvable ou non autorisé."},404);
