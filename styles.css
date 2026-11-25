@@ -348,10 +348,8 @@
 @keyframes assistant-thinking{0%,100%{opacity:.35;transform:translateY(0)}50%{opacity:1;transform:translateY(-2px)}}
 
 
-/* Gestion des profils artistes et menu du compte */
-.delete-artist-button{border:1px solid #f0dada;border-radius:8px;background:#fff5f5;color:#a44747;padding:8px 10px;font-size:10px;font-weight:800;white-space:nowrap}
-.delete-artist-button:hover:not(:disabled){background:#fbe8e8}
-.delete-artist-button:disabled{opacity:.42;cursor:not-allowed}
+
+/* Menu du compte */
 .top-avatar{border:0;cursor:pointer;transition:transform .15s,box-shadow .15s}
 .top-avatar:hover{transform:translateY(-1px);box-shadow:0 0 0 4px #7047a61c}
 .top-avatar:focus-visible{outline:3px solid #a984ce;outline-offset:3px}
@@ -360,6 +358,39 @@
 .account-menu-heading strong{display:block;font-size:12px;color:#352640}
 .account-menu-heading small{display:block;font-size:10px;color:#8d8295;margin-top:4px}
 .account-menu p{font-size:11px;color:#776c80;overflow-wrap:anywhere;margin:12px 0;padding:10px;background:#f8f5fa;border-radius:8px}
-.account-menu>button{width:100%;border:0;border-radius:8px;background:#f8eeee;color:#984747;text-align:left;padding:10px 11px;font-size:11px;font-weight:800}
-.account-menu>button:hover{background:#f3e1e1}
-@media(max-width:760px){.delete-artist-button,.add-artist-button{padding:8px;font-size:9px}.account-menu{right:0;top:calc(100% + 8px)}}
+.account-menu>button{width:100%;border:0;border-radius:8px;text-align:left;padding:10px 11px;font-size:11px;font-weight:800}
+.account-menu #accountMenuManageArtists{display:block;margin:0 0 7px;background:#f1eaf7;color:#68458a}
+.account-menu #accountMenuManageArtists:hover{background:#e8def1}
+.account-menu #accountMenuSignOut{background:#f8eeee;color:#984747}
+.account-menu #accountMenuSignOut:hover{background:#f3e1e1}
+@media(max-width:760px){.account-menu{right:0;top:calc(100% + 8px)}}
+/* Gestion centralisée des artistes et confirmation sécurisée */
+.artist-management-summary{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 14px;padding:13px 16px;background:#fff;border:1px solid var(--line);border-radius:11px}
+.artist-management-summary strong{font:800 12px Manrope;color:#4b365e}
+.artist-management-summary span{font-size:10px;color:var(--muted)}
+.artist-management-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.artist-management-card{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0;padding:15px;background:#fff;border:1px solid var(--line);border-radius:13px;box-shadow:var(--shadow)}
+.artist-management-identity{display:flex;align-items:center;gap:11px;min-width:0}
+.artist-management-avatar{display:grid;place-items:center;flex:0 0 42px;width:42px;height:42px;border-radius:13px;background:#f0e8f8;color:#68458a;font:800 16px Manrope}
+.artist-management-details{display:grid;gap:5px;min-width:0}
+.artist-management-details strong{font:800 12px Manrope;color:#382b43;overflow-wrap:anywhere}
+.artist-management-details small{font-size:9px;color:#92869a;line-height:1.5}
+.artist-management-actions{display:grid;justify-items:end;gap:7px;flex-shrink:0}
+.artist-management-active{font-size:9px;color:#39856d;min-height:11px}
+.artist-management-delete{border:1px solid #f0dada;border-radius:8px;background:#fff5f5;color:#a44747;padding:8px 11px;font-size:10px;font-weight:800}
+.artist-management-delete:hover:not(:disabled){background:#fbe8e8}
+.artist-management-delete:disabled{opacity:.4;cursor:not-allowed}
+.artist-delete-overlay{position:fixed;inset:0;z-index:2000;display:grid;place-items:center;padding:18px;background:rgba(25,16,34,.58);backdrop-filter:blur(3px)}
+.artist-delete-dialog{position:relative;width:min(460px,100%);padding:27px;background:#fff;border:1px solid #eee7f2;border-radius:18px;box-shadow:0 24px 70px rgba(20,10,30,.28)}
+.artist-delete-dialog h2{font:800 21px Manrope;color:#382b43;margin:0 0 10px}
+.artist-delete-dialog>p.muted{font-size:11px;line-height:1.7;margin:0 0 18px}
+.artist-delete-dialog label{display:block;font-size:11px;font-weight:800;color:#51445d;margin-bottom:8px}
+.artist-delete-dialog input{width:100%;padding:13px;border:1px solid #e5dce9;border-radius:10px;background:#fff;font-size:14px;outline:none}
+.artist-delete-dialog input:focus{border-color:#9875be;box-shadow:0 0 0 3px #9875be20}
+.artist-delete-error{min-height:16px;margin:9px 0;color:#a44747;font-size:10px;line-height:1.5}
+.artist-delete-actions{display:flex;justify-content:flex-end;gap:9px;flex-wrap:wrap}
+.artist-delete-actions .btn{margin:0}
+.artist-delete-actions .btn.danger{background:#a94444;color:#fff}
+.artist-delete-actions .btn.danger:hover{background:#8f3333}
+.artist-delete-close{position:absolute;top:12px;right:13px;border:0;background:transparent;color:#887b91;font-size:24px}
+@media(max-width:760px){.artist-management-list{grid-template-columns:1fr}.artist-management-card{align-items:flex-start}.artist-management-summary{align-items:flex-start;flex-direction:column;gap:4px}.artist-delete-dialog{padding:24px 19px}.artist-delete-actions{display:grid;grid-template-columns:1fr 1fr}.artist-delete-actions .btn{width:100%;padding:11px 8px;font-size:10px}}
