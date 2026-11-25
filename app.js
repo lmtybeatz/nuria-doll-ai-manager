@@ -333,10 +333,23 @@
     const {data,error}=await supabase.from('ai_brand_profile').select('*').eq('artist_id',artistId).maybeSingle();
     if(version!==workspaceLoadVersion||artistId!==activeArtistId)return;
     if(error){toast('Chargement du profil : '+error.message,true);return;}
-    profile=data;
+    const child=isNuriaDollArtist();
+    const nuriaDefaults={
+      genre:'Pop enfantine, Afro-pop, Pop',
+      target_audience:"Enfants et adultes sensibles à l'univers de l'enfance",
+      tone:'Joyeux, bienveillant, créatif, familial et adapté à un public intergénérationnel.',
+      primary_color:'#6D45A6',
+      secondary_color:'#E8B9D4'
+    };
+    profile=data?{...data,artist_name:activeArtistName()}:null;
+    if(profile&&!child){
+      Object.entries(nuriaDefaults).forEach(([key,value])=>{if(profile[key]===value)profile[key]=null;});
+      profile.parent_guardrails='';
+    }
     const f=$('#brandForm');
-    if(data){
-      Object.entries(data).forEach(([k,v])=>{if(k==='parent_guardrails'&&!isNuriaDollArtist())return;const el=f.elements[k];if(el&&v!==null)el.value=v;});
+    if(profile){
+      Object.entries(profile).forEach(([k,v])=>{if(k==='parent_guardrails'&&!child)return;const el=f.elements[k];if(el&&v!==null)el.value=v;});
+      f.elements.artist_name.value=activeArtistName();
       $('#profileStatus').textContent='Configuré';
       $('#brandCheck').classList.add('done');
       $('#brandCheck').textContent='✓';
