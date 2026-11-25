@@ -137,7 +137,7 @@ export async function onRequestPost({ request, env }) {
         status: "completed",
         fallback_used: true,
         forced_test: true,
-        approval_required: true
+        approval_required: isNuriaDoll
       });
     } catch (fallbackError) {
       return json({
@@ -152,7 +152,7 @@ export async function onRequestPost({ request, env }) {
   if (hasGroq) {
     try {
       const answer = await askGroq(env, system, user);
-      return json({ answer, provider: "groq", model: "openai/gpt-oss-120b", status: "completed", approval_required: true });
+      return json({ answer, provider: "groq", model: "openai/gpt-oss-120b", status: "completed", approval_required: isNuriaDoll });
     } catch (error) {
       groqError = error;
     }
@@ -165,7 +165,7 @@ export async function onRequestPost({ request, env }) {
       model: "@cf/zai-org/glm-4.7-flash",
       status: "completed",
       fallback_used: true,
-      approval_required: true
+      approval_required: isNuriaDoll
     });
   } catch (fallbackError) {
     return json({
