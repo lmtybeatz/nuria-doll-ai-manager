@@ -10,6 +10,7 @@
   const assistantApprovals = new Map();
   let assistantAttachments = [];
   let assistantRecorder = null;
+  let assistantRecordingArtistId = null;
   let assistantRecordingChunks = [];
   let assistantRecordingTimeout = null;
   const lastAssistantTasks = new Map();
@@ -182,6 +183,7 @@
   }
   $('#artistSwitcher')?.addEventListener('change',async e=>{
     if(activeArtistId)assistantDrafts.set(activeArtistId,$('#assistantTask')?.value||'');
+    if(assistantRecorder?.state==='recording')assistantRecorder.stop();
     clearAssistantAttachments();
     activeArtistId=e.target.value;
     saveWorkspaceState({artistId:activeArtistId});
@@ -203,6 +205,9 @@
     const artistName=name.trim();
     if(!artistName){toast('Saisis un nom d’artiste.',true);return;}
     if(artists.some(a=>a.artist_name.trim().toLocaleLowerCase()===artistName.toLocaleLowerCase())){toast('Cet artiste existe déjà dans ton espace.',true);return;}
+    if(activeArtistId)assistantDrafts.set(activeArtistId,$('#assistantTask')?.value||'');
+    if(assistantRecorder?.state==='recording')assistantRecorder.stop();
+    clearAssistantAttachments();
     const button=$('#addArtistButton');button.disabled=true;
     try{
       const {data,error}=await supabase.from('ai_artists').insert({owner_id:user.id,artist_name:artistName,status:'active',is_default:false}).select('id,artist_name,is_default,status,created_at').single();
@@ -539,15 +544,15 @@
   $('#assistantAttachButton').addEventListener('click',()=>$('#assistantImageInput').click());
   $('#assistantTask').addEventListener('input',updateAssistantDraft);
   $('#assistantTask').addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();$('#assistantForm').requestSubmit();}});
-  async function transcribeAssistantAudio(blob){
+  async function transcribeAssistantAudio(blob,recordingArtistId){
     const button=$('#assistantRecordButton'),recordStatus=$('#assistantRecordingStatus');button.disabled=true;recordStatus.textContent='Transcription…';$('#assistantStatus').textContent='Transcription de la note vocale…';
-    try{const {data:{session}}=await supabase.auth.getSession();if(!session?.access_token)throw new Error('Session expirée. Reconnecte-toi.');const form=new FormData();form.append('file',blob,'note-vocale.webm');const response=await fetch('/api/transcribe',{method:'POST',headers:{authorization:'Bearer '+session.access_token},body:form});const payload=await response.json().catch(()=>({}));if(!response.ok||!payload.text)throw new Error(payload.error||'Transcription impossible.');const field=$('#assistantTask');field.value+=(field.value.trim()?'\n':'')+payload.text.trim();updateAssistantDraft();field.focus();$('#assistantStatus').textContent='Texte transcrit. Tu peux le relire et le modifier avant envoi.';recordStatus.textContent='Transcription ajoutée';}catch(error){recordStatus.textContent='';toast(error.message||'Transcription impossible.',true);}finally{button.disabled=false;}
+    try{const {data:{session}}=await supabase.auth.getSession();if(!session?.access_token)throw new Error('Session expirée. Reconnecte-toi.');const form=new FormData();form.append('file',blob,'note-vocale.webm');const response=await fetch('/api/transcribe',{method:'POST',headers:{authorization:'Bearer '+session.access_token},body:form});const payload=await response.json().catch(()=>({}));if(!response.ok||!payload.text)throw new Error(payload.error||'Transcription impossible.');if(recordingArtistId&&recordingArtistId!==activeArtistId){const previous=assistantDrafts.get(recordingArtistId)||'';assistantDrafts.set(recordingArtistId,[previous,payload.text.trim()].filter(Boolean).join('\n'));toast('La transcription a été ajoutée au brouillon de l’artiste d’origine.');return;}const field=$('#assistantTask');field.value+=(field.value.trim()?'\n':'')+payload.text.trim();updateAssistantDraft();field.focus();$('#assistantStatus').textContent='Texte transcrit. Tu peux le relire et le modifier avant envoi.';recordStatus.textContent='Transcription ajoutée';}catch(error){recordStatus.textContent='';toast(error.message||'Transcription impossible.',true);}finally{button.disabled=false;}
   }
   $('#assistantRecordButton').addEventListener('click',async()=>{
     const button=$('#assistantRecordButton'),recordStatus=$('#assistantRecordingStatus');
     if(assistantRecorder&&assistantRecorder.state==='recording'){assistantRecorder.stop();button.classList.remove('recording');button.textContent='🎙';recordStatus.textContent='Traitement de la note…';return;}
     if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){toast('L’enregistrement audio n’est pas pris en charge par ce navigateur.',true);return;}
-    try{const stream=await navigator.mediaDevices.getUserMedia({audio:true});const mime=MediaRecorder.isTypeSupported('audio/webm;codecs=opus')?'audio/webm;codecs=opus':(MediaRecorder.isTypeSupported('audio/webm')?'audio/webm':'');assistantRecordingChunks=[];assistantRecorder=new MediaRecorder(stream,mime?{mimeType:mime}:undefined);assistantRecorder.ondataavailable=event=>{if(event.data?.size)assistantRecordingChunks.push(event.data);};assistantRecorder.onstop=async()=>{clearTimeout(assistantRecordingTimeout);stream.getTracks().forEach(track=>track.stop());const blob=new Blob(assistantRecordingChunks,{type:assistantRecorder.mimeType||'audio/webm'});assistantRecorder=null;button.classList.remove('recording');button.textContent='🎙';if(blob.size)await transcribeAssistantAudio(blob);};assistantRecorder.start();button.classList.add('recording');button.textContent='■';recordStatus.textContent='Enregistrement…';$('#assistantStatus').textContent='Parle maintenant. Appuie de nouveau sur le micro pour terminer.';assistantRecordingTimeout=setTimeout(()=>{if(assistantRecorder?.state==='recording'){assistantRecorder.stop();button.classList.remove('recording');button.textContent='🎙';recordStatus.textContent='Limite de 60 secondes atteinte.';}},60000);}catch(error){toast('Accès au microphone refusé ou indisponible : '+(error.message||''),true);}
+    try{const stream=await navigator.mediaDevices.getUserMedia({audio:true});assistantRecordingArtistId=activeArtistId;const mime=MediaRecorder.isTypeSupported('audio/webm;codecs=opus')?'audio/webm;codecs=opus':(MediaRecorder.isTypeSupported('audio/webm')?'audio/webm':'');assistantRecordingChunks=[];assistantRecorder=new MediaRecorder(stream,mime?{mimeType:mime}:undefined);assistantRecorder.ondataavailable=event=>{if(event.data?.size)assistantRecordingChunks.push(event.data);};assistantRecorder.onstop=async()=>{clearTimeout(assistantRecordingTimeout);stream.getTracks().forEach(track=>track.stop());const blob=new Blob(assistantRecordingChunks,{type:assistantRecorder.mimeType||'audio/webm'});assistantRecorder=null;button.classList.remove('recording');button.textContent='🎙';const recordedFor=assistantRecordingArtistId;assistantRecordingArtistId=null;if(blob.size)await transcribeAssistantAudio(blob,recordedFor);};assistantRecorder.start();button.classList.add('recording');button.textContent='■';recordStatus.textContent='Enregistrement…';$('#assistantStatus').textContent='Parle maintenant. Appuie de nouveau sur le micro pour terminer.';assistantRecordingTimeout=setTimeout(()=>{if(assistantRecorder?.state==='recording'){assistantRecorder.stop();button.classList.remove('recording');button.textContent='🎙';recordStatus.textContent='Limite de 60 secondes atteinte.';}},60000);}catch(error){toast('Accès au microphone refusé ou indisponible : '+(error.message||''),true);}
   });
   async function submitAssistantTask(task){
     const cleanTask=String(task||'').trim();if(!cleanTask&&!assistantAttachments.length)return;
