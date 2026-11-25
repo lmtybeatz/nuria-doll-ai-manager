@@ -13,6 +13,15 @@ async function encrypt(value,keyB64){
  const data=await crypto.subtle.encrypt({name:"AES-GCM",iv},key,new TextEncoder().encode(JSON.stringify(value)));
  return btoa(String.fromCharCode(...iv))+"."+btoa(String.fromCharCode(...new Uint8Array(data)));
 }
+async function grantedScopes(version,token,env){
+ const url=new URL("https://graph.facebook.com/"+version+"/debug_token");
+ url.searchParams.set("input_token",token);
+ url.searchParams.set("access_token",env.META_APP_ID+"|"+env.META_APP_SECRET);
+ const response=await fetch(url),data=await response.json();
+ if(!response.ok||data.error||!data.data?.is_valid)return [];
+ if(String(data.data.app_id)!==String(env.META_APP_ID))return [];
+ return Array.isArray(data.data.scopes)?data.data.scopes:[];
+}
 async function graphCollection(version,edge,token,fields){
  const url=new URL("https://graph.facebook.com/"+version+"/"+edge);
  url.searchParams.set("fields",fields);url.searchParams.set("limit","100");url.searchParams.set("access_token",token);
@@ -46,6 +55,7 @@ export async function onRequestGet({request,env}){
   const tokenResponse=await fetch(exchange),tokenData=await tokenResponse.json();
   if(!tokenResponse.ok||!tokenData.access_token)throw new Error("Échange du code Unified Login refusé ("+String(tokenData.error?.code||tokenResponse.status)+").");
   const accessToken=tokenData.access_token;
+  const scopes=await grantedScopes(version,accessToken,env);
   // Retrieve both asset families. Pages are read without requesting page tokens until Page-management permissions are approved.
   const [pagesRaw,instagramRaw]=await Promise.all([
    graphCollection(version,"me/accounts",accessToken,"id,name,access_token,instagram_business_account{id,username}"),
@@ -96,7 +106,6 @@ export async function onRequestGet({request,env}){
   const base=env.SUPABASE_URL.replace(/\/$/,""),admin={apikey:env.SUPABASE_SERVICE_ROLE_KEY,authorization:"Bearer "+env.SUPABASE_SERVICE_ROLE_KEY};
   const artist=await fetch(base+"/rest/v1/ai_artists?id=eq."+encodeURIComponent(payload.artistId)+"&owner_id=eq."+encodeURIComponent(payload.uid)+"&status=eq.active&select=id",{headers:admin});
   if(!artist.ok||!(await artist.json()).length)throw new Error("Espace artiste invalide ou non autorisé.");
-  const scopes=["business_management","pages_show_list","pages_read_engagement","read_insights","instagram_basic","instagram_manage_insights","instagram_content_publish","instagram_manage_comments","instagram_manage_messages"];
   const save=await fetch(base+"/rest/v1/ai_social_connections?on_conflict=owner_id,artist_id,provider",{
    method:"POST",headers:{...admin,"content-type":"application/json",prefer:"resolution=merge-duplicates,return=minimal"},
    body:JSON.stringify({owner_id:payload.uid,artist_id:payload.artistId,provider:"meta",token_ciphertext:encrypted,scopes,account_metadata:metadata,connected_at:new Date().toISOString(),updated_at:new Date().toISOString()})
