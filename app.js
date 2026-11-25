@@ -32,7 +32,7 @@
   let assistantRecordingChunks = [];
   let assistantRecordingTimeout = null;
   const lastAssistantTasks = new Map();
-  let latestYoutubeAnalytics=null;
+  let latestYoutubeAnalytics=null, activeSocialPlatform=null;
   const oauthArtistId=new URLSearchParams(location.search).get('artist_id');
   const recommendationBusy=new Set();
   let campaigns = [], editingCampaignId = null;
@@ -1291,10 +1291,39 @@
       box.textContent=d.connected?'Chaîne YouTube connectée · Accès en lecture seule':'Aucune chaîne YouTube connectée';
       button.textContent=d.connected?'Reconnecter YouTube':'Connecter YouTube';
       $('#youtubeTag').textContent=d.connected?'Connecté':'Non connecté';
-      $('#youtubeTag').className='tag '+(d.connected?'green':'');
+      $('#youtubeTag').className='tag '+(d.connected?'green':'amber');\n      const ytCardStatus=$('#youtubeCardStatus');if(ytCardStatus)ytCardStatus.textContent=d.connected?'Chaîne connectée · Statistiques disponibles':'Connecte une chaîne pour activer les statistiques';\n      const ytDetailTag=$('#youtubeDetailTag');if(ytDetailTag){ytDetailTag.textContent=d.connected?'Connecté':'À connecter';ytDetailTag.className='tag '+(d.connected?'green':'amber');}
       if(d.connected){await loadYoutubeChannel();await loadYoutubeAnalytics(30);}else {$('#youtubeChannelPanel')?.classList.add('hidden');$('#youtubeAnalyticsStatus').textContent='Connecte une chaîne YouTube pour cet artiste afin de consulter ses statistiques.';}
     }catch(e){if(artistId===activeArtistId){const missing=Array.isArray(e.missing)?' Variables manquantes : '+e.missing.join(', '):'';box.textContent='Statut indisponible : '+e.message+missing;}}
   }
+  function openSocialPlatform(platform){
+    const names={facebook:"Facebook",instagram:"Instagram",youtube:"YouTube",tiktok:"TikTok"};
+    const subtitles={
+      facebook:"Page Facebook, communauté et performances de la Page.",
+      instagram:"Compte professionnel, audience, portée et interactions.",
+      youtube:"Chaîne, statistiques vidéo et recommandations marketing.",
+      tiktok:"Espace de suivi · intégration officielle à venir."
+    };
+    if(!names[platform])return;
+    activeSocialPlatform=platform;
+    $('#socialPlatformGrid')?.classList.add('hidden');
+    $('#socialDetailView')?.classList.remove('hidden');
+    $('#socialDetailTitle').textContent=names[platform];
+    $('#socialDetailSubtitle').textContent=subtitles[platform];
+    ['facebook','instagram','youtube','tiktok'].forEach(name=>{
+      const panel=$('#social'+name[0].toUpperCase()+name.slice(1)+'Detail');
+      panel?.classList.toggle('hidden',name!==platform);
+    });
+    $('#socialBackButton')?.focus({preventScroll:true});
+  }
+  function closeSocialPlatform(){
+    activeSocialPlatform=null;
+    $('#socialDetailView')?.classList.add('hidden');
+    $('#socialPlatformGrid')?.classList.remove('hidden');
+  }
+  $('#socialPlatformGrid [data-social-platform]').forEach(card=>{
+    card.addEventListener('click',()=>openSocialPlatform(card.dataset.socialPlatform));
+  });
+  $('#socialBackButton')?.addEventListener('click',closeSocialPlatform);
   async function metaStatus(){
     const artistId=activeArtistId,box=$('#metaStatus'),button=$('#connectMeta'),accounts=$('#metaAccounts');
     if(!box||!button||!artistId)return;
@@ -1314,9 +1343,9 @@
         ?'Comptes sociaux reliés à « '+activeArtistName()+' » · '+pages.length+' Page(s) Facebook · '+instagramAccounts.length+' compte(s) Instagram.'
         :'Aucune connexion Meta pour cet artiste.';
       button.textContent=connected?'Reconnecter Facebook / Instagram':'Connecter Facebook / Instagram';
-      const fbTag=$('#metaFacebookTag'),igTag=$('#metaInstagramTag');
+      const fbTag=$('#metaFacebookTag'),igTag=$('#metaInstagramTag'),fbDetailTag=$('#facebookDetailTag'),igDetailTag=$('#instagramDetailTag');
       if(fbTag){fbTag.textContent=facebookConnected?'Connecté':'À connecter';fbTag.className='tag '+(facebookConnected?'green':'amber');}
-      if(igTag){igTag.textContent=instagramConnected?'Connecté':'À connecter';igTag.className='tag '+(instagramConnected?'green':'amber');}
+      if(igTag){igTag.textContent=instagramConnected?'Connecté':'À connecter';igTag.className='tag '+(instagramConnected?'green':'amber');}\n      if(fbDetailTag){fbDetailTag.textContent=facebookConnected?'Connecté':'À connecter';fbDetailTag.className='tag '+(facebookConnected?'green':'amber');}\n      if(igDetailTag){igDetailTag.textContent=instagramConnected?'Connecté':'À connecter';igDetailTag.className='tag '+(instagramConnected?'green':'amber');}\n      const fbInsightStatus=$('#facebookInsightsStatus'),igInsightStatus=$('#instagramInsightsStatus');\n      const hasPageInsights=(d.scopes||[]).includes('read_insights'),hasInstagramInsights=(d.scopes||[]).includes('instagram_manage_insights');\n      if(fbInsightStatus)fbInsightStatus.textContent=facebookConnected?(hasPageInsights?'Accès aux insights autorisé. Les données seront chargées lors de la prochaine synchronisation.':'Connexion active. Pour afficher les chiffres détaillés, ajoute « read_insights » à la configuration Meta et reconnecte le compte.'):'Connecte une Page Facebook pour consulter ses statistiques.';\n      if(igInsightStatus)igInsightStatus.textContent=instagramConnected?(hasInstagramInsights?'Accès aux insights autorisé. Les données seront chargées lors de la prochaine synchronisation.':'Connexion active. Pour afficher les chiffres détaillés, ajoute « instagram_manage_insights » à la configuration Meta et reconnecte le compte.'):'Connecte un compte Instagram professionnel pour consulter ses statistiques.';\n      const igSummary=$('#instagramAccountSummary');if(igSummary)igSummary.textContent=instagramConnected?'Compte(s) Instagram professionnel(s) relié(s) à « '+activeArtistName()+' ».':'Aucun compte Instagram professionnel détecté pour cet artiste.';
       if(connected&&accounts){
         pages.forEach(page=>{
           const item=document.createElement('div');item.className='youtube-channel-sync';
@@ -1333,7 +1362,7 @@
       }
     }catch(e){if(artistId===activeArtistId)box.textContent='Statut Meta indisponible : '+e.message;}
   }
-  $('#connectMeta')?.addEventListener('click',async()=>{
+  const startMetaConnection=async()=>{
     try{
       const artistId=activeArtistId;if(!artistId)throw new Error('Sélectionne d’abord un espace artiste.');
       const {data:{session}}=await supabase.auth.getSession();if(!session?.access_token)throw new Error('Reconnecte-toi.');
