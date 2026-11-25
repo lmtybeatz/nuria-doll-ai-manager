@@ -136,11 +136,26 @@
           <div class="panel-head"><div><p class="eyebrow">RECHERCHE DOCUMENTAIRE</p><h3>Dossier de recherche de l’artiste actif</h3></div><span class="tag">Sources conservées</span></div>
           <p class="muted">Sélectionne d’abord un artiste dans le menu supérieur. L’agent recherchera sa discographie, sa biographie publique et ses premières sorties, puis conservera les sources dans son espace.</p>
           <form id="artistResearchForm" class="artist-research-form">
-            <label for="researchArtistName">Nom de l’artiste à rechercher</label>
-            <div><input id="researchArtistName" type="text" maxlength="100" required placeholder="Nom d’artiste"><button id="artistResearchSubmit" type="submit" class="btn primary">Rechercher sur le web</button></div>
+            <div class="research-identity-intro"><div><strong>Identifier le bon artiste</strong><small>Ces précisions évitent les homonymes et orientent les recherches vers les bons profils.</small></div><span class="tag">Par artiste</span></div>
+            <div class="research-identity-grid">
+              <label>Nom exact de l’artiste<input id="researchArtistName" type="text" maxlength="100" required placeholder="Ex. : NURIA DOLL"></label>
+              <label>Nom civil (facultatif)<input id="researchLegalName" type="text" maxlength="120" placeholder="Nom et prénom"></label>
+              <label>Pays<input id="researchCountry" type="text" maxlength="100" placeholder="Ex. : Bénin"></label>
+              <label>Ville / région<input id="researchCity" type="text" maxlength="100" placeholder="Ex. : Cotonou"></label>
+              <label>Genre musical<input id="researchGenre" type="text" maxlength="180" placeholder="Ex. : Pop enfantine, Afro-pop"></label>
+              <label>Label / manager / producteur<input id="researchAffiliation" type="text" maxlength="180" placeholder="Nom d’une structure ou d’un collaborateur"></label>
+              <label class="research-span-2">Chaîne YouTube<input id="researchYoutube" type="url" maxlength="500" placeholder="https://youtube.com/@..."></label>
+              <label>Instagram<input id="researchInstagram" type="url" maxlength="500" placeholder="Lien du profil officiel"></label>
+              <label>Facebook<input id="researchFacebook" type="url" maxlength="500" placeholder="Lien de la page officielle"></label>
+              <label>TikTok<input id="researchTiktok" type="url" maxlength="500" placeholder="Lien du profil officiel"></label>
+              <label>Site officiel<input id="researchWebsite" type="url" maxlength="500" placeholder="https://..."></label>
+              <label class="research-span-2">Autres informations pour reconnaître l’artiste<textarea id="researchNotes" rows="3" maxlength="1200" placeholder="Ex. : jeune artiste béninoise, projet musical familial, titres connus, collaborations, éléments distinctifs…"></textarea></label>
+            </div>
+            <details class="research-advanced"><summary>Pourquoi ces informations sont-elles utiles ?</summary><p>Les liens fournis servent de points de repère. Les requêtes combinent le nom exact avec le pays, le genre, les affiliations et les éléments distinctifs. Les résultats restent à vérifier avant d’être considérés comme des faits.</p></details>
+            <div class="research-submit-row"><small>Le nom est obligatoire. Toutes les autres précisions sont facultatives.</small><button id="artistResearchSubmit" type="submit" class="btn primary">Rechercher sur le web <span>→</span></button></div>
           </form>
           <p id="artistResearchStatus" class="youtube-channel-sync" role="status">Aucune recherche lancée pour cet artiste.</p>
-          <div id="artistResearchHistory" class="artist-research-history"><div class="empty-state">L’historique apparaîtra ici après la migration Supabase et la première recherche.</div></div>
+          <div id="artistResearchHistory" class="artist-research-history"><div class="empty-state">Aucun dossier de recherche enregistré pour cet artiste.</div></div>
         </section>
         <div id="artistManagementList" class="artist-management-list"><div class="empty-state">Chargement des artistes…</div></div>
       </section>
