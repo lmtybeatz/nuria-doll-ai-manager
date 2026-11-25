@@ -7,7 +7,7 @@ create extension if not exists pgcrypto;
 create table if not exists public.ai_brand_profile (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null unique references auth.users(id) on delete cascade,
-  artist_name text not null default 'NURIA DOLL',
+  artist_name text not null default 'Mon artiste',
   genre text,
   bio text,
   target_audience text,
@@ -25,7 +25,7 @@ create table if not exists public.ai_settings (
   owner_id uuid not null unique references auth.users(id) on delete cascade,
   primary_goal text not null default 'community' check (primary_goal in ('community','music','awareness','traffic')),
   planning_horizon integer not null default 30 check (planning_horizon in (7,14,30)),
-  autonomy_mode text not null default 'parent_guarded' check (autonomy_mode in ('parent_guarded','draft_only')),
+  autonomy_mode text not null default 'draft_only' check (autonomy_mode in ('parent_guarded','draft_only')),
   monthly_budget_usd numeric(8,2) not null default 5 check (monthly_budget_usd >= 0),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
