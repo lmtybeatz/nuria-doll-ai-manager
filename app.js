@@ -32,7 +32,7 @@
   let assistantRecordingChunks = [];
   let assistantRecordingTimeout = null;
   const lastAssistantTasks = new Map();
-  let latestYoutubeAnalytics=null, activeSocialPlatform=null;
+  let latestYoutubeAnalytics=null, latestMetaInsights=null, activeSocialPlatform=null;
   const oauthArtistId=new URLSearchParams(location.search).get('artist_id');
   const recommendationBusy=new Set();
   let campaigns = [], editingCampaignId = null;
@@ -1079,7 +1079,7 @@
     const artistId=activeArtistId;
     const {data,error}=await supabase.from('ai_marketing_recommendations')
       .select('id,range_days,end_date,source,recommendation,provider,created_at')
-      .eq('artist_id',artistId).order('created_at',{ascending:false}).limit(6);
+      .eq('artist_id',artistId).not('analytics_snapshot->>platform','in','(facebook,instagram)').order('created_at',{ascending:false}).limit(6);
     if(version!==workspaceLoadVersion||artistId!==activeArtistId)return;
     list.innerHTML='';
     if(error){list.textContent='Historique indisponible. Vérifie que la migration des recommandations a été exécutée.';return;}
@@ -1321,6 +1321,85 @@
     card.addEventListener('click',()=>openSocialPlatform(card.dataset.socialPlatform));
   });
   $('#socialBackButton')?.addEventListener('click',closeSocialPlatform);
+
+  function displaySocialRecommendation(platform,row,artistId=activeArtistId){
+    const prefix=platform==='facebook'?'fb':'ig';
+    const output=$('#'+prefix+'RecommendationText');
+    if(!row||!output||artistId!==activeArtistId)return;
+    renderRecommendationMarkdown(row.recommendation||'Aucune recommandation disponible.',output);
+    output.classList.add('is-collapsed');
+    const toggle=$('#'+prefix+'ToggleReport');
+    if(toggle){toggle.textContent='Lire la suite';toggle.setAttribute('aria-expanded','false');}
+    show($('#'+prefix+'RecommendationResult'));
+    const meta=$('#'+prefix+'RecommendationMeta');
+    if(meta)meta.textContent=(row.source==='automatic'?'Analyse automatique':'Analyse demandée')+' · Meta · 28 jours · '+new Date(row.created_at).toLocaleString('fr-FR');
+  }
+  async function loadSocialRecommendationHistory(platform){
+    const prefix=platform==='facebook'?'fb':'ig',list=$('#'+prefix+'RecommendationHistory');
+    if(!list||!supabase||!activeArtistId)return;
+    const artistId=activeArtistId;
+    const {data,error}=await supabase.from('ai_marketing_recommendations')
+      .select('id,range_days,end_date,source,recommendation,provider,created_at,analytics_snapshot')
+      .eq('artist_id',artistId).contains('analytics_snapshot',{platform})
+      .order('created_at',{ascending:false}).limit(6);
+    if(artistId!==activeArtistId)return;
+    list.replaceChildren();
+    if(error){list.textContent='Historique indisponible : '+error.message;return;}
+    if(!data?.length){list.textContent='Aucune analyse enregistrée pour le moment.';return;}
+    data.forEach(row=>{
+      const item=document.createElement('button');item.type='button';item.className='yt-recommendation-history-item';
+      const label=document.createElement('strong');label.textContent=(row.source==='automatic'?'Automatique':'Manuelle')+' · 28 jours';
+      const date=document.createElement('small');date.textContent=new Date(row.created_at).toLocaleString('fr-FR');
+      item.append(label,date);item.addEventListener('click',()=>displaySocialRecommendation(platform,row,artistId));list.append(item);
+    });
+  }
+  async function generateSocialRecommendations(platform,metrics,manual=false){
+    if(!metrics||!user)return;
+    const prefix=platform==='facebook'?'fb':'ig',label=platform==='facebook'?'Facebook':'Instagram';
+    const status=$('#'+prefix+'RecommendationStatus'),button=$('#generate'+(platform==='facebook'?'Facebook':'Instagram')+'Recommendations');
+    const artistId=activeArtistId,artistName=activeArtistName(),jobKey=artistId+':'+platform+':28';
+    if(recommendationBusy.has(jobKey))return;
+    recommendationBusy.add(jobKey);
+    if(manual&&button){button.disabled=true;button.textContent='Analyse en cours…';}
+    if(status)status.textContent=manual?'Nouvelle analyse marketing IA en cours…':'Vérification des recommandations enregistrées…';
+    try{
+      if(!manual){
+        const {data:existing,error}=await supabase.from('ai_marketing_recommendations')
+          .select('id,range_days,end_date,source,recommendation,provider,created_at,analytics_snapshot')
+          .eq('artist_id',artistId).eq('range_days',30).eq('end_date',new Date().toISOString().slice(0,10))
+          .eq('source','automatic').contains('analytics_snapshot',{platform})
+          .order('created_at',{ascending:false}).limit(1).maybeSingle();
+        if(error)throw error;
+        if(existing){displaySocialRecommendation(platform,existing,artistId);if(status)status.textContent='Analyse automatique déjà disponible.';await loadSocialRecommendationHistory(platform);return;}
+      }
+      const {data:sessionData,error:sessionError}=await supabase.auth.getSession();
+      if(sessionError||!sessionData?.session?.access_token)throw new Error('Session expirée. Reconnecte-toi.');
+      const endDate=new Date(metrics.synced_at||Date.now()),startDate=new Date(endDate);startDate.setUTCDate(startDate.getUTCDate()-27);
+      const snapshot={platform,platform_name:label,period_days:28,start_date:startDate.toISOString().slice(0,10),end_date:endDate.toISOString().slice(0,10),metrics,warnings:Array.isArray(metrics.warnings)?metrics.warnings:[]};
+      const child=isNuriaDollArtist(artistName);
+      const task='Tu es un stratège marketing musical senior spécialisé dans '+label+'. Prépare un rapport de recommandations pour '+artistName+' à partir exclusivement des données mesurées ci-dessous et du profil artistique actif.\n\n'+
+        'RÈGLES DE FIABILITÉ : n’invente aucun chiffre, taux, évolution, audience, démographie, performance de publication ou cause. Les statistiques Meta sont agrégées et ne donnent pas nécessairement les performances par publication. Sépare les faits mesurés, les hypothèses et les données manquantes. Si une métrique est absente ou nulle, indique qu’elle est indisponible et non égale à zéro. Ne prétends pas qu’une stratégie a déjà été appliquée.\n'+
+        (child?'SÉCURITÉ ENFANT : NURIA DOLL est une artiste enfant. Toutes les idées sont des brouillons soumis à validation du parent. Ne propose aucun défi participatif, concours, collecte de photos/vidéos/dessins ou coordonnées d’enfants, échange privé avec des mineurs, rencontre, ni révélation de l’école, du domicile, des habitudes ou de la localisation. Les contenus sont préparés et contrôlés par le parent.':'GESTION : ce rapport ne publie, ne programme et ne contacte personne. Respecte le profil artistique et le public cible.')+'\n'+
+        'ADAPTATION À LA PLATEFORME : propose des actions spécifiques à '+label+' (Facebook : publications de Page, formats vidéo/Reels, conversation communautaire et partage éditorial ; Instagram : Reels, carrousels, Stories, cohérence visuelle et engagement). Ne transpose pas mécaniquement une tactique d’une plateforme à l’autre.\n'+
+        'FORMAT : A. Synthèse des 28 jours ; B. Faits mesurés ; C. Interprétations à tester ; D. Données manquantes ; E. 3 actions prioritaires avec justification, étapes, effort et indicateur à suivre ; F. 3 idées de contenus adaptés à '+label+' ; G. mini-plan de 7 jours ; H. prochaine étape. Écris en français, Markdown propre, concret et sans objectifs chiffrés arbitraires.\n\nDONNÉES MESURÉES :\n'+JSON.stringify(snapshot);
+      const response=await fetch('/api/assistant',{method:'POST',headers:{'content-type':'application/json','authorization':'Bearer '+sessionData.session.access_token},body:JSON.stringify({task,artist_id:artistId})});
+      const payload=await response.json().catch(()=>({}));
+      if(!response.ok||!payload.answer)throw new Error([payload.error||'La génération IA a échoué.',payload.diagnostic||'',payload.fallback_diagnostic||''].filter(Boolean).join(' — '));
+      const row={owner_id:user.id,artist_id:artistId,range_days:30,start_date:snapshot.start_date,end_date:snapshot.end_date,source:manual?'manual':'automatic',recommendation:payload.answer,provider:payload.provider||'unknown',analytics_snapshot:snapshot};
+      const {data:saved,error:saveError}=await supabase.from('ai_marketing_recommendations').insert(row).select('id,range_days,end_date,source,recommendation,provider,created_at,analytics_snapshot').single();
+      if(saveError)throw new Error('Impossible de sauvegarder la recommandation : '+saveError.message);
+      if(artistId===activeArtistId){displaySocialRecommendation(platform,saved,artistId);if(status)status.textContent=(manual?'Analyse terminée':'Analyse automatique terminée')+' · '+(payload.fallback_used?'Cloudflare AI':'IA')+(child?' · À valider par le parent.':' · Rapport prêt à examiner.');await loadSocialRecommendationHistory(platform);}
+    }catch(error){if(artistId===activeArtistId&&status)status.textContent=error.message||'Analyse impossible.';if(manual&&artistId===activeArtistId)toast(error.message||'Analyse impossible.',true);}
+    finally{recommendationBusy.delete(jobKey);if(manual&&button&&artistId===activeArtistId){button.disabled=false;button.textContent='Générer mes recommandations';}}
+  }
+  document.addEventListener('click',event=>{
+    for(const platform of ['facebook','instagram']){
+      const prefix=platform==='facebook'?'fb':'ig';
+      const toggle=event.target.closest('#'+prefix+'ToggleReport');
+      if(toggle){const output=$('#'+prefix+'RecommendationText'),expanded=toggle.getAttribute('aria-expanded')==='true';output.classList.toggle('is-collapsed',expanded);toggle.setAttribute('aria-expanded',String(!expanded));toggle.textContent=expanded?'Lire la suite':'Réduire';}
+    }
+  });
+
   async function loadMetaInsights(artistId){
     const statusFacebook=$('#facebookInsightsStatus'),statusInstagram=$('#instagramInsightsStatus');
     try{
@@ -1340,6 +1419,10 @@
       }
       if(artistId!==activeArtistId)return;
       const fb=d.facebook||{},ig=d.instagram||{};
+      latestMetaInsights={facebook:{synced_at:d.synced_at,warnings,reach:fb.reach,interactions:fb.engagement,views:fb.views},instagram:{synced_at:d.synced_at,warnings,reach:ig.reach,interactions:ig.interactions,views:ig.views}};
+      const socialMetrics={synced_at:d.synced_at,warnings};
+      if(fb.reach!=null||fb.engagement!=null||fb.views!=null)void generateSocialRecommendations('facebook',{...socialMetrics,reach:fb.reach,interactions:fb.engagement,views:fb.views},false);
+      if(ig.reach!=null||ig.interactions!=null||ig.views!=null)void generateSocialRecommendations('instagram',{...socialMetrics,reach:ig.reach,interactions:ig.interactions,views:ig.views},false);
       $('#fbReach').textContent=fb.reach==null?'—':ytNumber(fb.reach);
       $('#fbEngagement').textContent=fb.engagement==null?'—':ytNumber(fb.engagement);
       $('#fbViews').textContent=fb.views==null?'—':ytNumber(fb.views);
@@ -1359,6 +1442,8 @@
   }
   $('#refreshFacebookInsights')?.addEventListener('click',()=>loadMetaInsights(activeArtistId));
   $('#refreshInstagramInsights')?.addEventListener('click',()=>loadMetaInsights(activeArtistId));
+  $('#generateFacebookRecommendations')?.addEventListener('click',()=>{const data=latestMetaInsights?.facebook;if(data)generateSocialRecommendations('facebook',data,true);else $('#fbRecommendationStatus').textContent='Actualise d’abord les statistiques Facebook.';});
+  $('#generateInstagramRecommendations')?.addEventListener('click',()=>{const data=latestMetaInsights?.instagram;if(data)generateSocialRecommendations('instagram',data,true);else $('#igRecommendationStatus').textContent='Actualise d’abord les statistiques Instagram.';});
   async function metaStatus(){
     const artistId=activeArtistId,box=$('#metaStatus'),button=$('#connectMeta'),accounts=$('#metaAccounts');
     if(!box||!button||!artistId)return;
