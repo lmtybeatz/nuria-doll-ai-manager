@@ -234,7 +234,7 @@
     try{
       const permission=await Notification.requestPermission();
       renderNotificationCenter();
-      if(permission==='granted'){await notifyParent('NURIA DOLL AI MANAGER','Les alertes parentales sont activées sur cet appareil.');toast('Notifications activées sur cet appareil.');}
+      if(permission==='granted'){await notifyParent('AI MUSIC MANAGER','Les alertes de validation sont activées pour NURIA DOLL.');toast('Notifications activées sur cet appareil.');}
       else toast(permission==='denied'?'Autorisation refusée. Modifie-la dans les réglages du navigateur.':'Autorisation non accordée.',true);
     }catch(error){toast('Impossible d’activer les notifications : '+error.message,true);}
   });
@@ -330,7 +330,7 @@
     profile=data;
     const f=$('#brandForm');
     if(data){
-      Object.entries(data).forEach(([k,v])=>{const el=f.elements[k];if(el&&v!==null)el.value=v;});
+      Object.entries(data).forEach(([k,v])=>{if(k==='parent_guardrails'&&!isNuriaDollArtist())return;const el=f.elements[k];if(el&&v!==null)el.value=v;});
       $('#profileStatus').textContent='Configuré';
       $('#brandCheck').classList.add('done');
       $('#brandCheck').textContent='✓';
