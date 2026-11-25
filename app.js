@@ -1359,6 +1359,7 @@
           const strong=document.createElement('strong');strong.textContent=page.page_name||'Page Facebook';
           const detail=document.createElement('span');detail.textContent=' · Page Facebook';
           item.append(strong,detail);accounts.append(item);
+          const igList=$('#instagramAccountList');if(igList){const copy=item.cloneNode(true);igList.append(copy);}
         });
         instagramAccounts.forEach(account=>{
           const item=document.createElement('div');item.className='youtube-channel-sync';
