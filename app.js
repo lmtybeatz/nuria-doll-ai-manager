@@ -17,6 +17,10 @@
     const answer=$('#assistantAnswer');if(answer)answer.textContent='';
     const status=$('#assistantStatus');if(status)status.textContent='';
     const approval=$('#assistantApprovalControl');if(approval)approval.innerHTML='';
+    const strategyResult=$('#strategyResult');if(strategyResult)hide(strategyResult);
+    const strategyAnswer=$('#strategyAnswer');if(strategyAnswer)strategyAnswer.textContent='';
+    const strategyStatus=$('#strategyStatus');if(strategyStatus)strategyStatus.textContent='';
+    const strategyApproval=$('#strategyApprovalControl');if(strategyApproval)strategyApproval.innerHTML='';
   }
   function setupMessage() {
     const n=$('#setupNotice'); n.innerHTML='<strong>Configuration nécessaire.</strong> Crée un nouveau projet Supabase, exécute <code>supabase/schema.sql</code>, puis renseigne son URL et sa clé publique dans <code>config.js</code>. Aucun secret privé ne doit être placé dans ce fichier.'; show(n); show($('#authScreen'));
@@ -155,6 +159,8 @@
     activeArtistId=e.target.value;
     saveWorkspaceState({artistId:activeArtistId});
     clearAssistantResult();
+    resetCampaignForm();
+    resetYoutubeDashboard();
     $('#assistantTask').value=assistantDrafts.get(activeArtistId)||'';
     // Mettre à jour immédiatement tous les libellés dépendant de l’artiste actif.
     renderArtistSwitcher();
@@ -173,7 +179,7 @@
       const {data,error}=await supabase.from('ai_artists').insert({owner_id:user.id,artist_name:artistName,status:'active',is_default:false}).select('id,artist_name,is_default,status,created_at').single();
       if(error)throw error;
       if(activeArtistId)assistantDrafts.set(activeArtistId,$('#assistantTask')?.value||'');
-      artists.push(data);activeArtistId=data.id;saveWorkspaceState({artistId:activeArtistId});clearAssistantResult();$('#assistantTask').value=assistantDrafts.get(activeArtistId)||'';renderArtistSwitcher();
+      artists.push(data);activeArtistId=data.id;saveWorkspaceState({artistId:activeArtistId});clearAssistantResult();resetCampaignForm();resetYoutubeDashboard();$('#assistantTask').value=assistantDrafts.get(activeArtistId)||'';renderArtistSwitcher();
       await reloadArtistWorkspace();
       toast('Espace « '+artistName+' » créé. Tu peux maintenant compléter son identité.');
       nav('brand');
