@@ -1324,7 +1324,7 @@
   async function metaStatus(){
     const artistId=activeArtistId,box=$('#metaStatus'),button=$('#connectMeta'),accounts=$('#metaAccounts');
     if(!box||!button||!artistId)return;
-    box.textContent='Vérification de la connexion Meta…';accounts?.replaceChildren();
+    box.textContent='Vérification de la connexion Meta…';accounts?.replaceChildren();$('#instagramAccountList')?.replaceChildren();
     try{
       const {data:{session}}=await supabase.auth.getSession();if(!session?.access_token)throw new Error('Reconnecte-toi.');
       const r=await fetch('/api/meta/status?artist_id='+encodeURIComponent(artistId),{headers:{authorization:'Bearer '+session.access_token}});
@@ -1362,8 +1362,7 @@
           const strong=document.createElement('strong');strong.textContent=account.instagram_username?'@'+account.instagram_username:'Compte Instagram';
           const detail=document.createElement('span');detail.textContent=' · Instagram'+(account.name?' · '+account.name:'');
           item.append(strong,detail);
-          const igList=$('#instagramAccountList');if(igList)igList.append(item.cloneNode(true));
-          accounts.append(item);
+          const igList=$('#instagramAccountList');if(igList)igList.append(item);
         });
       }
     }catch(e){if(artistId===activeArtistId)box.textContent='Statut Meta indisponible : '+e.message;}
