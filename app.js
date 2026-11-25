@@ -67,7 +67,7 @@
     saveWorkspaceState({view,artistId:activeArtistId||null});
     document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active-view',v.id===`view-${view}`));
     $$('.nav-item[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===view));
-    const names={overview:"Vue d'ensemble",brand:'Identité artistique',strategy:'Stratégie marketing',library:'Bibliothèque média',agent:'Configuration IA',connections:'Réseaux sociaux'};
+    const names={overview:"Vue d'ensemble",brand:'Identité artistique',strategy:'Stratégie marketing',library:'Bibliothèque média',agent:'Configuration IA',connections:'Réseaux sociaux',artists:'Gérer les artistes'};
     $('#pageTitle').textContent=names[view]; $('#crumb').textContent=view==='overview'?'CENTRE DE COMMANDE':activeArtistName().toUpperCase()+' · '+names[view].toUpperCase();
     $('#backToDashboard').classList.toggle('hidden',view==='overview');
     if(window.innerWidth<=760) $('#sidebar').classList.remove('open');
@@ -104,7 +104,7 @@
     await loadArtists();
     renderAssistantConversation(activeArtistId);
     const savedView=readWorkspaceState().view;
-    const validViews=['overview','brand','strategy','library','agent','connections'];
+    const validViews=['overview','brand','strategy','library','agent','connections','artists'];
     // Restaurer la rubrique pendant que l'application est encore masquée.
     // L'utilisateur ne voit donc jamais brièvement la vue d'ensemble par défaut.
     nav(validViews.includes(savedView)?savedView:'overview');
@@ -171,7 +171,7 @@
     select.innerHTML='';
     artists.forEach(artist=>{const option=document.createElement('option');option.value=artist.id;option.textContent=artist.artist_name+(artist.is_default?' · principal':'');select.append(option);});
     select.value=activeArtistId||'';
-    const deleteButton=$('#deleteArtistButton');if(deleteButton){deleteButton.disabled=artists.length<=1;deleteButton.title=artists.length<=1?'Il faut conserver au moins un profil artiste':'Supprimer définitivement le profil artiste actif';}
+    renderArtistManagement();
     const current=artists.find(a=>a.id===activeArtistId);
     if(current){const name=$('#currentArtistName');if(name)name.textContent=current.artist_name;
       const facebookLabel=$('.social-card-facebook h3 + p');if(facebookLabel)facebookLabel.textContent='Page Facebook de '+current.artist_name;
@@ -249,46 +249,101 @@
     finally{button.disabled=false;}
   });
 
-  $('#deleteArtistButton')?.addEventListener('click',async()=>{
-    const artist=artists.find(item=>item.id===activeArtistId);
-    if(!artist)return;
-    if(artists.length<=1){toast('Le dernier profil artiste ne peut pas être supprimé.',true);return;}
+  let pendingArtistDeletionId=null;
+  function renderArtistManagement(){
+    const list=$('#artistManagementList'),count=$('#managedArtistCount');if(!list)return;
+    if(count)count.textContent=artists.length+' artiste'+(artists.length>1?'s':'');
+    list.replaceChildren();
+    if(!artists.length){const empty=document.createElement('div');empty.className='empty-state';empty.textContent='Aucun profil artiste disponible.';list.append(empty);return;}
+    artists.forEach(artist=>{
+      const card=document.createElement('article');card.className='artist-management-card';
+      const identity=document.createElement('div');identity.className='artist-management-identity';
+      const avatar=document.createElement('span');avatar.className='artist-management-avatar';avatar.textContent=(artist.artist_name.trim()[0]||'A').toLocaleUpperCase('fr-FR');
+      const details=document.createElement('div');details.className='artist-management-details';
+      const name=document.createElement('strong');name.textContent=artist.artist_name;
+      const meta=document.createElement('small');meta.textContent=(artist.is_default?'Profil principal · ':'')+(artist.status==='active'?'Actif':'Inactif')+(artist.created_at?' · Créé le '+new Date(artist.created_at).toLocaleDateString('fr-FR'):'');
+      details.append(name,meta);identity.append(avatar,details);
+      const actions=document.createElement('div');actions.className='artist-management-actions';
+      const active=document.createElement('span');active.className='artist-management-active';active.textContent=artist.id===activeArtistId?'Actuellement sélectionné':'';
+      const remove=document.createElement('button');remove.type='button';remove.className='artist-management-delete';remove.textContent='Supprimer';remove.disabled=artists.length<=1;remove.title=artists.length<=1?'Le dernier profil ne peut pas être supprimé':'Supprimer ce profil artiste';
+      remove.addEventListener('click',()=>openArtistDeleteDialog(artist));
+      actions.append(active,remove);card.append(identity,actions);list.append(card);
+    });
+  }
+  function openArtistDeleteDialog(artist){
+    if(!artist||artists.length<=1){toast('Le dernier profil artiste ne peut pas être supprimé.',true);return;}
+    pendingArtistDeletionId=artist.id;
+    $('#artistDeleteDescription').textContent='Tu demandes la suppression définitive de « '+artist.artist_name+' ». Son identité, ses campagnes, recommandations, validations, connexions sociales et médias associés seront supprimés. Cette action est irréversible.';
+    $('#artistDeletePassword').value='';$('#artistDeleteError').textContent='';
+    show($('#artistDeleteDialog'));$('#artistDeletePassword').focus();
+  }
+  function closeArtistDeleteDialog(){
+    hide($('#artistDeleteDialog'));$('#artistDeletePassword').value='';$('#artistDeleteError').textContent='';pendingArtistDeletionId=null;
+  }
+  async function deleteArtistProfile(artist){
+    if(!artist||artists.length<=1)throw new Error('Le dernier profil artiste ne peut pas être supprimé.');
     const fallback=artists.find(item=>item.id!==artist.id);
-    if(!fallback){toast('Aucun autre profil disponible pour prendre le relais.',true);return;}
-    const confirmed=confirm('Supprimer définitivement « '+artist.artist_name+' » ? Cette suppression effacera son identité, ses campagnes, ses recommandations, ses validations, ses connexions sociales et ses médias. Cette action est irréversible.');
-    if(!confirmed)return;
-    const button=$('#deleteArtistButton');button.disabled=true;
+    if(!fallback)throw new Error('Aucun autre profil disponible pour prendre le relais.');
+    const {data:mediaRows,error:mediaError}=await supabase.from('ai_media_library').select('storage_path').eq('artist_id',artist.id).eq('owner_id',user.id);
+    if(mediaError)throw new Error('Impossible de vérifier les médias de cet artiste : '+mediaError.message);
     let promotedDefault=false;
-    try{
-      const {data:mediaRows,error:mediaError}=await supabase.from('ai_media_library').select('storage_path').eq('artist_id',artist.id).eq('owner_id',user.id);
-      if(mediaError)throw new Error('Impossible de vérifier les médias de cet artiste : '+mediaError.message);
-      if(artist.is_default){
-        const {error:promoteError}=await supabase.from('ai_artists').update({is_default:true}).eq('id',fallback.id).eq('owner_id',user.id);
-        if(promoteError)throw new Error('Impossible de transférer le profil principal : '+promoteError.message);
-        promotedDefault=true;
-      }
-      const {error:deleteError}=await supabase.from('ai_artists').delete().eq('id',artist.id).eq('owner_id',user.id);
-      if(deleteError){
-        if(promotedDefault)await supabase.from('ai_artists').update({is_default:false}).eq('id',fallback.id).eq('owner_id',user.id);
-        throw new Error('Suppression impossible : '+deleteError.message);
-      }
-      const paths=(mediaRows||[]).map(row=>row.storage_path).filter(Boolean);
-      let storageWarning='';
-      if(paths.length){
-        const {error:storageError}=await supabase.storage.from('nuria-private-media').remove(paths);
-        if(storageError)storageWarning=' Les fichiers média ont été détachés du profil mais certains fichiers du stockage n’ont pas pu être nettoyés : '+storageError.message;
-      }
-      assistantDrafts.delete(artist.id);assistantConversations.delete(artist.id);assistantApprovals.delete(artist.id);lastAssistantTasks.delete(artist.id);
-      try{const key=assistantConversationKey(artist.id);if(key)sessionStorage.removeItem(key);}catch{}
-      activeArtistId=null;
-      await loadArtists();
+    if(artist.is_default){
+      const {error:promoteError}=await supabase.from('ai_artists').update({is_default:true}).eq('id',fallback.id).eq('owner_id',user.id);
+      if(promoteError)throw new Error('Impossible de transférer le profil principal : '+promoteError.message);
+      promotedDefault=true;
+    }
+    const {error:deleteError}=await supabase.from('ai_artists').delete().eq('id',artist.id).eq('owner_id',user.id);
+    if(deleteError){
+      if(promotedDefault)await supabase.from('ai_artists').update({is_default:false}).eq('id',fallback.id).eq('owner_id',user.id);
+      throw new Error('Suppression impossible : '+deleteError.message);
+    }
+    const paths=(mediaRows||[]).map(row=>row.storage_path).filter(Boolean);
+    let storageWarning='';
+    if(paths.length){
+      const {error:storageError}=await supabase.storage.from('nuria-private-media').remove(paths);
+      if(storageError)storageWarning=' Certains fichiers médias du stockage n’ont pas pu être nettoyés : '+storageError.message;
+    }
+    assistantDrafts.delete(artist.id);assistantConversations.delete(artist.id);assistantApprovals.delete(artist.id);lastAssistantTasks.delete(artist.id);
+    try{sessionStorage.removeItem('nuriaAiManager:assistant:'+user.id+':'+artist.id);}catch{}
+    const wasActive=activeArtistId===artist.id;
+    artists=artists.filter(item=>item.id!==artist.id);
+    if(wasActive)activeArtistId=null;
+    await loadArtists();
+    renderArtistManagement();
+    if(wasActive){
       $('#assistantTask').value=assistantDrafts.get(activeArtistId)||'';
-      clearAssistantResult();renderAssistantConversation(activeArtistId);renderArtistSwitcher();
+      clearAssistantResult();renderAssistantConversation(activeArtistId);
       await reloadArtistWorkspace();
-      toast('Profil « '+artist.artist_name+' » supprimé. '+(storageWarning?'Vérifie le nettoyage des fichiers média.':'') ,!!storageWarning);
-    }catch(error){toast(error.message||'La suppression du profil a échoué.',true);}
-    finally{renderArtistSwitcher();}
+    }
+    toast('Profil « '+artist.artist_name+' » supprimé.'+(storageWarning?' Vérifie le nettoyage du stockage.':''),!!storageWarning);
+  }
+  $('#artistDeleteForm')?.addEventListener('submit',async event=>{
+    event.preventDefault();
+    const artist=artists.find(item=>item.id===pendingArtistDeletionId);
+    if(!artist){closeArtistDeleteDialog();return;}
+    const password=$('#artistDeletePassword').value;
+    if(!password){$('#artistDeleteError').textContent='Saisis le mot de passe du compte gestionnaire.';return;}
+    const button=$('#artistDeleteConfirm');button.disabled=true;button.textContent='Vérification…';
+    $('#artistDeleteError').textContent='';
+    try{
+      const email=user?.email;
+      if(!email||!user?.id)throw new Error('Session gestionnaire introuvable. Reconnecte-toi.');
+      const {data,error}=await supabase.auth.signInWithPassword({email,password});
+      if(error)throw new Error('Mot de passe incorrect. La suppression n’a pas été effectuée.');
+      if(data.user?.id!==user.id)throw new Error('Le compte authentifié ne correspond pas au gestionnaire connecté.');
+      await deleteArtistProfile(artist);
+      closeArtistDeleteDialog();
+    }catch(error){
+      $('#artistDeleteError').textContent=error.message||'La suppression a échoué.';
+    }finally{
+      button.disabled=false;button.textContent='Confirmer la suppression';
+      $('#artistDeletePassword').value='';
+    }
   });
+  $('#artistDeleteClose')?.addEventListener('click',closeArtistDeleteDialog);
+  $('#artistDeleteCancel')?.addEventListener('click',closeArtistDeleteDialog);
+  $('#artistDeleteDialog')?.addEventListener('click',event=>{if(event.target.id==='artistDeleteDialog')closeArtistDeleteDialog();});
+
 
   let parentApprovals=[];
   function renderNotificationCenter(){
@@ -564,6 +619,8 @@
   document.addEventListener('click',event=>{if(accountMenu&&!accountMenu.classList.contains('hidden')&&!accountMenu.contains(event.target)&&!accountMenuButton?.contains(event.target)){hide(accountMenu);accountMenuButton?.setAttribute('aria-expanded','false');}});
   document.addEventListener('keydown',event=>{if(event.key==='Escape'&&accountMenu&&!accountMenu.classList.contains('hidden')){hide(accountMenu);accountMenuButton?.setAttribute('aria-expanded','false');}});
   $('#accountMenuSignOut')?.addEventListener('click',()=>$('#signOut')?.click());
+  $('#accountMenuManageArtists')?.addEventListener('click',()=>{hide(accountMenu);accountMenuButton?.setAttribute('aria-expanded','false');renderArtistManagement();nav('artists');});
+  $('#managementAddArtist')?.addEventListener('click',()=>$('#addArtistButton')?.click());
   $$('.nav-item[data-view]').forEach(b=>b.onclick=()=>nav(b.dataset.view));$$('[data-goto]').forEach(b=>b.onclick=()=>nav(b.dataset.goto));
   $('#mobileMenu').onclick=()=>$('#sidebar').classList.toggle('open');
   $('#backToDashboard').onclick=()=>nav('overview');
