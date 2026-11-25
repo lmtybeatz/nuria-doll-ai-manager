@@ -30,7 +30,7 @@ async function verifySession(request, env) {
 
 function makePrompt(task, profile) {
   const artistName = String(profile.artist_name || "Artiste").trim().slice(0, 80);
-  const isNuriaDoll = artistName.normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toLocaleUpperCase("fr-FR") === "NURIA DOLL";
+  const isNuriaDoll = artistName.trim().toLocaleUpperCase("fr-FR") === "NURIA DOLL";
   const safeProfile = {
     artist_name: artistName,
     genre: String(profile.genre || "À préciser").slice(0, 160),
