@@ -8,9 +8,9 @@ const SKILLS = [
   { key:"creative",label:"communication et création",terms:/biographie|communiqué|storytelling|visuel|clip|concept|légende|caption|affiche|contenu/i },
   { key:"analytics",label:"analyse et stratégie",terms:/analyse|statistique|performance|concurrence|marché|budget|rentabilité|indicateur|kpi|diagnostic/i }
 ];
-const SENSITIVE_ACTION=/\\b(publ\w*|envoi\w*|contact\w*|répond\w*|comment\w*|supprim\w*|effac\w*|achet\w*|pay\w*|dépens\w*|lanc\w*.{0,25}publicit\w*|modifi\w*.{0,20}accès|partag\w*.{0,20}public\w*)\\b/i;
-const HIGH_STAKES=/\\b(contrat|juridiqu\w*|litig\w*|droit d'auteur|cession|exclusivit\w*|royalt\w*|fiscal\w*|impôt|investiss\w*|budget publicit\w*|dépens\w*)\\b/i;
-const CURRENT_INFO=/\\b(actuel\w*|aujourd'hui|cette année|dernier\w*|dernière\w*|récent\w*|tarif\w*|prix|réglementation|éligible|disponible|appel à projets|date limite|radio\w*|média\w*|label\w*|playlist\w*)\\b/i;
+const SENSITIVE_ACTION=/\b(publ\w*|envoi\w*|contact\w*|répond\w*|comment\w*|supprim\w*|effac\w*|achet\w*|pay\w*|dépens\w*|lanc\w*.{0,25}publicit\w*|modifi\w*.{0,20}accès|partag\w*.{0,20}public\w*)\b/i;
+const HIGH_STAKES=/\b(contrat|juridiqu\w*|litig\w*|droit d'auteur|cession|exclusivit\w*|royalt\w*|fiscal\w*|impôt|investiss\w*|budget publicit\w*|dépens\w*)\b/i;
+const CURRENT_INFO=/\b(actuel\w*|aujourd'hui|cette année|dernier\w*|dernière\w*|récent\w*|tarif\w*|prix|réglementation|éligible|disponible|appel à projets|date limite|radio\w*|média\w*|label\w*|playlist\w*)\b/i;
 
 export function planAssistantRequest(task){
   const value=String(task||"").trim();
