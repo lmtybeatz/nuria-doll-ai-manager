@@ -4,7 +4,8 @@
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => [...document.querySelectorAll(s)];
   let supabase = null, user = null, signupMode = false, profile = null, settings = null, media = [];
-  let artists = [], activeArtistId = null, switchingArtist = false;
+  let artists = [], activeArtistId = null, switchingArtist = false, workspaceLoadVersion = 0;
+  const assistantDrafts = new Map();
   let latestYoutubeAnalytics=null;
   const oauthArtistId=new URLSearchParams(location.search).get('artist_id');
   const recommendationBusy=new Set();
@@ -76,17 +77,22 @@
   }
   async function reloadArtistWorkspace(){
     if(!activeArtistId)return;
+    const version=++workspaceLoadVersion;
+    const artistId=activeArtistId;
     switchingArtist=true;
     try{
-      await Promise.all([loadProfile(),loadSettings(),loadMedia(),loadCampaigns(),loadParentApprovals(),loadYoutubeRecommendationHistory()]);
-      const current=artists.find(a=>a.id===activeArtistId);
+      await Promise.all([loadProfile(version),loadSettings(version),loadMedia(version),loadCampaigns(version),loadParentApprovals(version),loadYoutubeRecommendationHistory(version)]);
+      if(version!==workspaceLoadVersion||artistId!==activeArtistId)return;
+      const current=artists.find(a=>a.id===artistId);
       const heading=$('#activeArtistLabel');if(heading)heading.textContent=current?.artist_name||'Artiste sélectionné';
       const welcome=$('#welcomeArtistName');if(welcome)welcome.textContent=current?.artist_name||'ton artiste';
       const crumb=$('#crumb');if(crumb&&$('#pageTitle').textContent!=="Vue d'ensemble")crumb.textContent=(current?.artist_name||'ARTISTE')+' · '+$('#pageTitle').textContent.toUpperCase();
-    }finally{switchingArtist=false;}
+    }finally{if(version===workspaceLoadVersion)switchingArtist=false;}
   }
   $('#artistSwitcher')?.addEventListener('change',async e=>{
+    if(activeArtistId)assistantDrafts.set(activeArtistId,$('#assistantTask')?.value||'');
     activeArtistId=e.target.value;
+    $('#assistantTask').value=assistantDrafts.get(activeArtistId)||'';
     // Mettre à jour immédiatement tous les libellés dépendant de l’artiste actif.
     renderArtistSwitcher();
     await reloadArtistWorkspace();
@@ -103,7 +109,8 @@
     try{
       const {data,error}=await supabase.from('ai_artists').insert({owner_id:user.id,artist_name:artistName,status:'active',is_default:false}).select('id,artist_name,is_default,status,created_at').single();
       if(error)throw error;
-      artists.push(data);activeArtistId=data.id;renderArtistSwitcher();
+      if(activeArtistId)assistantDrafts.set(activeArtistId,$('#assistantTask')?.value||'');
+      artists.push(data);activeArtistId=data.id;$('#assistantTask').value=assistantDrafts.get(activeArtistId)||'';renderArtistSwitcher();
       await reloadArtistWorkspace();
       toast('Espace « '+artistName+' » créé. Tu peux maintenant compléter son identité.');
       nav('brand');
@@ -173,14 +180,17 @@
       panel.classList.add('hidden');bell?.setAttribute('aria-expanded','false');
     }
   });
-  async function saveParentApproval(sourceType,sourceKey,title,content){
-    const payload={owner_id:user.id,artist_id:activeArtistId,source_type:sourceType,source_key:activeArtistId+':'+sourceKey,title,content,updated_at:new Date().toISOString()};
+  async function saveParentApproval(sourceType,sourceKey,title,content,targetArtistId=activeArtistId){
+    const artistId=targetArtistId;
+    const payload={owner_id:user.id,artist_id:artistId,source_type:sourceType,source_key:artistId+':'+sourceKey,title,content,updated_at:new Date().toISOString()};
     const {data,error}=await supabase.from('ai_parent_approvals').upsert(payload,{onConflict:'owner_id,source_type,source_key'}).select('*').single();
     if(error)throw new Error('Enregistrement de la validation impossible : '+error.message+'. Vérifie que la migration parent_approvals.sql a été exécutée.');
-    const index=parentApprovals.findIndex(x=>x.id===data.id);
-    if(index>=0)parentApprovals[index]=data;else parentApprovals.unshift(data);
-    renderParentApprovals();renderNotificationCenter();
-    if(index<0)void notifyParent('Validation parentale requise',title+' attend ta vérification.');
+    if(artistId===activeArtistId){
+      const index=parentApprovals.findIndex(x=>x.id===data.id);
+      if(index>=0)parentApprovals[index]=data;else parentApprovals.unshift(data);
+      renderParentApprovals();renderNotificationCenter();
+    }
+    void notifyParent('Validation parentale requise',title+' attend ta vérification.');
     return data;
   }
   function renderApprovalControl(record,target){
@@ -220,9 +230,11 @@
       item.append(button);list.append(item);
     });
   }
-  async function loadParentApprovals(){
-    const {data,error}=await supabase.from('ai_parent_approvals').select('*').eq('artist_id',activeArtistId).order('created_at',{ascending:false}).limit(50);
-    if(error){const list=$('#parentApprovalHistory');if(list)list.textContent='Historique indisponible. Exécute la migration SQL parent_approvals.sql dans le projet Supabase de l’AI Manager.';return;}
+  async function loadParentApprovals(version=workspaceLoadVersion){
+    const artistId=activeArtistId;
+    const {data,error}=await supabase.from('ai_parent_approvals').select('*').eq('artist_id',artistId).order('created_at',{ascending:false}).limit(50);
+    if(version!==workspaceLoadVersion||artistId!==activeArtistId)return;
+    if(error){const list=$('#parentApprovalHistory');if(list)list.textContent='Historique indisponible. Exécute la migration parent_approvals.sql dans le projet Supabase de l’AI Manager.';return;}
     parentApprovals=data||[];renderParentApprovals();renderNotificationCenter();
   }
 
@@ -239,13 +251,15 @@
     if(f.elements.artist_name)f.elements.artist_name.value=activeArtistName();
     $('#brandMessage').textContent='Complète les informations propres à cet artiste puis enregistre.';
   }
-  async function loadProfile(){
+  async function loadProfile(version=workspaceLoadVersion){
+    const artistId=activeArtistId;
     profile=null;
     resetBrandFormForArtist();
     $('#brandCheck').classList.remove('done');
     $('#brandCheck').textContent='3';
     $('#profileStatus').textContent='À compléter';
-    const {data,error}=await supabase.from('ai_brand_profile').select('*').eq('artist_id',activeArtistId).maybeSingle();
+    const {data,error}=await supabase.from('ai_brand_profile').select('*').eq('artist_id',artistId).maybeSingle();
+    if(version!==workspaceLoadVersion||artistId!==activeArtistId)return;
     if(error){toast('Chargement du profil : '+error.message,true);return;}
     profile=data;
     const f=$('#brandForm');
@@ -256,24 +270,34 @@
       $('#brandCheck').textContent='✓';
     }
   }
-  async function loadSettings(){const {data,error}=await supabase.from('ai_settings').select('*').eq('artist_id',activeArtistId).maybeSingle();if(error){settings=null;return;}settings=data;const f=$('#settingsForm');f.reset();if(data){['primary_goal','planning_horizon','autonomy_mode','monthly_budget_usd'].forEach(k=>{if(f.elements[k]&&data[k]!==null)f.elements[k].value=data[k];});}}
-  async function loadMedia(){
-    const {data,error}=await supabase.from('ai_media_library').select('*').eq('artist_id',activeArtistId).order('created_at',{ascending:false});
+  async function loadSettings(version=workspaceLoadVersion){
+    const artistId=activeArtistId;
+    const {data,error}=await supabase.from('ai_settings').select('*').eq('artist_id',artistId).maybeSingle();
+    if(version!==workspaceLoadVersion||artistId!==activeArtistId)return;
+    if(error){settings=null;return;}
+    settings=data;const f=$('#settingsForm');f.reset();
+    if(data){['primary_goal','planning_horizon','autonomy_mode','monthly_budget_usd'].forEach(k=>{if(f.elements[k]&&data[k]!==null)f.elements[k].value=data[k];});}
+  }
+  async function loadMedia(version=workspaceLoadVersion){
+    const artistId=activeArtistId;
+    const {data,error}=await supabase.from('ai_media_library').select('*').eq('artist_id',artistId).order('created_at',{ascending:false});
+    if(version!==workspaceLoadVersion||artistId!==activeArtistId)return;
     if(error){toast('Chargement des médias : '+error.message,true);return;}
     media=data||[];
-    await renderMedia();
+    await renderMedia(media,version,artistId);
   }
-  async function renderMedia(){
-    $('#mediaCount').textContent=media.length;
-    $('#libraryCount').textContent=`${media.length} fichier${media.length>1?'s':''}`;
-    $('#mediaCheck').classList.toggle('done',media.length>0);
-    $('#mediaCheck').textContent=media.length?'✓':'3';
+  async function renderMedia(items=media,version=workspaceLoadVersion,artistId=activeArtistId){
+    if(version!==workspaceLoadVersion||artistId!==activeArtistId)return;
+    $('#mediaCount').textContent=items.length;
+    $('#libraryCount').textContent=`${items.length} fichier${items.length>1?'s':''}`;
+    $('#mediaCheck').classList.toggle('done',items.length>0);
+    $('#mediaCheck').textContent=items.length?'✓':'3';
     $('#mediaList').innerHTML='';
-    if(!media.length){
+    if(!items.length){
       $('#mediaList').innerHTML='<div class="empty-state">Ta bibliothèque est vide. Ajoute tes premiers médias pour commencer.</div>';
       return;
     }
-    for(const item of media){
+    for(const item of items){
       const card=document.createElement('article');
       card.className='media-card';
       const isImage=item.mime_type?.startsWith('image/');
@@ -284,6 +308,7 @@
       meta.textContent=icon;
       if(isImage){
         const {data:signedData,error:signedError}=await supabase.storage.from('nuria-private-media').createSignedUrl(item.storage_path,3600);
+        if(version!==workspaceLoadVersion||artistId!==activeArtistId)return;
         if(!signedError&&signedData?.signedUrl){
           const img=document.createElement('img');
           img.src=signedData.signedUrl;
@@ -312,6 +337,7 @@
       del.title='Supprimer';
       del.onclick=()=>deleteMedia(item);
       card.append(meta,info,del);
+      if(version!==workspaceLoadVersion||artistId!==activeArtistId)return;
       $('#mediaList').append(card);
     }
   }
@@ -348,38 +374,41 @@
     if(!supabase||!user)return;
     const task=$('#assistantTask').value.trim();
     if(!task)return;
+    const artistId=activeArtistId;
+    const artistProfile=profile?{...profile}:Object.fromEntries(new FormData($('#brandForm')).entries());
     const submit=$('#assistantSubmit'),status=$('#assistantStatus'),result=$('#assistantResult'),answer=$('#assistantAnswer');
     submit.disabled=true;submit.textContent='Préparation en cours…';status.textContent='Groq prépare une proposition…';hide(result);
     try{
       const {data:{session},error:sessionError}=await supabase.auth.getSession();
       if(sessionError||!session?.access_token)throw new Error('Session expirée. Reconnecte-toi.');
-      const currentProfile=profile||Object.fromEntries(new FormData($('#brandForm')).entries());
       const response=await fetch('/api/assistant',{
         method:'POST',
         headers:{'content-type':'application/json','authorization':'Bearer '+session.access_token},
-        body:JSON.stringify({task,profile:currentProfile})
+        body:JSON.stringify({task,profile:artistProfile})
       });
       const payload=await response.json().catch(()=>({}));
-      if(!response.ok)throw new Error([payload.error||'Le service IA n’a pas répondu correctement.',payload.diagnostic||'',payload.fallback_diagnostic||''].filter(Boolean).join(' — '));
+      if(!response.ok)throw new Error([payload.error||'Le service IA n’a pas répondu correctement.',Array.isArray(payload.missing)&&payload.missing.length?'Variables manquantes : '+payload.missing.join(', '):'',payload.diagnostic||'',payload.fallback_diagnostic||''].filter(Boolean).join(' — '));
       if(!payload.answer)throw new Error('Aucune proposition exploitable reçue.');
-      answer.textContent=payload.answer;
-      show(result);
-      try{
-        const approval=await saveParentApproval('assistant',crypto.randomUUID(),'Proposition de l’assistant',payload.answer);
+      const approval=await saveParentApproval('assistant',crypto.randomUUID(),'Proposition de l’assistant',payload.answer,artistId);
+      if(artistId===activeArtistId){
+        answer.textContent=payload.answer;
+        show(result);
         renderApprovalControl(approval,$('#assistantApprovalControl'));
-      }catch(approvalError){toast(approvalError.message,true);}
-      status.textContent=payload.fallback_used
-        ? 'Proposition générée par Cloudflare AI (secours Groq). Vérifie-la avant toute utilisation.'
-        : 'Proposition générée par Groq. Vérifie-la avant toute utilisation.';
-    }catch(err){status.textContent=err.message||'Une erreur est survenue.';toast(status.textContent,true);}
+        status.textContent=payload.fallback_used
+          ? 'Proposition générée par Cloudflare AI (secours Groq). Vérifie-la avant toute utilisation.'
+          : 'Proposition générée par Groq. Vérifie-la avant toute utilisation.';
+      }
+    }catch(err){if(artistId===activeArtistId){status.textContent=err.message||'Une erreur est survenue.';toast(status.textContent,true);}}
     finally{submit.disabled=false;submit.innerHTML='Générer une proposition <span>→</span>';}
   });
 
   const campaignTypes={single:'Single / sortie',album:'Album / EP',brand:'Marque'};
   const campaignStatuses={draft:'Brouillon',planned:'Planifiée',active:'En cours',completed:'Terminée',archived:'Archivée'};
   const money=(amount,currency)=>amount===null||amount===''?'Budget à définir':new Intl.NumberFormat('fr-FR',{maximumFractionDigits:0}).format(Number(amount))+' '+(currency==='XOF'?'FCFA':currency);
-  async function loadCampaigns(){
-    const {data,error}=await supabase.from('ai_marketing_campaigns').select('*').eq('artist_id',activeArtistId).order('updated_at',{ascending:false});
+  async function loadCampaigns(version=workspaceLoadVersion){
+    const artistId=activeArtistId;
+    const {data,error}=await supabase.from('ai_marketing_campaigns').select('*').eq('artist_id',artistId).order('updated_at',{ascending:false});
+    if(version!==workspaceLoadVersion||artistId!==activeArtistId)return;
     if(error){$('#campaignList').innerHTML='<div class="empty-state">Impossible de charger les campagnes : '+escapeText(error.message)+'</div>';return;}
     campaigns=data||[];renderCampaigns();
   }
@@ -438,8 +467,10 @@
     if(!supabase||!user)return;
     const form=new FormData(e.currentTarget);
     const values=Object.fromEntries(form.entries());
+    const artistId=activeArtistId, artistName=activeArtistName();
+    const artistProfile=profile?{...profile}:Object.fromEntries(new FormData($('#brandForm')).entries());
     const task=[
-      "Élabore une stratégie marketing opérationnelle, réaliste et détaillée pour "+activeArtistName()+". Appuie-toi sur son profil artistique actif.",
+      "Élabore une stratégie marketing opérationnelle, réaliste et détaillée pour "+artistName+". Appuie-toi sur son profil artistique actif.",
       "PROJET : "+values.project,
       "OBJECTIF PRINCIPAL : "+values.objective,
       "DURÉE : "+values.duration,
@@ -466,18 +497,19 @@
       const response=await fetch('/api/assistant',{
         method:'POST',
         headers:{'content-type':'application/json','authorization':'Bearer '+session.access_token},
-        body:JSON.stringify({task,profile:profile||{artist_name:activeArtistName()}})
+        body:JSON.stringify({task,profile:artistProfile})
       });
       const payload=await response.json().catch(()=>({}));
-      if(!response.ok)throw new Error([payload.error||'Le service IA n’a pas répondu correctement.',payload.diagnostic||'',payload.fallback_diagnostic||''].filter(Boolean).join(' — '));
+      if(!response.ok)throw new Error([payload.error||'Le service IA n’a pas répondu correctement.',Array.isArray(payload.missing)&&payload.missing.length?'Variables manquantes : '+payload.missing.join(', '):'',payload.diagnostic||'',payload.fallback_diagnostic||''].filter(Boolean).join(' — '));
       if(!payload.answer)throw new Error('Aucune stratégie exploitable reçue.');
-      answer.textContent=payload.answer;
-      const approval=await saveParentApproval('strategy',crypto.randomUUID(),'Stratégie marketing',payload.answer);
-      renderApprovalControl(approval,$('#strategyApprovalControl'));
-      status.textContent=payload.fallback_used?'Généré par Cloudflare AI (secours Groq).':'Généré par Groq.';
+      const approval=await saveParentApproval('strategy',crypto.randomUUID(),'Stratégie marketing',payload.answer,artistId);
+      if(artistId===activeArtistId){
+        answer.textContent=payload.answer;
+        renderApprovalControl(approval,$('#strategyApprovalControl'));
+        status.textContent=payload.fallback_used?'Généré par Cloudflare AI (secours Groq).':'Généré par Groq.';
+      }
     }catch(err){
-      status.textContent=err.message||'Une erreur est survenue.';
-      toast(status.textContent,true);
+      if(artistId===activeArtistId){status.textContent=err.message||'Une erreur est survenue.';toast(status.textContent,true);}
     }finally{
       submit.disabled=false;submit.innerHTML='Générer ma stratégie <span>→</span>';
     }
@@ -493,7 +525,7 @@
     try{await navigator.clipboard.writeText(value);toast('Brouillon copié.');}
     catch{toast('Copie indisponible sur ce navigateur.',true);}
   });
-  $('#mediaInput').addEventListener('change',async e=>{const files=[...e.target.files];if(!files.length)return;for(const file of files){if(file.size>100*1024*1024){toast(`${file.name} dépasse la limite de 100 Mo.`,true);continue;}const safe=file.name.normalize('NFKD').replace(/[^a-zA-Z0-9._-]/g,'_');const path=`${user.id}/${crypto.randomUUID()}-${safe}`;$('#uploadStatus').textContent=`Envoi de ${file.name}…`;const {error:upErr}=await supabase.storage.from('nuria-private-media').upload(path,file,{contentType:file.type,upsert:false});if(upErr){toast(`Échec de ${file.name} : ${upErr.message}`,true);continue;}const category=file.type.startsWith('image/')?'image':file.type.startsWith('video/')?'video':file.type.startsWith('audio/')?'audio':'document';const {error:dbErr}=await supabase.from('ai_media_library').insert({owner_id:user.id,artist_id:activeArtistId,file_name:file.name,storage_path:path,mime_type:file.type,file_size:file.size,category});if(dbErr){await supabase.storage.from('nuria-private-media').remove([path]);toast(`Erreur d'enregistrement : ${dbErr.message}`,true);continue;}toast(`${file.name} ajouté.`);}$('#uploadStatus').textContent='';e.target.value='';await loadMedia();});
+  $('#mediaInput').addEventListener('change',async e=>{const files=[...e.target.files];if(!files.length)return;const artistId=activeArtistId;for(const file of files){if(file.size>100*1024*1024){toast(`${file.name} dépasse la limite de 100 Mo.`,true);continue;}const safe=file.name.normalize('NFKD').replace(/[^a-zA-Z0-9._-]/g,'_');const path=`${user.id}/${crypto.randomUUID()}-${safe}`;$('#uploadStatus').textContent=`Envoi de ${file.name}…`;const {error:upErr}=await supabase.storage.from('nuria-private-media').upload(path,file,{contentType:file.type,upsert:false});if(upErr){toast(`Échec de ${file.name} : ${upErr.message}`,true);continue;}const category=file.type.startsWith('image/')?'image':file.type.startsWith('video/')?'video':file.type.startsWith('audio/')?'audio':'document';const {error:dbErr}=await supabase.from('ai_media_library').insert({owner_id:user.id,artist_id:artistId,file_name:file.name,storage_path:path,mime_type:file.type,file_size:file.size,category});if(dbErr){await supabase.storage.from('nuria-private-media').remove([path]);toast(`Erreur d'enregistrement : ${dbErr.message}`,true);continue;}toast(`${file.name} ajouté.`);}$('#uploadStatus').textContent='';e.target.value='';await loadMedia();});
 
   async function loadYoutubeChannel(){
     const artistId=activeArtistId;
@@ -503,7 +535,7 @@
     try{
       const {data:{session}}=await supabase.auth.getSession();
       if(!session?.access_token)throw new Error('Session expirée. Reconnecte-toi.');
-      const r=await fetch('/api/youtube/channel?artist_id='+encodeURIComponent(activeArtistId),{headers:{authorization:'Bearer '+session.access_token}});
+      const r=await fetch('/api/youtube/channel?artist_id='+encodeURIComponent(artistId),{headers:{authorization:'Bearer '+session.access_token}});
       const d=await r.json();if(!r.ok)throw new Error(d.error||'Lecture de la chaîne impossible.');
       if(artistId!==activeArtistId)return;
       const c=d.channel;
@@ -518,8 +550,8 @@
       $('#youtubeChannelDescription').textContent=c.description||'Aucune description publique renseignée.';
       $('#youtubeChannelPublished').textContent=c.published_at?'Créée le '+new Date(c.published_at).toLocaleDateString('fr-FR'):'';
       status.textContent='Données actualisées le '+new Date(d.synced_at).toLocaleString('fr-FR')+' · Lecture seule';
-    }catch(e){status.textContent='Synchronisation impossible : '+e.message;toast(e.message,true);}
-    finally{button.disabled=false;}
+    }catch(e){if(artistId===activeArtistId){status.textContent='Synchronisation impossible : '+e.message;toast(e.message,true);}}
+    finally{if(artistId===activeArtistId)button.disabled=false;}
   }
   const ytNumber=value=>new Intl.NumberFormat('fr-FR',{maximumFractionDigits:0}).format(Number(value||0));
   function appendReportInline(parent,text){
@@ -583,9 +615,9 @@
       const p=document.createElement('p');appendReportInline(p,line);root.append(p);i++;
     }
   }
-  function displayYoutubeRecommendation(row){
+  function displayYoutubeRecommendation(row,artistId=activeArtistId){
     const output=$('#ytRecommendationText');
-    if(!row||!output)return;
+    if(!row||!output||artistId!==activeArtistId)return;
     renderRecommendationMarkdown(row.recommendation||'Aucune recommandation disponible.',output);
     output.classList.add('is-collapsed');
     const toggle=$('#toggleYoutubeReport');
@@ -593,7 +625,7 @@
     show($('#ytRecommendationResult'));
     $('#ytRecommendationMeta').textContent=(row.source==='automatic'?'Analyse automatique':'Analyse demandée')+' · '+Number(row.range_days)+' jours · '+new Date(row.created_at).toLocaleString('fr-FR');
     const approvalTarget=$('#ytApprovalControl');
-    if(approvalTarget){approvalTarget.innerHTML='';(async()=>{try{let record=parentApprovals.find(x=>x.source_type==='youtube'&&x.source_key===String(row.id));if(!record)record=await saveParentApproval('youtube',String(row.id),'Recommandations YouTube · '+Number(row.range_days)+' jours',row.recommendation||'');renderApprovalControl(record,approvalTarget);}catch(error){approvalTarget.textContent=error.message;}})();}
+    if(approvalTarget){approvalTarget.innerHTML='';(async()=>{try{let record=parentApprovals.find(x=>x.source_type==='youtube'&&x.source_key===artistId+':'+String(row.id));if(!record)record=await saveParentApproval('youtube',String(row.id),'Recommandations YouTube · '+Number(row.range_days)+' jours',row.recommendation||'',artistId);if(artistId===activeArtistId)renderApprovalControl(record,approvalTarget);}catch(error){if(artistId===activeArtistId)approvalTarget.textContent=error.message;}})();}
   }
   const printReport=()=>{
     document.body.classList.add('printing-youtube-report');
@@ -611,12 +643,14 @@
       toggle.textContent=expanded?'Lire la suite':'Réduire';
     }
   });
-  async function loadYoutubeRecommendationHistory(){
+  async function loadYoutubeRecommendationHistory(version=workspaceLoadVersion){
     const list=$('#ytRecommendationHistory');
     if(!list||!supabase||!user)return;
+    const artistId=activeArtistId;
     const {data,error}=await supabase.from('ai_marketing_recommendations')
       .select('id,range_days,end_date,source,recommendation,provider,created_at')
-      .eq('artist_id',activeArtistId).order('created_at',{ascending:false}).limit(6);
+      .eq('artist_id',artistId).order('created_at',{ascending:false}).limit(6);
+    if(version!==workspaceLoadVersion||artistId!==activeArtistId)return;
     list.innerHTML='';
     if(error){list.textContent='Historique indisponible. Vérifie que la migration des recommandations a été exécutée.';return;}
     if(!data?.length){list.textContent='Aucune analyse enregistrée pour le moment.';return;}
@@ -634,7 +668,9 @@
   async function generateYoutubeRecommendations(data,range=30,manual=false){
     const status=$('#ytRecommendationStatus'),button=$('#generateYtRecommendations');
     if(!data||!user)return;
-    const jobKey=range+':'+data.end_date;
+    const artistId=activeArtistId, artistName=activeArtistName();
+    const artistProfile=profile?{...profile}:{artist_name:artistName};
+    const jobKey=artistId+':'+range+':'+data.end_date;
     if(recommendationBusy.has(jobKey))return;
     recommendationBusy.add(jobKey);
     if(manual&&button){button.disabled=true;button.textContent='Analyse en cours…';}
@@ -643,13 +679,13 @@
       if(!manual){
         const {data:existing,error:lookupError}=await supabase.from('ai_marketing_recommendations')
           .select('id,range_days,end_date,source,recommendation,provider,created_at')
-          .eq('artist_id',activeArtistId).eq('range_days',range).eq('end_date',data.end_date).eq('source','automatic')
+          .eq('artist_id',artistId).eq('range_days',range).eq('end_date',data.end_date).eq('source','automatic')
           .order('created_at',{ascending:false}).limit(1).maybeSingle();
         if(lookupError)throw new Error('Historique indisponible. Exécute la migration SQL des recommandations dans Supabase.');
         if(existing){
-          displayYoutubeRecommendation(existing);
-          if(status)status.textContent='Analyse automatique déjà disponible pour cette période.';
-          await loadYoutubeRecommendationHistory();
+          displayYoutubeRecommendation(existing,artistId);
+          if(artistId===activeArtistId&&status)status.textContent='Analyse automatique déjà disponible pour cette période.';
+          if(artistId===activeArtistId)await loadYoutubeRecommendationHistory();
           return;
         }
       }
@@ -701,7 +737,7 @@
           url:v.url
         }))
       };
-      const task='Tu es analyste marketing YouTube senior pour '+activeArtistName()+'. Analyse les données de la chaîne associée à cet artiste et produis un rapport utile à son gestionnaire. Appuie-toi sur le profil actif et ses consignes de communication.\n\n'+
+      const task='Tu es analyste marketing YouTube senior pour '+artistName+'. Analyse les données de la chaîne associée à cet artiste et produis un rapport utile à son gestionnaire. Appuie-toi sur le profil actif et ses consignes de communication.\n\n'+
         'RÈGLES DE FIABILITÉ OBLIGATOIRES :\n'+
         '1) Utilise uniquement les chiffres du bloc DONNÉES. Ne crée aucun chiffre, date, pic, tendance, cause, source de trafic, taux de clic, rétention, commentaire, partage, donnée démographique ou résultat non fourni.\n'+
         '2) Le bloc SNAPSHOT contient des contrôles de qualité. Si missing_daily_dates n’est pas vide, ne traite pas une journée absente comme zéro : indique que la série quotidienne est incomplète. Le meilleur jour est seulement le meilleur parmi les lignes reçues. Une comparaison sur 7 jours n’est valable que si last_7_days_views et previous_7_days_views sont tous deux des nombres ; sinon indique « comparaison indisponible (données quotidiennes incomplètes ou période insuffisante) ». N’utilise jamais les 7 dernières lignes comme si elles représentaient forcément 7 jours calendaires.\n'+
@@ -740,22 +776,24 @@
       const response=await fetch('/api/assistant',{
         method:'POST',
         headers:{'content-type':'application/json','authorization':'Bearer '+sessionData.session.access_token},
-        body:JSON.stringify({task,profile:profile||{artist_name:activeArtistName()}})
+        body:JSON.stringify({task,profile:artistProfile})
       });
       const payload=await response.json().catch(()=>({}));
       if(!response.ok||!payload.answer)throw new Error([payload.error||'La génération IA a échoué.',payload.diagnostic||'',payload.fallback_diagnostic||''].filter(Boolean).join(' — '));
-      const row={owner_id:user.id,artist_id:activeArtistId,range_days:range,start_date:data.start_date,end_date:data.end_date,source:manual?'manual':'automatic',recommendation:payload.answer,provider:payload.provider||'unknown',analytics_snapshot:snapshot};
+      const row={owner_id:user.id,artist_id:artistId,range_days:range,start_date:data.start_date,end_date:data.end_date,source:manual?'manual':'automatic',recommendation:payload.answer,provider:payload.provider||'unknown',analytics_snapshot:snapshot};
       const {data:saved,error:saveError}=await supabase.from('ai_marketing_recommendations').insert(row).select('id,range_days,end_date,source,recommendation,provider,created_at').single();
       if(saveError)throw new Error('Impossible de sauvegarder la recommandation : '+saveError.message+'. Vérifie la migration SQL.');
-      displayYoutubeRecommendation(saved);
-      if(status)status.textContent=(manual?'Nouvelle analyse terminée':'Analyse automatique terminée')+' · '+(payload.fallback_used?'Cloudflare AI':'Groq')+' · À valider par le parent.';
-      await loadYoutubeRecommendationHistory();
+      if(artistId===activeArtistId){
+        displayYoutubeRecommendation(saved,artistId);
+        if(status)status.textContent=(manual?'Nouvelle analyse terminée':'Analyse automatique terminée')+' · '+(payload.fallback_used?'Cloudflare AI':'Groq')+' · À valider par le parent.';
+        await loadYoutubeRecommendationHistory();
+      }
     }catch(error){
-      if(status)status.textContent=error.message||'Analyse des recommandations impossible.';
-      if(manual)toast(error.message||'Analyse impossible.',true);
+      if(artistId===activeArtistId&&status)status.textContent=error.message||'Analyse des recommandations impossible.';
+      if(manual&&artistId===activeArtistId)toast(error.message||'Analyse impossible.',true);
     }finally{
       recommendationBusy.delete(jobKey);
-      if(manual&&button){button.disabled=false;button.textContent='Générer mes recommandations';}
+      if(manual&&button&&artistId===activeArtistId){button.disabled=false;button.textContent='Générer mes recommandations';}
     }
   }
   async function loadYoutubeAnalytics(range=30){
@@ -766,7 +804,7 @@
     try{
       const {data:{session}}=await supabase.auth.getSession();
       if(!session?.access_token)throw new Error('Session expirée. Reconnecte-toi.');
-      const r=await fetch('/api/youtube/analytics?range='+range+'&artist_id='+encodeURIComponent(activeArtistId),{headers:{authorization:'Bearer '+session.access_token}});
+      const r=await fetch('/api/youtube/analytics?range='+range+'&artist_id='+encodeURIComponent(artistId),{headers:{authorization:'Bearer '+session.access_token}});
       const d=await r.json();if(!r.ok)throw new Error(d.error||'Lecture des statistiques impossible.');
       if(artistId!==activeArtistId)return;
       const t=d.totals||{};
@@ -797,8 +835,8 @@
       status.textContent='Statistiques du '+range+' derniers jours · Données arrêtées au '+new Date(d.end_date+'T00:00:00').toLocaleDateString('fr-FR')+' · Actualisé '+new Date(d.synced_at).toLocaleTimeString('fr-FR');
       latestYoutubeAnalytics=d;
       void generateYoutubeRecommendations(d,range,false);
-    }catch(e){status.textContent='Statistiques indisponibles : '+e.message;toast(e.message,true);}
-    finally{buttonSet.forEach(b=>b.disabled=false);}
+    }catch(e){if(artistId===activeArtistId){status.textContent='Statistiques indisponibles : '+e.message;toast(e.message,true);}}
+    finally{if(artistId===activeArtistId)buttonSet.forEach(b=>b.disabled=false);}
   }
   function resetYoutubeDashboard(){
     latestYoutubeAnalytics=null;
@@ -823,14 +861,14 @@
     try{
       const {data:{session}}=await supabase.auth.getSession();
       const r=await fetch('/api/youtube/status?artist_id='+encodeURIComponent(artistId),{headers:{authorization:'Bearer '+session.access_token}});
-      const d=await r.json();if(!r.ok)throw new Error(d.error||'État indisponible');
+      const d=await r.json();if(!r.ok)throw new Error([d.error||'État indisponible',Array.isArray(d.missing)&&d.missing.length?'Variables manquantes : '+d.missing.join(', '):''].filter(Boolean).join(' — '));
       if(artistId!==activeArtistId)return;
       box.textContent=d.connected?'Chaîne YouTube connectée · Accès en lecture seule':'Aucune chaîne YouTube connectée';
       button.textContent=d.connected?'Reconnecter YouTube':'Connecter YouTube';
       $('#youtubeTag').textContent=d.connected?'Connecté':'Non connecté';
       $('#youtubeTag').className='tag '+(d.connected?'green':'');
       if(d.connected){await loadYoutubeChannel();await loadYoutubeAnalytics(30);}else {$('#youtubeChannelPanel')?.classList.add('hidden');$('#youtubeAnalyticsStatus').textContent='Connecte une chaîne YouTube pour cet artiste afin de consulter ses statistiques.';}
-    }catch(e){box.textContent='Statut indisponible : '+e.message;}
+    }catch(e){if(artistId===activeArtistId){const missing=Array.isArray(e.missing)?' Variables manquantes : '+e.missing.join(', '):'';box.textContent='Statut indisponible : '+e.message+missing;}}
   }
   $('#refreshYoutube').addEventListener('click',loadYoutubeChannel);
   $$('#youtubeAnalyticsRanges button').forEach(b=>b.addEventListener('click',()=>loadYoutubeAnalytics(Number(b.dataset.range))));
@@ -840,7 +878,7 @@
       const artistId=activeArtistId;if(!artistId)throw new Error('Sélectionne d’abord un espace artiste.');
       const {data:{session}}=await supabase.auth.getSession();if(!session?.access_token)throw new Error('Reconnecte-toi.');
       const r=await fetch('/api/youtube/start?artist_id='+encodeURIComponent(artistId),{headers:{authorization:'Bearer '+session.access_token}});
-      const d=await r.json();if(!r.ok||!d.authorization_url){const diagnostic=d.diagnostic?['HTTP '+(d.diagnostic.http_status||''),d.diagnostic.code,d.diagnostic.message,d.diagnostic.hint].filter(Boolean).join(' · '):'';throw new Error([d.error||'Démarrage OAuth impossible.',diagnostic].filter(Boolean).join(' — '));}
+      const d=await r.json();if(!r.ok||!d.authorization_url){const diagnostic=d.diagnostic?['HTTP '+(d.diagnostic.http_status||''),d.diagnostic.code,d.diagnostic.message,d.diagnostic.hint].filter(Boolean).join(' · '):'';const missing=Array.isArray(d.missing)&&d.missing.length?'Variables manquantes : '+d.missing.join(', '):'';throw new Error([d.error||'Démarrage OAuth impossible.',missing,diagnostic].filter(Boolean).join(' — '));}
       window.location.assign(d.authorization_url);
     }catch(e){toast(e.message,true);}
   });

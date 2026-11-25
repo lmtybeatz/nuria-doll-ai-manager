@@ -39,7 +39,7 @@ function makePrompt(task, profile) {
     parent_guardrails: String(profile.parent_guardrails || "").slice(0, 1000)
   };
 
-  const system = `Tu es l'assistant marketing éditorial de NURIA DOLL. Tu aides le parent/manager à préparer des idées, calendriers, légendes, hashtags et campagnes pour un projet musical familial. Réponds en français sauf demande explicite contraire. Sois concret, structuré, adapté aux enfants et aux familles. N'invente jamais de faits, chiffres, partenariats ou résultats. Respecte strictement les consignes parentales fournies. Ne demande et ne révèle jamais l'adresse, l'école, les horaires, la localisation en temps réel, les coordonnées privées ou autres données personnelles de l'enfant. Ne propose pas de conversation privée entre l'enfant et des inconnus. Ne publie, n'envoie, ne commente et ne contacte personne : tu ne fais que préparer des brouillons pour validation par le parent. Si la demande concerne une rencontre, un message privé, une proposition commerciale ou une situation sensible, conseille de la transmettre au parent sans répondre directement.`;
+  const system = `Tu es l'assistant marketing éditorial de ${safeProfile.artist_name}. Tu aides le parent/manager à préparer des idées, calendriers, légendes, hashtags et campagnes pour le projet musical de cet artiste. Réponds en français sauf demande explicite contraire. Sois concret, structuré, adapté aux enfants et aux familles. N'invente jamais de faits, chiffres, partenariats ou résultats. Respecte strictement les consignes parentales fournies. Ne demande et ne révèle jamais l'adresse, l'école, les horaires, la localisation en temps réel, les coordonnées privées ou autres données personnelles de l'enfant. Ne propose pas de conversation privée entre l'enfant et des inconnus. Ne publie, n'envoie, ne commente et ne contacte personne : tu ne fais que préparer des brouillons pour validation par le parent. Si la demande concerne une rencontre, un message privé, une proposition commerciale ou une situation sensible, conseille de la transmettre au parent sans répondre directement.`;
 
   const user = "IDENTITÉ ARTISTIQUE (informations de marque uniquement)\n" +
     JSON.stringify(safeProfile) + "\n\nDEMANDE DU PARENT / MANAGER\n" + task;
@@ -91,8 +91,16 @@ async function askCloudflare(env, system, user) {
 }
 
 export async function onRequestPost({ request, env }) {
-  if (!env.GROQ_API_KEY || !env.SUPABASE_URL || !env.SUPABASE_PUBLISHABLE_KEY || !env.AI) {
-    return json({ error: "Configuration serveur incomplète. Vérifie GROQ_API_KEY, SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY et la liaison Workers AI nommée AI." }, 500);
+  const missing = ["SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY"].filter(key => !env[key]);
+  const hasGroq = !!env.GROQ_API_KEY;
+  const hasWorkersAI = !!env.AI && typeof env.AI.run === "function";
+  if (missing.length || (!hasGroq && !hasWorkersAI)) {
+    if (!hasGroq && !hasWorkersAI) missing.push("GROQ_API_KEY ou liaison Workers AI (AI)");
+    return json({
+      error: "Configuration serveur incomplète.",
+      missing,
+      diagnostic: "Le moteur Groq est prioritaire. La liaison Workers AI (AI) est facultative si GROQ_API_KEY est configurée."
+    }, 500);
   }
 
   const session = await verifySession(request, env);
@@ -135,27 +143,31 @@ export async function onRequestPost({ request, env }) {
     }
   }
 
-  // Primary provider: Groq. Any provider/network/quota failure triggers the Cloudflare fallback.
-  try {
-    const answer = await askGroq(env, system, user);
-    return json({ answer, provider: "groq", model: "openai/gpt-oss-120b", status: "completed", approval_required: true });
-  } catch (groqError) {
+  // Groq is primary when configured. Workers AI is the fallback, or the only provider if Groq is absent.
+  let groqError = null;
+  if (hasGroq) {
     try {
-      const answer = await askCloudflare(env, system, user);
-      return json({
-        answer,
-        provider: "cloudflare_workers_ai",
-        model: "@cf/zai-org/glm-4.7-flash",
-        status: "completed",
-        fallback_used: true,
-        approval_required: true
-      });
-    } catch (fallbackError) {
-      return json({
-        error: "Les deux moteurs IA sont momentanément indisponibles.",
-        diagnostic: "Groq : " + String(groqError?.message || "erreur inconnue").slice(0, 300),
-        fallback_diagnostic: "Cloudflare AI : " + String(fallbackError?.message || "erreur inconnue").slice(0, 300)
-      }, 502);
+      const answer = await askGroq(env, system, user);
+      return json({ answer, provider: "groq", model: "openai/gpt-oss-120b", status: "completed", approval_required: true });
+    } catch (error) {
+      groqError = error;
     }
+  }
+  try {
+    const answer = await askCloudflare(env, system, user);
+    return json({
+      answer,
+      provider: "cloudflare_workers_ai",
+      model: "@cf/zai-org/glm-4.7-flash",
+      status: "completed",
+      fallback_used: true,
+      approval_required: true
+    });
+  } catch (fallbackError) {
+    return json({
+      error: "Aucun moteur IA n'a pu traiter la demande.",
+      diagnostic: groqError ? "Groq : " + String(groqError?.message || "erreur inconnue").slice(0, 300) : "Groq : clé non configurée.",
+      fallback_diagnostic: "Cloudflare AI : " + String(fallbackError?.message || "erreur inconnue").slice(0, 300)
+    }, 502);
   }
 }
