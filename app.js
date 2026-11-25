@@ -599,6 +599,12 @@
       if(version!==workspaceLoadVersion||artistId!==activeArtistId)return;
       const rows=Array.isArray(payload.research)?payload.research:[];
       renderArtistResearchHistory(rows);
+      const latestContext=rows[0]?.queries?.identity_context;
+      if(latestContext){
+        const fields={legal_name:"researchLegalName",country:"researchCountry",city:"researchCity",genre:"researchGenre",affiliation:"researchAffiliation",youtube:"researchYoutube",instagram:"researchInstagram",facebook:"researchFacebook",tiktok:"researchTiktok",website:"researchWebsite",notes:"researchNotes"};
+        Object.entries(fields).forEach(([key,id])=>{const input=$("#"+id);if(input&&!input.value&&latestContext[key])input.value=latestContext[key];});
+      }
+      const nameInput=$("#researchArtistName");if(nameInput&&!nameInput.value)nameInput.value=activeArtistName();
       status.textContent=rows.length?rows.length+" dossier(s) conservé(s) pour "+activeArtistName()+".":"Aucun dossier de recherche enregistré pour cet artiste.";
     }catch(error){
       if(version!==workspaceLoadVersion||artistId!==activeArtistId)return;
