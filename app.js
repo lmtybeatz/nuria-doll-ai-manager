@@ -17,6 +17,10 @@
     const answer=$('#assistantAnswer');if(answer)answer.textContent='';
     const status=$('#assistantStatus');if(status)status.textContent='';
     const approval=$('#assistantApprovalControl');if(approval)approval.innerHTML='';
+    const strategyResult=$('#strategyResult');if(strategyResult)hide(strategyResult);
+    const strategyAnswer=$('#strategyAnswer');if(strategyAnswer)strategyAnswer.textContent='';
+    const strategyStatus=$('#strategyStatus');if(strategyStatus)strategyStatus.textContent='';
+    const strategyApproval=$('#strategyApprovalControl');if(strategyApproval)strategyApproval.innerHTML='';
   }
   function setupMessage() {
     const n=$('#setupNotice'); n.innerHTML='<strong>Configuration nécessaire.</strong> Crée un nouveau projet Supabase, exécute <code>supabase/schema.sql</code>, puis renseigne son URL et sa clé publique dans <code>config.js</code>. Aucun secret privé ne doit être placé dans ce fichier.'; show(n); show($('#authScreen'));
@@ -43,7 +47,7 @@
     // Charger YouTube uniquement à l'ouverture de la rubrique Réseaux sociaux.
     if(view==='connections'&&user&&supabase)void youtubeStatus();
   }
-  function authMode(){ $('#authTitle').textContent=signupMode?'Créer ton compte':'Connexion'; $('#authSubtitle').textContent=signupMode?'Crée ton accès privé de parent ou gestionnaire.':'Connecte-toi à ton espace de gestion privé.'; $('#authSubmit').innerHTML=signupMode?'Créer mon compte <span>→</span>':'Se connecter <span>→</span>'; $('#authSwitchText').textContent=signupMode?'Tu as déjà un compte ?':'Pas encore de compte ?'; $('#authSwitch').textContent=signupMode?'Se connecter':'Créer un compte'; $('#authPassword').autocomplete=signupMode?'new-password':'current-password'; }
+  function authMode(){ $('#authTitle').textContent=signupMode?'Créer ton compte':'Connexion'; $('#authSubtitle').textContent=signupMode?'Crée ton accès privé de gestionnaire.':'Connecte-toi à ton espace de gestion privé.'; $('#authSubmit').innerHTML=signupMode?'Créer mon compte <span>→</span>':'Se connecter <span>→</span>'; $('#authSwitchText').textContent=signupMode?'Tu as déjà un compte ?':'Pas encore de compte ?'; $('#authSwitch').textContent=signupMode?'Se connecter':'Créer un compte'; $('#authPassword').autocomplete=signupMode?'new-password':'current-password'; }
   async function init(){
     if(!configured){setupMessage();return;}
     if(!window.supabase?.createClient){
@@ -93,6 +97,39 @@
     renderArtistSwitcher();
   }
   function activeArtistName(){return artists.find(a=>a.id===activeArtistId)?.artist_name||'artiste sélectionné';}
+  function isNuriaDollArtist(name=activeArtistName()){
+    return String(name||'').trim().toLocaleUpperCase('fr-FR')==='NURIA DOLL';
+  }
+  function applyArtistContext(){
+    const name=activeArtistName(),child=isNuriaDollArtist(name);
+    document.querySelectorAll('[data-nuria-only]').forEach(el=>el.classList.toggle('hidden',!child));
+    const description=$('#strategyDescription');if(description)description.textContent='Construis un plan d’action réaliste pour développer le projet musical de '+name+'.';
+    const brandOption=$('#campaignBrandOption');if(brandOption)brandOption.textContent='Marque de '+name;
+    const role=$('#userRoleLabel');if(role)role.textContent=child?'Parent / Manager':'Artiste / Manager';
+    const bellWrap=$('.notification-wrap');if(bellWrap)bellWrap.classList.toggle('hidden',!child);
+    const history=$('.parent-approval-history');if(history)history.classList.toggle('hidden',!child);
+    const guardrails=$('#brandForm')?.elements.parent_guardrails?.closest('label');if(guardrails)guardrails.classList.toggle('hidden',!child);
+    const prompts={
+      calendar:'Propose un calendrier éditorial de 7 jours pour '+name+', avec une idée de contenu par jour.',
+      captions:'Écris 3 légendes différentes pour annoncer une nouvelle chanson de '+name+', adaptées à son public cible.',
+      videos:'Propose 5 idées de vidéos courtes et simples pour faire découvrir l’univers musical de '+name+'.'
+    };
+    document.querySelectorAll('[data-prompt-template]').forEach(button=>{button.dataset.prompt=prompts[button.dataset.promptTemplate]||'';});
+    const strategyForm=$('#strategyForm');
+    if(strategyForm&&strategyForm.dataset.artistId!==activeArtistId){
+      strategyForm.reset();strategyForm.dataset.artistId=activeArtistId;
+      if(child){
+        strategyForm.elements.project.value='Papa dis moi — premier single de DOLL & FRIENDS';
+        strategyForm.elements.budget.value='25 000 à 50 000 FCFA';
+        strategyForm.elements.markets.value='Bénin, France et Europe francophone';
+        strategyForm.elements.channels.value='Radios, médias web, presse, labels, YouTube, TikTok, Instagram et Facebook';
+      }
+    }
+    const assistantStatus=$('#assistantStatus');if(assistantStatus)assistantStatus.textContent=child?'Les réponses sont des brouillons à vérifier par le parent.':'Les réponses sont des propositions à examiner avant utilisation.';
+    const assistantTask=$('#assistantTask');if(assistantTask)assistantTask.placeholder=child?'Ex. : Prépare une campagne de communication sur 10 jours pour la chanson Papa dis moi.':'Ex. : Prépare une campagne de communication sur 10 jours pour mon prochain single.';
+    const settingsForm=$('#settingsForm');
+    if(settingsForm?.elements.autonomy_mode)settingsForm.elements.autonomy_mode.value=child?'parent_guarded':'draft_only';
+  }
   function renderArtistSwitcher(){
     const select=$('#artistSwitcher');if(!select)return;
     select.innerHTML='';
@@ -105,14 +142,29 @@
       const bioField=$('#brandForm')?.elements.bio;
       if(bioField)bioField.placeholder='Présente '+current.artist_name+' en quelques phrases...';
     }
+    applyArtistContext();
   }
   async function reloadArtistWorkspace(){
     if(!activeArtistId)return;
     const version=++workspaceLoadVersion;
     const artistId=activeArtistId;
     switchingArtist=true;
+    applyArtistContext();
+    profile=null;settings=null;media=[];campaigns=[];
+    resetCampaignForm();resetYoutubeDashboard();
+    $('#mediaCount').textContent='0';$('#libraryCount').textContent='0 fichier';
+    $('#mediaList').innerHTML='<div class="empty-state">Chargement des médias…</div>';
+    $('#campaignCount').textContent='0 campagne';
+    $('#campaignList').innerHTML='<div class="empty-state">Chargement des campagnes…</div>';
+    $('#settingsForm')?.reset();
+    if(!isNuriaDollArtist()){parentApprovals=[];renderNotificationCenter();}
+    else {parentApprovals=[];const history=$('#parentApprovalHistory');if(history)history.textContent='Chargement des validations…';}
     try{
-      await Promise.all([loadProfile(version),loadSettings(version),loadMedia(version),loadCampaigns(version),loadParentApprovals(version),loadYoutubeRecommendationHistory(version)]);
+      const tasks=[loadProfile(version),loadSettings(version),loadMedia(version),loadCampaigns(version),loadYoutubeRecommendationHistory(version)];
+      if(isNuriaDollArtist())tasks.push(loadParentApprovals(version));
+      else {parentApprovals=[];renderParentApprovals();}
+      await Promise.all(tasks);
+      applyArtistContext();
       if(version!==workspaceLoadVersion||artistId!==activeArtistId)return;
       const current=artists.find(a=>a.id===artistId);
       const heading=$('#activeArtistLabel');if(heading)heading.textContent=current?.artist_name||'Artiste sélectionné';
@@ -125,6 +177,8 @@
     activeArtistId=e.target.value;
     saveWorkspaceState({artistId:activeArtistId});
     clearAssistantResult();
+    resetCampaignForm();
+    resetYoutubeDashboard();
     $('#assistantTask').value=assistantDrafts.get(activeArtistId)||'';
     // Mettre à jour immédiatement tous les libellés dépendant de l’artiste actif.
     renderArtistSwitcher();
@@ -143,7 +197,7 @@
       const {data,error}=await supabase.from('ai_artists').insert({owner_id:user.id,artist_name:artistName,status:'active',is_default:false}).select('id,artist_name,is_default,status,created_at').single();
       if(error)throw error;
       if(activeArtistId)assistantDrafts.set(activeArtistId,$('#assistantTask')?.value||'');
-      artists.push(data);activeArtistId=data.id;saveWorkspaceState({artistId:activeArtistId});clearAssistantResult();$('#assistantTask').value=assistantDrafts.get(activeArtistId)||'';renderArtistSwitcher();
+      artists.push(data);activeArtistId=data.id;saveWorkspaceState({artistId:activeArtistId});clearAssistantResult();resetCampaignForm();resetYoutubeDashboard();$('#assistantTask').value=assistantDrafts.get(activeArtistId)||'';renderArtistSwitcher();
       await reloadArtistWorkspace();
       toast('Espace « '+artistName+' » créé. Tu peux maintenant compléter son identité.');
       nav('brand');
@@ -181,7 +235,7 @@
     }
   }
   async function notifyParent(title,body){
-    if(!('Notification' in window)||Notification.permission!=='granted')return;
+    if(!isNuriaDollArtist()||!('Notification' in window)||Notification.permission!=='granted')return;
     try{
       const registration=await navigator.serviceWorker?.getRegistration('/');
       if(registration?.showNotification){
@@ -204,7 +258,7 @@
     try{
       const permission=await Notification.requestPermission();
       renderNotificationCenter();
-      if(permission==='granted'){await notifyParent('NURIA DOLL AI MANAGER','Les alertes parentales sont activées sur cet appareil.');toast('Notifications activées sur cet appareil.');}
+      if(permission==='granted'){await notifyParent('AI MUSIC MANAGER','Les alertes de validation sont activées pour NURIA DOLL.');toast('Notifications activées sur cet appareil.');}
       else toast(permission==='denied'?'Autorisation refusée. Modifie-la dans les réglages du navigateur.':'Autorisation non accordée.',true);
     }catch(error){toast('Impossible d’activer les notifications : '+error.message,true);}
   });
@@ -214,6 +268,8 @@
     }
   });
   async function saveParentApproval(sourceType,sourceKey,title,content,targetArtistId=activeArtistId){
+    const targetArtist=artists.find(a=>a.id===targetArtistId);
+    if(!isNuriaDollArtist(targetArtist?.artist_name))return null;
     const artistId=targetArtistId;
     const payload={owner_id:user.id,artist_id:artistId,source_type:sourceType,source_key:artistId+':'+sourceKey,title,content,updated_at:new Date().toISOString()};
     const {data,error}=await supabase.from('ai_parent_approvals').upsert(payload,{onConflict:'owner_id,source_type,source_key'}).select('*').single();
@@ -264,6 +320,7 @@
     });
   }
   async function loadParentApprovals(version=workspaceLoadVersion){
+    if(!isNuriaDollArtist()){parentApprovals=[];renderParentApprovals();renderNotificationCenter();return;}
     const artistId=activeArtistId;
     const {data,error}=await supabase.from('ai_parent_approvals').select('*').eq('artist_id',artistId).order('created_at',{ascending:false}).limit(50);
     if(version!==workspaceLoadVersion||artistId!==activeArtistId)return;
@@ -282,6 +339,13 @@
       else el.value='';
     });
     if(f.elements.artist_name)f.elements.artist_name.value=activeArtistName();
+    if(isNuriaDollArtist()){
+      f.elements.genre.value='Pop enfantine, Afro-pop, Pop';
+      f.elements.target_audience.value="Enfants et adultes sensibles à l'univers de l'enfance";
+      f.elements.tone.value='Joyeux, bienveillant, créatif, familial et adapté à un public intergénérationnel.';
+      f.elements.parent_guardrails.value="Ne jamais divulguer d'informations personnelles, de localisation, d'école, d'emploi du temps ou de coordonnées de l'enfant. Toute demande sensible, rencontre, proposition commerciale ou message privé doit être transmise au parent. Ne jamais inventer de faits biographiques.";
+      f.elements.primary_color.value='#6D45A6';f.elements.secondary_color.value='#E8B9D4';
+    }
     $('#brandMessage').textContent='Complète les informations propres à cet artiste puis enregistre.';
   }
   async function loadProfile(version=workspaceLoadVersion){
@@ -294,10 +358,23 @@
     const {data,error}=await supabase.from('ai_brand_profile').select('*').eq('artist_id',artistId).maybeSingle();
     if(version!==workspaceLoadVersion||artistId!==activeArtistId)return;
     if(error){toast('Chargement du profil : '+error.message,true);return;}
-    profile=data;
+    const child=isNuriaDollArtist();
+    const nuriaDefaults={
+      genre:'Pop enfantine, Afro-pop, Pop',
+      target_audience:"Enfants et adultes sensibles à l'univers de l'enfance",
+      tone:'Joyeux, bienveillant, créatif, familial et adapté à un public intergénérationnel.',
+      primary_color:'#6D45A6',
+      secondary_color:'#E8B9D4'
+    };
+    profile=data?{...data,artist_name:activeArtistName()}:null;
+    if(profile&&!child){
+      Object.entries(nuriaDefaults).forEach(([key,value])=>{if(profile[key]===value)profile[key]=null;});
+      profile.parent_guardrails='';
+    }
     const f=$('#brandForm');
-    if(data){
-      Object.entries(data).forEach(([k,v])=>{const el=f.elements[k];if(el&&v!==null)el.value=v;});
+    if(profile){
+      Object.entries(profile).forEach(([k,v])=>{if(k==='parent_guardrails'&&!child)return;const el=f.elements[k];if(el&&v!==null)el.value=v;});
+      f.elements.artist_name.value=activeArtistName();
       $('#profileStatus').textContent='Configuré';
       $('#brandCheck').classList.add('done');
       $('#brandCheck').textContent='✓';
@@ -422,11 +499,11 @@
       const payload=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error([payload.error||'Le service IA n’a pas répondu correctement.',Array.isArray(payload.missing)&&payload.missing.length?'Variables manquantes : '+payload.missing.join(', '):'',payload.diagnostic||'',payload.fallback_diagnostic||''].filter(Boolean).join(' — '));
       if(!payload.answer)throw new Error('Aucune proposition exploitable reçue.');
-      const approval=await saveParentApproval('assistant',crypto.randomUUID(),'Proposition de l’assistant',payload.answer,artistId);
+      const approval=isNuriaDollArtist(artists.find(a=>a.id===artistId)?.artist_name)?await saveParentApproval('assistant',crypto.randomUUID(),'Proposition de l’assistant',payload.answer,artistId):null;
       if(artistId===activeArtistId){
         answer.textContent=payload.answer;
         show(result);
-        renderApprovalControl(approval,$('#assistantApprovalControl'));
+        if(approval)renderApprovalControl(approval,$('#assistantApprovalControl'));else $('#assistantApprovalControl').innerHTML='';
         status.textContent=payload.fallback_used
           ? 'Proposition générée par Cloudflare AI (secours Groq). Vérifie-la avant toute utilisation.'
           : 'Proposition générée par Groq. Vérifie-la avant toute utilisation.';
@@ -520,7 +597,8 @@
       "5. Prépare un volet relations radios, médias, presse et labels : types de contacts à cibler, éléments à préparer et approche. N'invente aucun nom de contact, partenariat ou accord.",
       "6. Propose les contenus à produire pour les réseaux et plateformes indiqués.",
       "7. Termine par une liste de préparation, les risques/points à confirmer et les 5 prochaines actions prioritaires.",
-      "Adapte absolument la communication à un projet musical porté par une enfant : le parent est l'interlocuteur unique, aucune sollicitation privée de l'enfant, aucune information personnelle, localisation, école ou emploi du temps. Toutes les prises de contact, dépenses et publications restent à valider et exécuter par le parent. Signale clairement les informations manquantes au lieu de les inventer."
+      ...(isNuriaDollArtist(artistName)?["CADRE SPÉCIFIQUE NURIA DOLL : projet musical porté par une enfant. Le parent est l'interlocuteur unique. Aucune sollicitation privée de l'enfant, aucune information personnelle, localisation, école ou emploi du temps. Toutes les prises de contact, dépenses et publications restent à valider et exécuter par le parent."]:[]),
+      "Signale clairement les informations manquantes au lieu de les inventer."
     ].join("\n");
     const submit=$('#strategySubmit'),result=$('#strategyResult'),status=$('#strategyStatus'),answer=$('#strategyAnswer');
     submit.disabled=true;submit.textContent='Analyse et préparation…';status.textContent='L’assistant prépare le plan stratégique…';show(result);answer.textContent='';
@@ -535,10 +613,10 @@
       const payload=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error([payload.error||'Le service IA n’a pas répondu correctement.',Array.isArray(payload.missing)&&payload.missing.length?'Variables manquantes : '+payload.missing.join(', '):'',payload.diagnostic||'',payload.fallback_diagnostic||''].filter(Boolean).join(' — '));
       if(!payload.answer)throw new Error('Aucune stratégie exploitable reçue.');
-      const approval=await saveParentApproval('strategy',crypto.randomUUID(),'Stratégie marketing',payload.answer,artistId);
+      const approval=isNuriaDollArtist(artists.find(a=>a.id===artistId)?.artist_name)?await saveParentApproval('strategy',crypto.randomUUID(),'Stratégie marketing',payload.answer,artistId):null;
       if(artistId===activeArtistId){
         answer.textContent=payload.answer;
-        renderApprovalControl(approval,$('#strategyApprovalControl'));
+        if(approval)renderApprovalControl(approval,$('#strategyApprovalControl'));else $('#strategyApprovalControl').innerHTML='';
         status.textContent=payload.fallback_used?'Généré par Cloudflare AI (secours Groq).':'Généré par Groq.';
       }
     }catch(err){
@@ -658,7 +736,7 @@
     show($('#ytRecommendationResult'));
     $('#ytRecommendationMeta').textContent=(row.source==='automatic'?'Analyse automatique':'Analyse demandée')+' · '+Number(row.range_days)+' jours · '+new Date(row.created_at).toLocaleString('fr-FR');
     const approvalTarget=$('#ytApprovalControl');
-    if(approvalTarget){approvalTarget.innerHTML='';(async()=>{try{let record=parentApprovals.find(x=>x.source_type==='youtube'&&x.source_key===artistId+':'+String(row.id));if(!record)record=await saveParentApproval('youtube',String(row.id),'Recommandations YouTube · '+Number(row.range_days)+' jours',row.recommendation||'',artistId);if(artistId===activeArtistId)renderApprovalControl(record,approvalTarget);}catch(error){if(artistId===activeArtistId)approvalTarget.textContent=error.message;}})();}
+    if(approvalTarget){approvalTarget.innerHTML='';if(isNuriaDollArtist()){(async()=>{try{let record=parentApprovals.find(x=>x.source_type==='youtube'&&x.source_key===artistId+':'+String(row.id));if(!record)record=await saveParentApproval('youtube',String(row.id),'Recommandations YouTube · '+Number(row.range_days)+' jours',row.recommendation||'',artistId);if(artistId===activeArtistId&&record)renderApprovalControl(record,approvalTarget);}catch(error){if(artistId===activeArtistId)approvalTarget.textContent=error.message;}})();}}
   }
   const printReport=()=>{
     document.body.classList.add('printing-youtube-report');
@@ -780,22 +858,17 @@
         '6) Distingue explicitement « FAITS MESURÉS », « INTERPRÉTATIONS À TESTER » et « DONNÉES MANQUANTES ». Si une explication n’est pas prouvée, formule-la comme une question ou hypothèse, jamais comme un fait. Signale les petits volumes et évite les conclusions définitives. N’affirme pas que la chaîne est « très faible », « virale » ou « en croissance durable » sur un échantillon aussi réduit. Une hausse de vues ou un pic journalier ne prouve jamais une origine externe, une campagne ou une cause précise.\n'+
         '7) Ne déduis jamais un pourcentage de vues, une part de 100 %, un nombre total de vidéos ou une attribution d’abonnés à une vidéo si le dénominateur ou la métrique correspondante ne sont pas explicitement fournis. Une liste top vidéos ne prouve pas à elle seule qu’elle contient toutes les vidéos. Si tu calcules un pourcentage, refais la division et vérifie le résultat avant de l’écrire (exemple : 24/64 = 37,5 %, et non 40 %).\n'+
         '8) Ne qualifie pas une vidéo de courte ou longue sans connaître sa durée exacte. Ne déduis pas que sa durée explique son average_view_seconds. Ne compare pas ces durées comme un taux de rétention. Pour calculated_seconds_per_view, utilise uniquement les minutes_watched et views de la même vidéo (minutes_watched × 60 / views) ; présente le résultat comme un calcul dérivé et approximatif si les minutes sont arrondies. Ne divise jamais les minutes totales de la chaîne par les vues d’une vidéo. Ne prétends pas que l’écart avec average_view_seconds prouve une différence de comptage ou une anomalie.\n'+
-        '9) Ne crée aucune cible chiffrée arbitraire (ex. 15 vues, 45 secondes, +2 abonnés) : propose plutôt de mesurer l’évolution par rapport à une période comparable, ou indique clairement qu’un objectif doit être fixé par le parent.\n'+
+        '9) Ne crée aucune cible chiffrée arbitraire (ex. 15 vues, 45 secondes, +2 abonnés) : propose plutôt de mesurer l’évolution par rapport à une période comparable, ou indique clairement qu’un objectif doit être fixé par le gestionnaire.\n'+
         '10) Pour tout calcul dérivé (moyenne, ratio, pourcentage), vérifie l’opération et affiche le calcul ou sa base. Arrondis clairement ; si les données d’entrée sont arrondies ou de périmètres différents, présente le résultat comme approximatif ou ne le calcule pas.\n'+
 
-        'SÉCURITÉ ET CADRE PARENTAL :\n'+
-        '- Le parent est l’unique gestionnaire et interlocuteur. Toutes les idées sont des brouillons soumis à validation parentale. Ne publie, ne programme, ne contacte et ne réponds à personne.\n'+
-        '- INTERDICTION ABSOLUE de proposer un défi, concours, challenge ou appel à participation qui demande aux enfants ou aux familles de filmer, créer, envoyer, publier, commenter avec un contenu personnel ou partager des vidéos/photos/dessins/témoignages d’enfants. Ne propose jamais « filmez votre danse », « postez votre vidéo », « partagez vos créations » ou équivalent. Les idées participatives doivent rester hors ligne et privées dans le cercle familial ; les CTA publics se limitent à regarder, écouter ou partager le lien officiel par un adulte.\n'+
-        '- Ne propose jamais de collecte de coordonnées, messages privés avec des enfants, rendez-vous, concours exigeant des échanges directs avec des mineurs, ni demande d’envoi de photos, vidéos, dessins identifiables ou autres contenus personnels d’enfants. Les appels à l’action s’adressent aux adultes et peuvent inviter à regarder, écouter ou partager publiquement le contenu officiel, sans solliciter de réponse privée.\n'+
-        '- Ne demande pas de données démographiques individuelles sur les enfants. Ne recommande pas de collecter des données d’âge ou de profil d’enfants ; les statistiques démographiques ne sont pas une priorité pour ce projet. N’ajoute pas les données démographiques des enfants à la liste des données manquantes ou aux actions à mener.\n'+
-        '- N’expose jamais école, domicile, habitudes, horaires, déplacements, localisation en temps réel, contacts privés ou informations personnelles de l’enfant.\n'+
-        '- Privilégie des contenus que le parent peut produire et contrôler : clips, extraits musicaux, paroles/karaoké, animation, instruments, coulisses centrées sur la musique sans détails privés, histoires et culture béninoise. La présence de l’enfant à l’image n’est jamais une obligation.\n'+
-        '- Toute action payante doit être signalée comme optionnelle et soumise à validation du parent ; ne promets aucun résultat.\n\n'+
+        (isNuriaDollArtist(artistName)
+          ? 'SÉCURITÉ ET CADRE PARENTAL :\n- NURIA DOLL est une artiste enfant : le parent est l’unique gestionnaire et interlocuteur. Toutes les idées sont des brouillons soumis à validation parentale. Ne publie, ne programme, ne contacte et ne réponds à personne.\n- Ne propose aucun défi, concours ou appel à participation demandant aux enfants d’envoyer, publier ou partager des contenus personnels. N’organise aucune collecte de coordonnées, aucun échange privé avec des mineurs ni aucune rencontre.\n- Protège l’école, le domicile, les habitudes, les horaires, les déplacements, la localisation et toutes les informations personnelles de l’enfant.\n- Privilégie les contenus que le parent peut produire et contrôler ; toute dépense ou action publique doit être validée par le parent.\n\n'
+          : 'CONSIGNES DE GESTION :\n- Prépare des analyses et recommandations adaptées à l’artiste et à son public. Ce rapport ne publie, ne programme et ne contacte personne.\n- Respecte les informations et limites définies dans le profil de cet artiste.\n\n')+
         'FORMAT ET PROPRETÉ DU RAPPORT :\n'+
         '- Écris exclusivement en Markdown standard. N’insère aucune balise HTML (<br>, <p>, <div>, etc.) et n’écris aucune entité HTML (&lt;, &#x20;, &#x63;, &nbsp;, etc.). Pour séparer des éléments, utilise de vrais retours à la ligne, des listes Markdown et des tableaux Markdown.\n'+
         '- N’écris pas de balises HTML échappées ou précédées d’une barre oblique inverse. Les mots doivent être écrits normalement, sans encodage caractère par caractère.\n'+
-        '- N’invente pas l’existence de vidéos, playlists, visuels, campagnes, making-of ou ressources qui ne figurent pas dans les données ou le profil. Présente toute nouvelle création comme une idée facultative à produire par le parent.\n'+
-        '- Ne recommande aucun concours, défi participatif, collecte de dessins/photos/vidéos, contenu de fans ou UGC impliquant des enfants. Ne demande jamais à l’enfant de se filmer ni de montrer son domicile, son école, ses proches, ses habitudes ou ses coulisses personnelles. Privilégie les visuels d’illustration, animations, pochettes, paroles et plans d’instruments réalisés et contrôlés par le parent.\n'+
+        '- N’invente pas l’existence de vidéos, playlists, visuels, campagnes, making-of ou ressources qui ne figurent pas dans les données ou le profil. Présente toute nouvelle création comme une idée facultative à produire par le gestionnaire.\n'+
+        (isNuriaDollArtist(artistName)?'- Pour NURIA DOLL, ne recommande aucun concours, défi participatif, collecte de dessins/photos/vidéos ou contenu personnel d’enfants. Ne demande jamais à l’enfant de se filmer ni de montrer son domicile, son école, ses proches, ses habitudes ou ses coulisses personnelles. Privilégie les contenus réalisés et contrôlés par le parent.\n':'')+
         'FORMAT DE SORTIE (en français, Markdown lisible) :\n'+
         'A. SYNTHÈSE EN 3 LIGNES : période exacte, vues, heures regardées, abonnés gagnés/perdus/net.\n'+
         'B. FAITS MESURÉS : tableau avec indicateur, valeur et ce que la donnée permet réellement de dire.\n'+
@@ -803,8 +876,8 @@
         'D. DONNÉES MANQUANTES : liste précise des métriques nécessaires pour mieux décider (ex. impressions/CTR, rétention, sources de trafic), sans prétendre les connaître.\n'+
         'E. 3 ACTIONS PRIORITAIRES : pour chacune, objectif, justification fondée sur les données, étapes pratiques, effort (faible/moyen/élevé), indicateur à surveiller. Classe-les par priorité et commence par les actions gratuites et sûres.\n'+
         'F. 3 IDÉES DE CONTENUS : adaptées au genre, au positionnement et au public cible indiqués dans le profil actif, avec format, durée indicative, angle créatif et appel à l’action approprié.\n'+
-        'G. MINI-PLAN SUR 7 JOURS : tâches réalistes côté parent/manager, sans obligation de publier chaque jour.\n'+
-        'H. VALIDATION PARENTALE : rappelle clairement qu’aucune action publique ne sera effectuée sans accord du parent.\n'+
+        'G. MINI-PLAN SUR 7 JOURS : tâches réalistes côté gestionnaire, sans obligation de publier chaque jour.\n'+
+        'H. PROCHAINE ÉTAPE : indique les actions que le gestionnaire doit examiner avant toute mise en œuvre.\n'+
         'Évite les recommandations génériques ou risquées. N’invente pas de playlist déjà créée, de campagne existante ou de partenariat. Si les données sont insuffisantes pour une recommandation, dis-le.\n\nDONNÉES MESURÉES (source : YouTube Analytics) :\n'+JSON.stringify(snapshot);
       const response=await fetch('/api/assistant',{
         method:'POST',
@@ -818,7 +891,7 @@
       if(saveError)throw new Error('Impossible de sauvegarder la recommandation : '+saveError.message+'. Vérifie la migration SQL.');
       if(artistId===activeArtistId){
         displayYoutubeRecommendation(saved,artistId);
-        if(status)status.textContent=(manual?'Nouvelle analyse terminée':'Analyse automatique terminée')+' · '+(payload.fallback_used?'Cloudflare AI':'Groq')+' · À valider par le parent.';
+        if(status)status.textContent=(manual?'Nouvelle analyse terminée':'Analyse automatique terminée')+' · '+(payload.fallback_used?'Cloudflare AI':'Groq')+(isNuriaDollArtist(artistName)?' · À valider par le parent.':' · Rapport prêt à examiner.');
         await loadYoutubeRecommendationHistory();
       }
     }catch(error){
@@ -881,6 +954,7 @@
     const chart=$('#ytDailyChart');if(chart)chart.replaceChildren();
     const labels=$('#ytChartLabels');if(labels)labels.replaceChildren();
     const videos=$('#ytTopVideos');if(videos)videos.textContent='Aucune donnée disponible pour cet artiste.';
+    const history=$('#ytRecommendationHistory');if(history)history.textContent='Chargement de l’historique…';
     const status=$('#youtubeAnalyticsStatus');if(status)status.textContent='Aucune statistique chargée pour cet artiste.';
     const panel=$('#youtubeChannelPanel');if(panel)panel.classList.add('hidden');
     ['#youtubeChannelName','#youtubeChannelId','#youtubeSubscribers','#youtubeVideos','#youtubeViews','#youtubeChannelDescription','#youtubeChannelPublished'].forEach(selector=>{const el=$(selector);if(el)el.textContent='—';});

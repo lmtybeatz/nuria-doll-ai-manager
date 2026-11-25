@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "NURIA DOLL AI MANAGER",
-  "short_name": "NURIA AI",
-  "description": "Espace privé de gestion et de préparation de la communication de NURIA DOLL.",
+  "name": "AI MUSIC MANAGER",
+  "short_name": "AI MANAGER",
+  "description": "Espace privé de gestion et de développement des projets musicaux.",
   "lang": "fr",
   "start_url": "/",
   "scope": "/",

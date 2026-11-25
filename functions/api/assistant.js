@@ -29,20 +29,24 @@ async function verifySession(request, env) {
 }
 
 function makePrompt(task, profile) {
+  const artistName = String(profile.artist_name || "Artiste").trim().slice(0, 80);
+  const isNuriaDoll = artistName.trim().toLocaleUpperCase("fr-FR") === "NURIA DOLL";
   const safeProfile = {
-    artist_name: String(profile.artist_name || "NURIA DOLL").slice(0, 80),
-    genre: String(profile.genre || "Pop enfantine").slice(0, 160),
+    artist_name: artistName,
+    genre: String(profile.genre || "À préciser").slice(0, 160),
     bio: String(profile.bio || "").slice(0, 700),
-    target_audience: String(profile.target_audience || "Enfants et familles").slice(0, 200),
+    target_audience: String(profile.target_audience || "À définir").slice(0, 200),
     language: String(profile.language || "Français").slice(0, 40),
-    tone: String(profile.tone || "Joyeux, bienveillant, créatif et familial").slice(0, 300),
-    parent_guardrails: String(profile.parent_guardrails || "").slice(0, 1000)
+    tone: String(profile.tone || "Professionnel, authentique et adapté au public cible").slice(0, 300),
+    parent_guardrails: isNuriaDoll ? String(profile.parent_guardrails || "").slice(0, 1000) : ""
   };
 
-  const system = `Tu es l'assistant marketing éditorial de ${safeProfile.artist_name}. Tu aides le parent/manager à préparer des idées, calendriers, légendes, hashtags et campagnes pour le projet musical de cet artiste. Réponds en français sauf demande explicite contraire. Sois concret, structuré, adapté aux enfants et aux familles. N'invente jamais de faits, chiffres, partenariats ou résultats. Respecte strictement les consignes parentales fournies. Ne demande et ne révèle jamais l'adresse, l'école, les horaires, la localisation en temps réel, les coordonnées privées ou autres données personnelles de l'enfant. Ne propose pas de conversation privée entre l'enfant et des inconnus. Ne publie, n'envoie, ne commente et ne contacte personne : tu ne fais que préparer des brouillons pour validation par le parent. Si la demande concerne une rencontre, un message privé, une proposition commerciale ou une situation sensible, conseille de la transmettre au parent sans répondre directement.`;
+  const commonRules = "N’invente jamais de faits, chiffres, partenariats ou résultats. Respecte le profil et les consignes fournies. Ne publie, n’envoie, ne commente et ne contacte personne : prépare uniquement des propositions que le gestionnaire pourra examiner.";
+  const childRules = "Ce projet est porté par une enfant : le parent est l’interlocuteur unique. Ne demande et ne révèle jamais l’adresse, l’école, les horaires, la localisation en temps réel, les coordonnées privées ou autres données personnelles de l’enfant. Ne propose pas de conversation privée entre l’enfant et des inconnus. Toute rencontre, proposition commerciale ou situation sensible doit être transmise au parent. Les propositions sont soumises à validation parentale.";
+  const system = `Tu es l'assistant marketing éditorial de ${safeProfile.artist_name}. Tu aides le gestionnaire à préparer des idées, calendriers, légendes, hashtags et campagnes pour le projet musical de cet artiste. Réponds en français sauf demande explicite contraire. Sois concret et structuré. ${commonRules} ${isNuriaDoll ? childRules : "Adapte librement tes recommandations à l’identité et au public de cet artiste, sans appliquer de consignes parentales propres à un autre projet."}`;
 
   const user = "IDENTITÉ ARTISTIQUE (informations de marque uniquement)\n" +
-    JSON.stringify(safeProfile) + "\n\nDEMANDE DU PARENT / MANAGER\n" + task;
+    JSON.stringify(safeProfile) + "\n\nDEMANDE DU GESTIONNAIRE\n" + task;
   return { system, user };
 }
 
@@ -133,7 +137,7 @@ export async function onRequestPost({ request, env }) {
         status: "completed",
         fallback_used: true,
         forced_test: true,
-        approval_required: true
+        approval_required: isNuriaDoll
       });
     } catch (fallbackError) {
       return json({
@@ -148,7 +152,7 @@ export async function onRequestPost({ request, env }) {
   if (hasGroq) {
     try {
       const answer = await askGroq(env, system, user);
-      return json({ answer, provider: "groq", model: "openai/gpt-oss-120b", status: "completed", approval_required: true });
+      return json({ answer, provider: "groq", model: "openai/gpt-oss-120b", status: "completed", approval_required: isNuriaDoll });
     } catch (error) {
       groqError = error;
     }
@@ -161,7 +165,7 @@ export async function onRequestPost({ request, env }) {
       model: "@cf/zai-org/glm-4.7-flash",
       status: "completed",
       fallback_used: true,
-      approval_required: true
+      approval_required: isNuriaDoll
     });
   } catch (fallbackError) {
     return json({
