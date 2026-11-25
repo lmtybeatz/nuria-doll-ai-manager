@@ -102,6 +102,8 @@
     if(current){const name=$('#currentArtistName');if(name)name.textContent=current.artist_name;
       const facebookLabel=$('.social-card-facebook h3 + p');if(facebookLabel)facebookLabel.textContent='Page Facebook de '+current.artist_name;
       const youtubeLabel=$('.social-card-youtube h3 + p');if(youtubeLabel)youtubeLabel.textContent='Chaîne YouTube de '+current.artist_name;
+      const bioField=$('#brandForm')?.elements.bio;
+      if(bioField)bioField.placeholder='Présente '+current.artist_name+' en quelques phrases...';
     }
   }
   async function reloadArtistWorkspace(){
