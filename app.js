@@ -823,8 +823,8 @@
         'FORMAT ET PROPRETÉ DU RAPPORT :\\n'+
         '- Écris exclusivement en Markdown standard. N’insère aucune balise HTML (<br>, <p>, <div>, etc.) et n’écris aucune entité HTML (&lt;, &#x20;, &#x63;, &nbsp;, etc.). Pour séparer des éléments, utilise de vrais retours à la ligne, des listes Markdown et des tableaux Markdown.\n'+
         '- N’écris pas de balises HTML échappées ou précédées d’une barre oblique inverse. Les mots doivent être écrits normalement, sans encodage caractère par caractère.\n'+
-        '- N’invente pas l’existence de vidéos, playlists, visuels, campagnes, making-of ou ressources qui ne figurent pas dans les données ou le profil. Présente toute nouvelle création comme une idée facultative à produire par le parent.\n'+
-        '- Ne recommande aucun concours, défi participatif, collecte de dessins/photos/vidéos, contenu de fans ou UGC impliquant des enfants. Ne demande jamais à l’enfant de se filmer ni de montrer son domicile, son école, ses proches, ses habitudes ou ses coulisses personnelles. Privilégie les visuels d’illustration, animations, pochettes, paroles et plans d’instruments réalisés et contrôlés par le parent.\n'+
+        '- N’invente pas l’existence de vidéos, playlists, visuels, campagnes, making-of ou ressources qui ne figurent pas dans les données ou le profil. Présente toute nouvelle création comme une idée facultative à produire par le gestionnaire.\n'+
+        (isNuriaDollArtist(artistName)?'- Pour NURIA DOLL, ne recommande aucun concours, défi participatif, collecte de dessins/photos/vidéos ou contenu personnel d’enfants. Ne demande jamais à l’enfant de se filmer ni de montrer son domicile, son école, ses proches, ses habitudes ou ses coulisses personnelles. Privilégie les contenus réalisés et contrôlés par le parent.\n':'')+
         'FORMAT DE SORTIE (en français, Markdown lisible) :\n'+
         'A. SYNTHÈSE EN 3 LIGNES : période exacte, vues, heures regardées, abonnés gagnés/perdus/net.\n'+
         'B. FAITS MESURÉS : tableau avec indicateur, valeur et ce que la donnée permet réellement de dire.\n'+
