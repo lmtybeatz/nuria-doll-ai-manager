@@ -255,7 +255,7 @@
     if(artists.length<=1){toast('Le dernier profil artiste ne peut pas être supprimé.',true);return;}
     const fallback=artists.find(item=>item.id!==artist.id);
     if(!fallback){toast('Aucun autre profil disponible pour prendre le relais.',true);return;}
-    const confirmed=confirm('Supprimer définitivement « '+artist.artist_name+' » ?\\n\\nCette suppression effacera son identité, ses campagnes, ses recommandations, ses validations, ses connexions sociales et les métadonnées de ses médias. Les fichiers média associés seront également retirés du stockage. Cette action est irréversible.');
+    const confirmed=confirm('Supprimer définitivement « '+artist.artist_name+' » ? Cette suppression effacera son identité, ses campagnes, ses recommandations, ses validations, ses connexions sociales et ses médias. Cette action est irréversible.');
     if(!confirmed)return;
     const button=$('#deleteArtistButton');button.disabled=true;
     let promotedDefault=false;
