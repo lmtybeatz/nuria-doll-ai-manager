@@ -132,6 +132,16 @@
       <section id="view-artists" class="view">
         <div class="intro-row"><div><p class="eyebrow">PORTFOLIO DU GESTIONNAIRE</p><h2>Gérer les artistes</h2><p class="muted">Retrouve ici tous les profils créés dans ton espace de gestion.</p></div><button type="button" class="btn primary" id="managementAddArtist">＋ Ajouter un artiste</button></div>
         <div class="artist-management-summary"><strong id="managedArtistCount">0 artiste</strong><span>Les profils et leurs données restent séparés.</span></div>
+        <section class="panel artist-research-panel">
+          <div class="panel-head"><div><p class="eyebrow">RECHERCHE DOCUMENTAIRE</p><h3>Dossier de recherche de l’artiste actif</h3></div><span class="tag">Sources conservées</span></div>
+          <p class="muted">Sélectionne d’abord un artiste dans le menu supérieur. L’agent recherchera sa discographie, sa biographie publique et ses premières sorties, puis conservera les sources dans son espace.</p>
+          <form id="artistResearchForm" class="artist-research-form">
+            <label for="researchArtistName">Nom de l’artiste à rechercher</label>
+            <div><input id="researchArtistName" type="text" maxlength="100" required placeholder="Nom d’artiste"><button id="artistResearchSubmit" type="submit" class="btn primary">Rechercher sur le web</button></div>
+          </form>
+          <p id="artistResearchStatus" class="youtube-channel-sync" role="status">Aucune recherche lancée pour cet artiste.</p>
+          <div id="artistResearchHistory" class="artist-research-history"><div class="empty-state">L’historique apparaîtra ici après la migration Supabase et la première recherche.</div></div>
+        </section>
         <div id="artistManagementList" class="artist-management-list"><div class="empty-state">Chargement des artistes…</div></div>
       </section>
       <footer class="app-footer">AI MUSIC MANAGER <span>·</span> Espace privé de gestion artistique <span>·</span> Multi-artistes</footer>
