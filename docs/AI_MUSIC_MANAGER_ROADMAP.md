@@ -13,7 +13,7 @@
 - Données déjà scindées par artiste dans l’application : `ai_artists`, `ai_brand_profile`, `ai_settings`, `ai_media_library`, `ai_marketing_campaigns`, `ai_marketing_recommendations`, `ai_parent_approvals`.
 - Statistiques déjà amorcées pour YouTube via les routes `/api/youtube/*`.
 
-## Lots techniques
+## Point de vigilance détecté à l’audit\nLe fichier historique `supabase/schema.sql` ne reflète plus le modèle réellement utilisé par `app.js` : il contient encore des profils et paramètres uniques par propriétaire, alors que l’application utilise `ai_artists` et des lignes liées par `artist_id`. Ne pas réexécuter ce fichier sur la base existante. Un lot de consolidation devra reconstruire un schéma de référence complet et des migrations reproductibles, après comparaison avec le schéma Supabase actuellement en production. La migration de recherche de cette PR suppose que `ai_artists` existe déjà.\n\n## Lots techniques
 1. **Fondation multi-artistes (en cours)** : vérifier l’isolation propriétaire/artiste, ajouter les dossiers de recherche par artiste et conserver les sources.
 2. **Recherche documentaire** : recherche web, discographie, dates de sorties, biographie publique, sources datées, gestion des homonymes et niveau de confiance.
 3. **Orchestration** : planifier les sous-tâches, sélectionner les outils, agréger les résultats et distinguer faits/hypothèses.
