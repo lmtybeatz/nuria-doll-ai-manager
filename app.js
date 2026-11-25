@@ -1304,14 +1304,32 @@
       const r=await fetch('/api/meta/status?artist_id='+encodeURIComponent(artistId),{headers:{authorization:'Bearer '+session.access_token}});
       const d=await r.json();if(!r.ok)throw new Error([d.error||'État Meta indisponible',Array.isArray(d.missing)&&d.missing.length?'Variables manquantes : '+d.missing.join(', '):''].filter(Boolean).join(' — '));
       if(artistId!==activeArtistId)return;
-      const connected=!!d.connected;box.textContent=connected?'Comptes Meta reliés à « '+activeArtistName()+' ».':'Aucune connexion Meta pour cet artiste.';
+      const connected=!!d.connected;
+      const pages=Array.isArray(d.pages)?d.pages:[];
+      const instagramAccounts=Array.isArray(d.instagram_accounts)&&d.instagram_accounts.length
+        ?d.instagram_accounts
+        :pages.filter(page=>page.instagram_id).map(page=>({instagram_id:page.instagram_id,instagram_username:page.instagram_username}));
+      const facebookConnected=pages.length>0,instagramConnected=instagramAccounts.length>0;
+      box.textContent=connected
+        ?'Comptes sociaux reliés à « '+activeArtistName()+' » · '+pages.length+' Page(s) Facebook · '+instagramAccounts.length+' compte(s) Instagram.'
+        :'Aucune connexion Meta pour cet artiste.';
       button.textContent=connected?'Reconnecter Facebook / Instagram':'Connecter Facebook / Instagram';
-      const tags=['#metaFacebookTag','#metaInstagramTag'];tags.forEach(sel=>{const el=$(sel);if(el){el.textContent=connected?'Connecté':'À connecter';el.className='tag '+(connected?'green':'amber');}});
+      const fbTag=$('#metaFacebookTag'),igTag=$('#metaInstagramTag');
+      if(fbTag){fbTag.textContent=facebookConnected?'Connecté':'À connecter';fbTag.className='tag '+(facebookConnected?'green':'amber');}
+      if(igTag){igTag.textContent=instagramConnected?'Connecté':'À connecter';igTag.className='tag '+(instagramConnected?'green':'amber');}
       if(connected&&accounts){
-        (d.pages||[]).forEach(page=>{const item=document.createElement('div');item.className='youtube-channel-sync';
+        pages.forEach(page=>{
+          const item=document.createElement('div');item.className='youtube-channel-sync';
           const strong=document.createElement('strong');strong.textContent=page.page_name||'Page Facebook';
-          const detail=document.createElement('span');detail.textContent=' · Instagram : '+(page.instagram_username?'@'+page.instagram_username:'compte professionnel détecté');
-          item.append(strong,detail);accounts.append(item);});
+          const detail=document.createElement('span');detail.textContent=' · Page Facebook';
+          item.append(strong,detail);accounts.append(item);
+        });
+        instagramAccounts.forEach(account=>{
+          const item=document.createElement('div');item.className='youtube-channel-sync';
+          const strong=document.createElement('strong');strong.textContent=account.instagram_username?'@'+account.instagram_username:'Compte Instagram';
+          const detail=document.createElement('span');detail.textContent=' · Instagram'+(account.name?' · '+account.name:'');
+          item.append(strong,detail);accounts.append(item);
+        });
       }
     }catch(e){if(artistId===activeArtistId)box.textContent='Statut Meta indisponible : '+e.message;}
   }
