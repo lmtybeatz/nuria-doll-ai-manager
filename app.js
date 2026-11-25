@@ -485,7 +485,6 @@
     const task=$('#assistantTask').value.trim();
     if(!task)return;
     const artistId=activeArtistId;
-    const artistProfile=profile?{...profile}:Object.fromEntries(new FormData($('#brandForm')).entries());
     const submit=$('#assistantSubmit'),status=$('#assistantStatus'),result=$('#assistantResult'),answer=$('#assistantAnswer');
     submit.disabled=true;submit.textContent='Préparation en cours…';status.textContent='Groq prépare une proposition…';hide(result);
     try{
@@ -494,19 +493,18 @@
       const response=await fetch('/api/assistant',{
         method:'POST',
         headers:{'content-type':'application/json','authorization':'Bearer '+session.access_token},
-        body:JSON.stringify({task,profile:artistProfile})
+        body:JSON.stringify({task,artist_id:artistId})
       });
       const payload=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error([payload.error||'Le service IA n’a pas répondu correctement.',Array.isArray(payload.missing)&&payload.missing.length?'Variables manquantes : '+payload.missing.join(', '):'',payload.diagnostic||'',payload.fallback_diagnostic||''].filter(Boolean).join(' — '));
       if(!payload.answer)throw new Error('Aucune proposition exploitable reçue.');
-      const approval=isNuriaDollArtist(artists.find(a=>a.id===artistId)?.artist_name)?await saveParentApproval('assistant',crypto.randomUUID(),'Proposition de l’assistant',payload.answer,artistId):null;
+      const approval=payload.approval_required===true?await saveParentApproval('assistant',crypto.randomUUID(),'Proposition de l’assistant',payload.answer,artistId):null;
       if(artistId===activeArtistId){
         answer.textContent=payload.answer;
         show(result);
         if(approval)renderApprovalControl(approval,$('#assistantApprovalControl'));else $('#assistantApprovalControl').innerHTML='';
-        status.textContent=payload.fallback_used
-          ? 'Proposition générée par Cloudflare AI (secours Groq). Vérifie-la avant toute utilisation.'
-          : 'Proposition générée par Groq. Vérifie-la avant toute utilisation.';
+        const providerLabel=payload.provider==='cloudflare_workers_ai'?'Cloudflare AI (secours)':'Groq';
+        status.textContent='Proposition générée par '+providerLabel+'. Mode préparation uniquement · ID : '+(payload.request_id||'non disponible')+'. Vérifie-la avant toute utilisation.';
       }
     }catch(err){if(artistId===activeArtistId){status.textContent=err.message||'Une erreur est survenue.';toast(status.textContent,true);}}
     finally{submit.disabled=false;submit.innerHTML='Générer une proposition <span>→</span>';}
