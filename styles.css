@@ -283,3 +283,61 @@
     padding-bottom:10px;
   }
 }
+
+
+/* Assistant conversationnel — composer, pièces jointes et réponses structurées */
+.sr-only{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.assistant-panel{padding:22px}
+.assistant-conversation{display:flex;flex-direction:column;gap:14px;max-height:620px;overflow:auto;padding:8px 2px 18px;scroll-behavior:smooth}
+.assistant-empty{min-height:170px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#8b7d96;gap:8px}
+.assistant-empty>span{width:42px;height:42px;display:grid;place-items:center;border-radius:15px;background:#f1eaf7;color:#8055a4;font-size:24px}
+.assistant-empty strong{font:700 14px Manrope;color:#51445d}
+.assistant-empty p{font-size:11px;margin:0}
+.assistant-message{max-width:min(88%,760px);padding:14px 16px;border-radius:17px;line-height:1.65;overflow-wrap:anywhere}
+.assistant-message.user{align-self:flex-end;background:#eee7f5;color:#453452;border-bottom-right-radius:5px}
+.assistant-message.assistant{align-self:flex-start;background:#fbf9fd;border:1px solid #eee7f3;color:#403748;border-bottom-left-radius:5px}
+.assistant-message-label{display:block;margin-bottom:6px;font-size:9px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#8a779b}
+.assistant-message-content{font-size:12px;line-height:1.75}
+.assistant-message-content p{margin:0 0 10px}
+.assistant-message-content p:last-child{margin-bottom:0}
+.assistant-message-content h3,.assistant-message-content h4{font:800 13px Manrope;color:#4c365d;margin:16px 0 7px}
+.assistant-message-content h3:first-child,.assistant-message-content h4:first-child{margin-top:0}
+.assistant-message-content ul,.assistant-message-content ol{padding-left:21px;margin:7px 0 12px}
+.assistant-message-content li{padding-left:3px;margin:4px 0}
+.assistant-message-content strong{color:#4d3561}
+.assistant-message-content blockquote{margin:10px 0;padding:9px 12px;border-left:3px solid #b69acb;background:#f3eef7;border-radius:0 8px 8px 0}
+.assistant-message-content pre{white-space:pre-wrap;overflow:auto;padding:12px;border-radius:9px;background:#282332;color:#f8f4fc;font-size:11px}
+.assistant-message-content code{font-family:ui-monospace,monospace;background:#eee8f3;border-radius:4px;padding:2px 4px}
+.assistant-message-content pre code{background:transparent;padding:0}
+.assistant-message-content table{width:100%;border-collapse:collapse;margin:10px 0;font-size:11px}
+.assistant-message-content th,.assistant-message-content td{padding:8px;border:1px solid #e8e0ed;text-align:left;vertical-align:top}
+.assistant-message-content th{background:#f1ebf6;color:#533c68}
+.assistant-message-content hr{border:0;border-top:1px solid #e9e1ef;margin:12px 0}
+.assistant-form{border:0;padding:0;display:block}
+.assistant-composer{border:1px solid #e5dce9;border-radius:22px;background:#fff;padding:11px 12px 9px;box-shadow:0 7px 24px #38224d0a;transition:border-color .18s,box-shadow .18s}
+.assistant-composer:focus-within{border-color:#a98bc2;box-shadow:0 0 0 3px #9875be18,0 8px 24px #38224d0b}
+.assistant-composer textarea{display:block;width:100%;min-height:44px;max-height:220px;resize:none;overflow-y:auto;border:0!important;outline:0!important;box-shadow:none!important;border-radius:0!important;padding:9px 8px 12px!important;background:transparent!important;color:#352c3d;font:400 13px/1.6 'DM Sans',sans-serif}
+.assistant-composer textarea::placeholder{color:#a69baa}
+.assistant-composer-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid #f0ebf3;padding-top:9px}
+.assistant-composer-tools{display:flex;align-items:center;gap:7px;min-width:0}
+.composer-icon-button{width:34px;height:34px;border:0;border-radius:50%;display:grid;place-items:center;background:#f4eff7;color:#68458a;font-size:20px;cursor:pointer;transition:background .15s,transform .15s}
+.composer-icon-button:hover{background:#eae0f2;transform:translateY(-1px)}
+.composer-icon-button.recording{background:#fff0f0;color:#bd4545;animation:assistant-pulse 1.2s infinite}
+@keyframes assistant-pulse{50%{box-shadow:0 0 0 5px #d94f4f20}}
+.assistant-send-button{width:37px;height:37px;border:0;border-radius:50%;display:grid;place-items:center;background:#69458a;color:#fff;font-size:23px;line-height:1;cursor:pointer;transition:background .15s,transform .15s}
+.assistant-send-button:hover{background:#503269;transform:translateY(-1px)}
+.assistant-send-button:disabled,.composer-icon-button:disabled{opacity:.55;cursor:wait}
+.assistant-form-meta{display:flex;justify-content:space-between;gap:12px;margin:8px 3px 0}
+.assistant-form-meta small{font-size:9px;color:#978c9f}
+.assistant-recording-status{font-size:10px;color:#a44b4b;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.assistant-attachment-preview{display:flex;flex-wrap:wrap;gap:8px;padding:2px 4px 10px}
+.assistant-attachment-chip{display:flex;align-items:center;gap:7px;max-width:190px;padding:5px 7px 5px 5px;border:1px solid #e9e1ef;border-radius:11px;background:#faf8fc}
+.assistant-attachment-chip img{width:38px;height:38px;object-fit:cover;border-radius:7px}
+.assistant-attachment-chip span{font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:105px}
+.assistant-attachment-chip button{border:0;background:transparent;color:#8b7d96;font-size:18px;cursor:pointer;padding:2px 5px}
+.assistant-result{margin-top:8px;padding:0;background:transparent;border:0}
+.assistant-result-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid #eee7f2;padding-top:12px}
+.assistant-result-toolbar>span{font-size:10px}
+.assistant-text-action{border:0;background:transparent;color:#73528d;font-size:10px;font-weight:700;padding:7px 9px;cursor:pointer}
+.assistant-text-action:hover{text-decoration:underline}
+@media(max-width:760px){.assistant-panel{padding:16px}.assistant-message{max-width:96%}.assistant-form-meta{flex-direction:column;gap:3px}.assistant-message-content table{display:block;overflow-x:auto;white-space:nowrap}}
