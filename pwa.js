@@ -56,7 +56,7 @@
     }
 
     if (isIOS) {
-      window.alert('Pour installer NURIA DOLL AI MANAGER sur iPhone ou iPad :\n\n1. Ouvre cette page dans Safari.\n2. Appuie sur le bouton Partager.\n3. Choisis « Sur l’écran d’accueil ».\n4. Appuie sur « Ajouter ».');
+      window.alert('Pour installer AI Music Manager sur iPhone ou iPad :\n\n1. Ouvre cette page dans Safari.\n2. Appuie sur le bouton Partager.\n3. Choisis « Sur l’écran d’accueil ».\n4. Appuie sur « Ajouter ».');
     }
   });
 
