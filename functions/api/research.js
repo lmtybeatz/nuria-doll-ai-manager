@@ -3,10 +3,10 @@ const JSON_HEADERS={"content-type":"application/json; charset=utf-8","cache-cont
 function json(data,status=200){return new Response(JSON.stringify(data),{status,headers:JSON_HEADERS});}
 function sbHeaders(env,token){return {apikey:env.SUPABASE_PUBLISHABLE_KEY,authorization:"Bearer "+token,"content-type":"application/json"};}
 async function verifySession(request,env){
-  const match=(request.headers.get("authorization")||"").match(/^Bearer\\s+(.+)$/i);
+  const match=(request.headers.get("authorization")||"").match(/^Bearer\s+(.+)$/i);
   if(!match)return {error:json({error:"Connexion requise."},401)};
   try{
-    const response=await fetch(env.SUPABASE_URL.replace(/\\/$/,"")+"/auth/v1/user",{headers:{apikey:env.SUPABASE_PUBLISHABLE_KEY,authorization:"Bearer "+match[1]}});
+    const response=await fetch(env.SUPABASE_URL.replace(/\/$/,"")+"/auth/v1/user",{headers:{apikey:env.SUPABASE_PUBLISHABLE_KEY,authorization:"Bearer "+match[1]}});
     if(!response.ok)return {error:json({error:"Session expirée ou invalide. Reconnecte-toi."},401)};
     const user=await response.json();if(!user?.id)return {error:json({error:"Identité utilisateur invalide."},401)};
     return {user,token:match[1]};
@@ -22,7 +22,7 @@ async function searchTavily(apiKey,query){
   const payload=await response.json().catch(()=>({}));if(!response.ok)throw new Error("Recherche web indisponible (HTTP "+response.status+").");
   return Array.isArray(payload.results)?payload.results:[];
 }
-function urlDomain(value){try{return new URL(value).hostname.replace(/^www\\./,"");}catch{return "";}}
+function urlDomain(value){try{return new URL(value).hostname.replace(/^www\./,"");}catch{return "";}}
 function makeQueries(subject,context){
   const anchors=[context.country,context.city,context.genre,context.affiliation,context.notes].filter(Boolean).join(" ");
   const exact='"'+subject+'"';
@@ -46,7 +46,7 @@ export async function onRequestGet({request,env}){
   const url=new URL(request.url),artistId=url.searchParams.get("artist_id")||"";
   if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(artistId))return json({error:"Identifiant d’artiste invalide."},400);
   const query=new URLSearchParams({artist_id:"eq."+artistId,owner_id:"eq."+session.user.id,select:"id,subject_name,status,source_count,sources,queries,notes,researched_at,created_at",order:"researched_at.desc",limit:"10"});
-  const response=await fetch(env.SUPABASE_URL.replace(/\\/$/,"")+"/rest/v1/ai_artist_research?"+query,{headers:sbHeaders(env,session.token)});
+  const response=await fetch(env.SUPABASE_URL.replace(/\/$/,"")+"/rest/v1/ai_artist_research?"+query,{headers:sbHeaders(env,session.token)});
   if(!response.ok)return json({error:"Historique de recherche indisponible. Vérifie la migration SQL ai_artist_research."},502);
   return json({research:await response.json()});
 }
@@ -63,7 +63,7 @@ export async function onRequestPost({request,env}){
     affiliation:clean(raw.affiliation,180),youtube:safeUrl(raw.youtube),instagram:safeUrl(raw.instagram),facebook:safeUrl(raw.facebook),
     tiktok:safeUrl(raw.tiktok),website:safeUrl(raw.website),notes:clean(raw.notes,1200)
   };
-  const base=env.SUPABASE_URL.replace(/\\/$/,"");
+  const base=env.SUPABASE_URL.replace(/\/$/,"");
   const artistQuery=new URLSearchParams({id:"eq."+artistId,owner_id:"eq."+session.user.id,status:"eq.active",select:"id,artist_name",limit:"1"});
   const artistResponse=await fetch(base+"/rest/v1/ai_artists?"+artistQuery,{headers:sbHeaders(env,session.token)});
   if(!artistResponse.ok)return json({error:"Vérification du profil artiste impossible."},502);
