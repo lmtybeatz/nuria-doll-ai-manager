@@ -1263,7 +1263,7 @@
     finally{if(artistId===activeArtistId)buttonSet.forEach(b=>b.disabled=false);}
   }
   function resetYoutubeDashboard(){
-    latestYoutubeAnalytics=null;
+    latestYoutubeAnalytics=null;latestMetaInsights=null;
     const recommendationResult=$('#ytRecommendationResult');if(recommendationResult)recommendationResult.classList.add('hidden');
     const recommendationText=$('#ytRecommendationText');if(recommendationText)recommendationText.replaceChildren();
     const recommendationStatus=$('#ytRecommendationStatus');if(recommendationStatus)recommendationStatus.textContent='Aucune recommandation chargée pour cet artiste.';
@@ -1366,7 +1366,7 @@
       if(!manual){
         const {data:existing,error}=await supabase.from('ai_marketing_recommendations')
           .select('id,range_days,end_date,source,recommendation,provider,created_at,analytics_snapshot')
-          .eq('artist_id',artistId).eq('range_days',30).eq('end_date',new Date().toISOString().slice(0,10))
+          .eq('artist_id',artistId).eq('range_days',30).eq('end_date',new Date(metrics.synced_at||Date.now()).toISOString().slice(0,10))
           .eq('source','automatic').contains('analytics_snapshot',{platform})
           .order('created_at',{ascending:false}).limit(1).maybeSingle();
         if(error)throw error;
@@ -1419,10 +1419,13 @@
       }
       if(artistId!==activeArtistId)return;
       const fb=d.facebook||{},ig=d.instagram||{};
+      const warnings=Array.isArray(d.warnings)?d.warnings:[];
       latestMetaInsights={facebook:{synced_at:d.synced_at,warnings,reach:fb.reach,interactions:fb.engagement,views:fb.views},instagram:{synced_at:d.synced_at,warnings,reach:ig.reach,interactions:ig.interactions,views:ig.views}};
       const socialMetrics={synced_at:d.synced_at,warnings};
-      if(fb.reach!=null||fb.engagement!=null||fb.views!=null)void generateSocialRecommendations('facebook',{...socialMetrics,reach:fb.reach,interactions:fb.engagement,views:fb.views},false);
-      if(ig.reach!=null||ig.interactions!=null||ig.views!=null)void generateSocialRecommendations('instagram',{...socialMetrics,reach:ig.reach,interactions:ig.interactions,views:ig.views},false);
+      void loadSocialRecommendationHistory('facebook');
+      void loadSocialRecommendationHistory('instagram');
+      void generateSocialRecommendations('facebook',{...socialMetrics,reach:fb.reach??null,interactions:fb.engagement??null,views:fb.views??null},false);
+      void generateSocialRecommendations('instagram',{...socialMetrics,reach:ig.reach??null,interactions:ig.interactions??null,views:ig.views??null},false);
       $('#fbReach').textContent=fb.reach==null?'—':ytNumber(fb.reach);
       $('#fbEngagement').textContent=fb.engagement==null?'—':ytNumber(fb.engagement);
       $('#fbViews').textContent=fb.views==null?'—':ytNumber(fb.views);
@@ -1430,7 +1433,6 @@
       $('#igInteractions').textContent=ig.interactions==null?'—':ytNumber(ig.interactions);
       $('#igViews').textContent=ig.views==null?'—':ytNumber(ig.views);
       const synced=d.synced_at?new Date(d.synced_at).toLocaleString('fr-FR'):'';
-      const warnings=Array.isArray(d.warnings)?d.warnings:[];
       if(statusFacebook)statusFacebook.textContent='Données Meta · période glissante de 28 jours · actualisé '+synced+(warnings.filter(x=>x.startsWith('Facebook :')).length?' · '+warnings.filter(x=>x.startsWith('Facebook :')).join(' '):'');
       if(statusInstagram)statusInstagram.textContent='Données Meta · période glissante de 28 jours · actualisé '+synced+(warnings.filter(x=>x.startsWith('Instagram :')).length?' · '+warnings.filter(x=>x.startsWith('Instagram :')).join(' '):'');
     }catch(e){
