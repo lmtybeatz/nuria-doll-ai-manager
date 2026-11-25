@@ -51,8 +51,10 @@ RÈGLES DE FIABILITÉ :
 - Respecte strictement les consignes parentales. Ne demande et ne révèle jamais l'adresse, l'école, les horaires, la localisation en temps réel, les coordonnées privées ou autres données personnelles de l'enfant. Ne propose pas de conversation privée entre l'enfant et des inconnus.
 - Ne publie, n'envoie, ne commente et ne contacte personne : tu prépares uniquement des brouillons pour validation par le parent. Toute rencontre, message privé, proposition commerciale ou situation sensible doit être transmise au parent.`;
 
-  const user = "IDENTITÉ ARTISTIQUE (informations de marque uniquement)\n" +
-    JSON.stringify(safeProfile) + "\n\nDEMANDE DU PARENT / MANAGER\n" + task;
+  const user = "ARTISTE ACTIF : " + safeProfile.artist_name + "\n" +
+    "IDENTITÉ ARTISTIQUE (informations de marque uniquement)\n" + JSON.stringify(safeProfile) +
+    "\n\nDEMANDE DU PARENT / MANAGER\n" + task +
+    "\n\nConsigne finale : réponds uniquement pour l'artiste actif ci-dessus. Si la demande exige une recherche externe en direct, indique clairement que cet accès n'est pas disponible dans cette requête et ne fabrique aucun résultat.";
   return { system, user };
 }
 
