@@ -40,6 +40,8 @@
     $('#pageTitle').textContent=names[view]; $('#crumb').textContent=view==='overview'?'CENTRE DE COMMANDE':activeArtistName().toUpperCase()+' · '+names[view].toUpperCase();
     $('#backToDashboard').classList.toggle('hidden',view==='overview');
     if(window.innerWidth<=760) $('#sidebar').classList.remove('open');
+    // Charger YouTube uniquement à l'ouverture de la rubrique Réseaux sociaux.
+    if(view==='connections'&&user&&supabase)void youtubeStatus();
   }
   function authMode(){ $('#authTitle').textContent=signupMode?'Créer ton compte':'Connexion'; $('#authSubtitle').textContent=signupMode?'Crée ton accès privé de parent ou gestionnaire.':'Connecte-toi à ton espace de gestion privé.'; $('#authSubmit').innerHTML=signupMode?'Créer mon compte <span>→</span>':'Se connecter <span>→</span>'; $('#authSwitchText').textContent=signupMode?'Tu as déjà un compte ?':'Pas encore de compte ?'; $('#authSwitch').textContent=signupMode?'Se connecter':'Créer un compte'; $('#authPassword').autocomplete=signupMode?'new-password':'current-password'; }
   async function init(){
@@ -66,14 +68,15 @@
   async function enterApp(){
     hide($('#authScreen'));
     const shell=$('#appShell');
-    show(shell);
     $('#userEmail').textContent=user.email||'Compte connecté';
     await loadArtists();
     const savedView=readWorkspaceState().view;
     const validViews=['overview','brand','strategy','library','agent','connections'];
+    // Restaurer la rubrique pendant que l'application est encore masquée.
+    // L'utilisateur ne voit donc jamais brièvement la vue d'ensemble par défaut.
     nav(validViews.includes(savedView)?savedView:'overview');
+    show(shell);
     await reloadArtistWorkspace();
-    await youtubeStatus();
   }
   async function loadArtists(){
     const {data,error}=await supabase.from('ai_artists').select('id,artist_name,is_default,status,created_at').eq('status','active').order('is_default',{ascending:false}).order('artist_name');
@@ -124,7 +127,7 @@
     // Mettre à jour immédiatement tous les libellés dépendant de l’artiste actif.
     renderArtistSwitcher();
     await reloadArtistWorkspace();
-    await youtubeStatus();
+    if($('#view-connections').classList.contains('active-view'))await youtubeStatus();
     toast('Espace artiste sélectionné.');
   });
   $('#addArtistButton')?.addEventListener('click',async()=>{
