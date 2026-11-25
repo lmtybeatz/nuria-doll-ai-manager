@@ -94,7 +94,7 @@
   }
   function activeArtistName(){return artists.find(a=>a.id===activeArtistId)?.artist_name||'artiste sélectionné';}
   function isNuriaDollArtist(name=activeArtistName()){
-    return String(name||'').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').trim().toLocaleUpperCase('fr-FR')==='NURIA DOLL';
+    return String(name||'').trim().toLocaleUpperCase('fr-FR')==='NURIA DOLL';
   }
   function applyArtistContext(){
     const name=activeArtistName(),child=isNuriaDollArtist(name);
