@@ -100,6 +100,7 @@
     hide($('#authScreen'));
     const shell=$('#appShell');
     $('#userEmail').textContent=user.email||'Compte connecté';
+    updateAccountMenuIdentity();
     await loadArtists();
     renderAssistantConversation(activeArtistId);
     const savedView=readWorkspaceState().view;
@@ -125,6 +126,12 @@
     renderArtistSwitcher();
   }
   function activeArtistName(){return artists.find(a=>a.id===activeArtistId)?.artist_name||'artiste sélectionné';}
+  function updateAccountMenuIdentity(){
+    const email=user?.email||'Compte connecté';
+    const initial=(email.trim()[0]||'G').toLocaleUpperCase('fr-FR');
+    const avatar=$('#accountMenuButton');if(avatar)avatar.textContent=initial;
+    const menuEmail=$('#accountMenuEmail');if(menuEmail)menuEmail.textContent=email;
+  }
   function isNuriaDollArtist(name=activeArtistName()){
     return String(name||'').trim().toLocaleUpperCase('fr-FR')==='NURIA DOLL';
   }
@@ -134,6 +141,7 @@
     const description=$('#strategyDescription');if(description)description.textContent='Construis un plan d’action réaliste pour développer le projet musical de '+name+'.';
     const brandOption=$('#campaignBrandOption');if(brandOption)brandOption.textContent='Marque de '+name;
     const role=$('#userRoleLabel');if(role)role.textContent=child?'Parent / Manager':'Artiste / Manager';
+    const accountRole=$('#accountMenuRole');if(accountRole)accountRole.textContent=child?'Parent / Manager':'Artiste / Manager';
     const bellWrap=$('.notification-wrap');if(bellWrap)bellWrap.classList.toggle('hidden',!child);
     const history=$('.parent-approval-history');if(history)history.classList.toggle('hidden',!child);
     const guardrails=$('#brandForm')?.elements.parent_guardrails?.closest('label');if(guardrails)guardrails.classList.toggle('hidden',!child);
@@ -163,6 +171,7 @@
     select.innerHTML='';
     artists.forEach(artist=>{const option=document.createElement('option');option.value=artist.id;option.textContent=artist.artist_name+(artist.is_default?' · principal':'');select.append(option);});
     select.value=activeArtistId||'';
+    const deleteButton=$('#deleteArtistButton');if(deleteButton){deleteButton.disabled=artists.length<=1;deleteButton.title=artists.length<=1?'Il faut conserver au moins un profil artiste':'Supprimer définitivement le profil artiste actif';}
     const current=artists.find(a=>a.id===activeArtistId);
     if(current){const name=$('#currentArtistName');if(name)name.textContent=current.artist_name;
       const facebookLabel=$('.social-card-facebook h3 + p');if(facebookLabel)facebookLabel.textContent='Page Facebook de '+current.artist_name;
@@ -238,6 +247,47 @@
       nav('brand');
     }catch(error){toast('Création impossible : '+error.message,true);}
     finally{button.disabled=false;}
+  });
+
+  $('#deleteArtistButton')?.addEventListener('click',async()=>{
+    const artist=artists.find(item=>item.id===activeArtistId);
+    if(!artist)return;
+    if(artists.length<=1){toast('Le dernier profil artiste ne peut pas être supprimé.',true);return;}
+    const fallback=artists.find(item=>item.id!==artist.id);
+    if(!fallback){toast('Aucun autre profil disponible pour prendre le relais.',true);return;}
+    const confirmed=confirm('Supprimer définitivement « '+artist.artist_name+' » ?\\n\\nCette suppression effacera son identité, ses campagnes, ses recommandations, ses validations, ses connexions sociales et les métadonnées de ses médias. Les fichiers média associés seront également retirés du stockage. Cette action est irréversible.');
+    if(!confirmed)return;
+    const button=$('#deleteArtistButton');button.disabled=true;
+    let promotedDefault=false;
+    try{
+      const {data:mediaRows,error:mediaError}=await supabase.from('ai_media_library').select('storage_path').eq('artist_id',artist.id).eq('owner_id',user.id);
+      if(mediaError)throw new Error('Impossible de vérifier les médias de cet artiste : '+mediaError.message);
+      if(artist.is_default){
+        const {error:promoteError}=await supabase.from('ai_artists').update({is_default:true}).eq('id',fallback.id).eq('owner_id',user.id);
+        if(promoteError)throw new Error('Impossible de transférer le profil principal : '+promoteError.message);
+        promotedDefault=true;
+      }
+      const {error:deleteError}=await supabase.from('ai_artists').delete().eq('id',artist.id).eq('owner_id',user.id);
+      if(deleteError){
+        if(promotedDefault)await supabase.from('ai_artists').update({is_default:false}).eq('id',fallback.id).eq('owner_id',user.id);
+        throw new Error('Suppression impossible : '+deleteError.message);
+      }
+      const paths=(mediaRows||[]).map(row=>row.storage_path).filter(Boolean);
+      let storageWarning='';
+      if(paths.length){
+        const {error:storageError}=await supabase.storage.from('nuria-private-media').remove(paths);
+        if(storageError)storageWarning=' Les fichiers média ont été détachés du profil mais certains fichiers du stockage n’ont pas pu être nettoyés : '+storageError.message;
+      }
+      assistantDrafts.delete(artist.id);assistantConversations.delete(artist.id);assistantApprovals.delete(artist.id);lastAssistantTasks.delete(artist.id);
+      try{const key=assistantConversationKey(artist.id);if(key)sessionStorage.removeItem(key);}catch{}
+      activeArtistId=null;
+      await loadArtists();
+      $('#assistantTask').value=assistantDrafts.get(activeArtistId)||'';
+      clearAssistantResult();renderAssistantConversation(activeArtistId);renderArtistSwitcher();
+      await reloadArtistWorkspace();
+      toast('Profil « '+artist.artist_name+' » supprimé. '+(storageWarning?'Vérifie le nettoyage des fichiers média.':'') ,!!storageWarning);
+    }catch(error){toast(error.message||'La suppression du profil a échoué.',true);}
+    finally{renderArtistSwitcher();}
   });
 
   let parentApprovals=[];
@@ -509,6 +559,11 @@
   });
   $('#authSwitch').onclick=()=>{signupMode=!signupMode;authMode();};
   $('#signOut').onclick=async()=>{await supabase.auth.signOut();user=null;hide($('#appShell'));show($('#authScreen'));};
+  const accountMenuButton=$('#accountMenuButton'),accountMenu=$('#accountMenu');
+  accountMenuButton?.addEventListener('click',event=>{event.stopPropagation();const opening=accountMenu.classList.contains('hidden');accountMenu.classList.toggle('hidden',!opening);accountMenuButton.setAttribute('aria-expanded',String(opening));});
+  document.addEventListener('click',event=>{if(accountMenu&&!accountMenu.classList.contains('hidden')&&!accountMenu.contains(event.target)&&!accountMenuButton?.contains(event.target)){hide(accountMenu);accountMenuButton?.setAttribute('aria-expanded','false');}});
+  document.addEventListener('keydown',event=>{if(event.key==='Escape'&&accountMenu&&!accountMenu.classList.contains('hidden')){hide(accountMenu);accountMenuButton?.setAttribute('aria-expanded','false');}});
+  $('#accountMenuSignOut')?.addEventListener('click',()=>$('#signOut')?.click());
   $$('.nav-item[data-view]').forEach(b=>b.onclick=()=>nav(b.dataset.view));$$('[data-goto]').forEach(b=>b.onclick=()=>nav(b.dataset.goto));
   $('#mobileMenu').onclick=()=>$('#sidebar').classList.toggle('open');
   $('#backToDashboard').onclick=()=>nav('overview');
