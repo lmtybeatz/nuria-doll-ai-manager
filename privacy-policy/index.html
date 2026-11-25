@@ -26,11 +26,11 @@ main{width:min(900px,calc(100% - 32px));margin:48px auto;padding:clamp(22px,5vw,
 <li><strong>Espaces artistes :</strong> noms d'artistes, biographies, genres, langues, publics visés, préférences, consignes et paramètres de travail.</li>
 <li><strong>Contenus :</strong> fichiers audio, images, vidéos et documents ajoutés à la bibliothèque privée, ainsi que leurs métadonnées.</li>
 <li><strong>Marketing et recherche :</strong> briefs, demandes adressées à l'assistant, textes générés, noms et éléments d'identification d'artistes, liens publics fournis, requêtes et résultats de recherche.</li>
-<li><strong>Connexions facultatives :</strong> si vous activez YouTube, des jetons OAuth et les autorisations en lecture seule nécessaires aux données de chaîne et statistiques YouTube.</li>
+<li><strong>Connexions facultatives :</strong> jetons OAuth chiffrés et autorisations accordées pour YouTube, Facebook, Instagram et TikTok, selon les plateformes effectivement connectées.</li>
 <li><strong>Données techniques :</strong> journaux de sécurité et informations de diagnostic nécessaires au fonctionnement et à la protection du service.</li>
 </ul>
 <h2>3. Finalités</h2>
-<p>Les données servent à créer et sécuriser votre compte, gérer plusieurs espaces artistes, enregistrer les profils et campagnes, conserver les fichiers, répondre aux demandes de l'assistant, effectuer les recherches demandées, afficher des statistiques YouTube lorsque cette connexion est activée, prévenir les abus et assurer le support.</p>
+<p>Les données servent à créer et sécuriser votre compte, gérer plusieurs espaces artistes, enregistrer les profils et campagnes, conserver les fichiers, répondre aux demandes de l'assistant, effectuer les recherches demandées, afficher les profils, publications et statistiques des réseaux sociaux lorsque leurs connexions et autorisations sont activées, prévenir les abus et assurer le support.</p>
 <h2>4. Stockage et prestataires</h2>
 <ul>
 <li><strong>Supabase :</strong> authentification, base de données et stockage privé des fichiers.</li>
@@ -38,13 +38,15 @@ main{width:min(900px,calc(100% - 32px));margin:48px auto;padding:clamp(22px,5vw,
 <li><strong>Groq :</strong> traitement de certaines demandes de l'assistant et transcription des notes vocales envoyées volontairement.</li>
 <li><strong>Cloudflare Workers AI :</strong> fournisseur de secours possible pour certaines réponses de l'assistant.</li>
 <li><strong>Tavily :</strong> moteur de recherche utilisé lorsque vous lancez une recherche documentaire ; les requêtes peuvent contenir les informations d'identification que vous avez saisies.</li>
-<li><strong>Google / YouTube :</strong> uniquement lorsque vous choisissez de connecter une chaîne YouTube, pour l'autorisation et la lecture des données permises par les scopes demandés.</li>
+<li><strong>Google / YouTube :</strong> autorisation et lecture des données permises par les scopes demandés, lorsque vous connectez une chaîne.</li>
+<li><strong>Meta (Facebook et Instagram) :</strong> autorisation et consultation des Pages, comptes professionnels et statistiques accessibles selon les permissions accordées.</li>
+<li><strong>TikTok :</strong> autorisation, informations de profil, statistiques de compte et métadonnées des vidéos publiques accessibles selon les scopes approuvés et accordés.</li>
 </ul>
 <p>Ces prestataires traitent les données nécessaires à leurs services selon leurs propres conditions et politiques. Certains traitements peuvent avoir lieu hors du Bénin. Les fichiers de la bibliothèque sont placés dans un espace de stockage privé ; ils ne sont pas destinés à être publiquement accessibles.</p>
 <h2>5. Assistant IA et notes vocales</h2>
 <p>Les demandes adressées à l'assistant sont transmises au fournisseur IA utilisé pour produire une réponse. Les notes vocales sont envoyées à Groq pour transcription ; l'application ne conserve pas le fichier audio de transcription dans sa base de données. Évitez d'inclure des mots de passe, clés API, informations financières ou données personnelles sensibles dans vos demandes et fichiers.</p>
 <h2>6. Connexions aux réseaux sociaux</h2>
-<p>La connexion YouTube est facultative et utilise des autorisations de lecture seule pour les informations de chaîne et les statistiques. Les jetons YouTube enregistrés par le service sont chiffrés côté serveur. À la date de mise à jour de cette politique, la connexion Facebook et Instagram n'est pas activée dans l'application : aucune donnée de ces comptes n'est collectée par une liaison Meta opérationnelle.</p>
+<p>Les connexions YouTube, Facebook, Instagram et TikTok sont facultatives. Selon la plateforme et les autorisations accordées, le service peut traiter les informations de profil, les métadonnées de publications ou de vidéos et les statistiques accessibles. Les jetons d’accès et de renouvellement sont conservés chiffrés côté serveur, jamais dans le navigateur. Les données accessibles dépendent des scopes approuvés par chaque plateforme et du consentement donné par le titulaire du compte. AI Music Manager ne demande que les permissions nécessaires aux fonctions activées. Les connexions peuvent être révoquées depuis les paramètres de la plateforme concernée ; la révocation n’efface pas à elle seule les données déjà conservées dans AI Music Manager.</p>
 <h2>7. Cookies et stockage local</h2>
 <p>L'application utilise les mécanismes nécessaires à la session d'authentification, au fonctionnement de l'application web installable (PWA) et à la mémorisation de certains éléments de l'espace de travail dans le navigateur. Les conversations de l'assistant peuvent être conservées localement dans le stockage du navigateur. Le service ne déclare pas utiliser ces mécanismes à des fins de publicité comportementale.</p>
 <h2>8. Durée de conservation et sécurité</h2>
