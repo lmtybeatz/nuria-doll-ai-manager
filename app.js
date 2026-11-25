@@ -1497,7 +1497,6 @@
     }catch(e){if(artistId===activeArtistId)status.textContent=e.message;}
     finally{recommendationBusy.delete(artistId+':tiktok');if(artistId===activeArtistId){button.disabled=false;button.textContent='Générer mes recommandations';}}
   }
-  let latestTikTokAnalytics=null;
   $('#connectTikTok')?.addEventListener('click',async()=>{
     try{const artistId=activeArtistId;if(!artistId)throw new Error('Sélectionne un artiste.');const {data:{session}}=await supabase.auth.getSession();if(!session?.access_token)throw new Error('Reconnecte-toi.');
       const r=await fetch('/api/tiktok/start',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+session.access_token},body:JSON.stringify({artist_id:artistId})});
