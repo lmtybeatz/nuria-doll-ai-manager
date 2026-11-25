@@ -1347,8 +1347,9 @@
       $('#igInteractions').textContent=ig.interactions==null?'—':ytNumber(ig.interactions);
       $('#igViews').textContent=ig.views==null?'—':ytNumber(ig.views);
       const synced=d.synced_at?new Date(d.synced_at).toLocaleString('fr-FR'):'';
-      if(statusFacebook)statusFacebook.textContent='Données Meta · période glissante de 28 jours · actualisé '+synced;
-      if(statusInstagram)statusInstagram.textContent='Données Meta · période glissante de 28 jours · actualisé '+synced;
+      const warnings=Array.isArray(d.warnings)?d.warnings:[];
+      if(statusFacebook)statusFacebook.textContent='Données Meta · période glissante de 28 jours · actualisé '+synced+(warnings.filter(x=>x.startsWith('Facebook :')).length?' · '+warnings.filter(x=>x.startsWith('Facebook :')).join(' '):'');
+      if(statusInstagram)statusInstagram.textContent='Données Meta · période glissante de 28 jours · actualisé '+synced+(warnings.filter(x=>x.startsWith('Instagram :')).length?' · '+warnings.filter(x=>x.startsWith('Instagram :')).join(' '):'');
     }catch(e){
       if(artistId===activeArtistId){
         if(statusFacebook)statusFacebook.textContent='Statistiques Facebook indisponibles : '+e.message;
@@ -1383,9 +1384,8 @@
       if(fbDetailTag){fbDetailTag.textContent=facebookConnected?'Connecté':'À connecter';fbDetailTag.className='tag '+(facebookConnected?'green':'amber');}
       if(igDetailTag){igDetailTag.textContent=instagramConnected?'Connecté':'À connecter';igDetailTag.className='tag '+(instagramConnected?'green':'amber');}
       const fbInsightStatus=$('#facebookInsightsStatus'),igInsightStatus=$('#instagramInsightsStatus');
-      const hasPageInsights=(d.scopes||[]).includes('read_insights'),hasInstagramInsights=(d.scopes||[]).includes('instagram_manage_insights');
-      if(fbInsightStatus)fbInsightStatus.textContent=facebookConnected?(hasPageInsights?'Accès aux insights autorisé.':'Connexion active. Pour afficher les chiffres détaillés, ajoute « read_insights » à la configuration Meta et reconnecte le compte.'):'Connecte une Page Facebook pour consulter ses statistiques.';
-      if(igInsightStatus)igInsightStatus.textContent=instagramConnected?(hasInstagramInsights?'Accès aux insights autorisé.':'Connexion active. Pour afficher les chiffres détaillés, ajoute « instagram_manage_insights » à la configuration Meta et reconnecte le compte.'):'Connecte un compte Instagram professionnel pour consulter ses statistiques.';
+      if(fbInsightStatus)fbInsightStatus.textContent=facebookConnected?'Vérification des autorisations et chargement des statistiques Facebook…':'Connecte une Page Facebook pour consulter ses statistiques.';
+      if(igInsightStatus)igInsightStatus.textContent=instagramConnected?'Vérification des autorisations et chargement des statistiques Instagram…':'Connecte un compte Instagram professionnel pour consulter ses statistiques.';
       const igSummary=$('#instagramAccountSummary');if(igSummary)igSummary.textContent=instagramConnected?'Compte(s) Instagram professionnel(s) relié(s) à « '+activeArtistName()+' ».':'Aucun compte Instagram professionnel détecté pour cet artiste.';
       if(connected){void loadMetaInsights(artistId);}
       if(connected&&accounts){
