@@ -529,69 +529,107 @@
     settings=data;const f=$('#settingsForm');f.reset();
     if(data){['primary_goal','planning_horizon','autonomy_mode','monthly_budget_usd'].forEach(k=>{if(f.elements[k]&&data[k]!==null)f.elements[k].value=data[k];});}
   }
+  function researchSectionLabel(kind){
+    return ({discography:"Discographie et sorties",biography:"Biographie et identité",debut:"Premières sorties et parcours",presence:"Présence officielle en ligne",general:"Autres informations"})[kind]||"Sources complémentaires";
+  }
+  function safeResearchUrl(value){
+    try{const parsed=new URL(value);return parsed.protocol==="https:"||parsed.protocol==="http:"?parsed.href:"";}catch{return "";}
+  }
   function renderArtistResearchHistory(rows=[]){
-    const list=$('#artistResearchHistory');if(!list)return;
+    const list=$("#artistResearchHistory");if(!list)return;
     list.replaceChildren();
-    if(!rows.length){const empty=document.createElement('div');empty.className='empty-state';empty.textContent='Aucun dossier de recherche enregistré pour cet artiste.';list.append(empty);return;}
+    if(!rows.length){const empty=document.createElement("div");empty.className="empty-state";empty.textContent="Aucun dossier de recherche enregistré pour cet artiste.";list.append(empty);return;}
     rows.forEach(row=>{
-      const card=document.createElement('article');card.className='artist-research-card';
-      const head=document.createElement('div');head.className='artist-research-card-head';
-      const identity=document.createElement('div');
-      const title=document.createElement('strong');title.textContent=row.subject_name||'Recherche artiste';
-      const meta=document.createElement('small');meta.textContent=(row.source_count||0)+' source(s) · '+(row.researched_at?new Date(row.researched_at).toLocaleString('fr-FR'):'date inconnue')+' · '+(row.status==='partial'?'partielle':'terminée');
+      const card=document.createElement("article");card.className="artist-research-card";
+      const head=document.createElement("div");head.className="artist-research-card-head";
+      const identity=document.createElement("div");identity.className="artist-research-card-identity";
+      const title=document.createElement("strong");title.textContent=row.subject_name||"Recherche artiste";
+      const meta=document.createElement("small");meta.textContent=(row.source_count||0)+" source(s) · "+(row.researched_at?new Date(row.researched_at).toLocaleString("fr-FR"):"date inconnue")+" · "+(row.status==="partial"?"recherche partielle":"recherche terminée");
       identity.append(title,meta);
-      const toggle=document.createElement('button');toggle.type='button';toggle.className='btn secondary';toggle.textContent='Voir les sources';
-      const sources=document.createElement('div');sources.className='artist-research-sources hidden';
-      (Array.isArray(row.sources)?row.sources:[]).forEach(source=>{
-        let safeUrl='';try{const parsed=new URL(source.url);if(parsed.protocol==='https:'||parsed.protocol==='http:')safeUrl=parsed.href;}catch{}
-        if(!safeUrl)return;
-        const item=document.createElement('article');item.className='artist-research-source';
-        const link=document.createElement('a');link.href=safeUrl;link.target='_blank';link.rel='noopener noreferrer';link.textContent=source.title||safeUrl;
-        const category=document.createElement('small');category.textContent=source.kind||'Source';
-        const snippet=document.createElement('p');snippet.textContent=source.snippet||'Aucun extrait disponible.';
-        item.append(category,link,snippet);sources.append(item);
+      const toggle=document.createElement("button");toggle.type="button";toggle.className="btn secondary";toggle.textContent="Ouvrir le dossier";
+      const content=document.createElement("div");content.className="artist-research-report hidden";
+      const context=row.queries&&row.queries.identity_context?row.queries.identity_context:null;
+      if(context){
+        const identityCard=document.createElement("section");identityCard.className="research-context-card";
+        const identityTitle=document.createElement("h4");identityTitle.textContent="Repères d’identification";
+        const identityText=document.createElement("p");
+        identityText.textContent=[context.legal_name,context.country,context.city,context.genre,context.affiliation].filter(Boolean).join(" · ")||"Aucune précision complémentaire";
+        identityCard.append(identityTitle,identityText);
+        const suppliedLinks=[["YouTube",context.youtube],["Instagram",context.instagram],["Facebook",context.facebook],["TikTok",context.tiktok],["Site officiel",context.website]].filter(item=>safeResearchUrl(item[1]));
+        if(suppliedLinks.length){const links=document.createElement("div");links.className="research-context-links";suppliedLinks.forEach(([label,url])=>{const a=document.createElement("a");a.href=safeResearchUrl(url);a.target="_blank";a.rel="noopener noreferrer";a.textContent=label;links.append(a);});identityCard.append(links);}
+        if(context.notes){const note=document.createElement("p");note.textContent=context.notes;identityCard.append(note);}
+        content.append(identityCard);
+      }
+      const grouped={};(Array.isArray(row.sources)?row.sources:[]).forEach(source=>{const key=source.kind||"general";(grouped[key]||(grouped[key]=[])).push(source);});
+      const kinds=Object.keys(grouped);
+      if(!kinds.length){const empty=document.createElement("p");empty.className="muted";empty.textContent="Aucune source exploitable dans ce dossier.";content.append(empty);}
+      kinds.forEach(kind=>{
+        const section=document.createElement("section");section.className="research-result-section";
+        const heading=document.createElement("h4");heading.textContent=researchSectionLabel(kind)+" · "+grouped[kind].length;
+        const grid=document.createElement("div");grid.className="research-source-grid";
+        grouped[kind].forEach(source=>{
+          const url=safeResearchUrl(source.url);if(!url)return;
+          const item=document.createElement("article");item.className="artist-research-source";
+          const category=document.createElement("small");category.textContent=source.domain||new URL(url).hostname;
+          const link=document.createElement("a");link.href=url;link.target="_blank";link.rel="noopener noreferrer";link.textContent=source.title||url;
+          const snippet=document.createElement("p");snippet.textContent=source.snippet||"Aucun résumé disponible.";
+          const foot=document.createElement("div");foot.className="research-source-foot";
+          const score=document.createElement("span");score.textContent=Number.isFinite(Number(source.score))?"Pertinence indicative : "+Math.round(Number(source.score)*100)+"%":"Source à vérifier";
+          const open=document.createElement("a");open.href=url;open.target="_blank";open.rel="noopener noreferrer";open.textContent="Consulter la source ↗";
+          foot.append(score,open);item.append(category,link,snippet,foot);grid.append(item);
+        });
+        section.append(heading,grid);content.append(section);
       });
-      toggle.addEventListener('click',()=>{sources.classList.toggle('hidden');toggle.textContent=sources.classList.contains('hidden')?'Voir les sources':'Masquer les sources';});
-      head.append(identity,toggle);card.append(head,sources);list.append(card);
+      const disclaimer=document.createElement("p");disclaimer.className="research-disclaimer";disclaimer.textContent="À vérifier : les résultats web sont des pistes documentaires. Une source trouvée ne prouve pas à elle seule que l’information concerne cet artiste.";
+      content.append(disclaimer);
+      toggle.addEventListener("click",()=>{content.classList.toggle("hidden");toggle.textContent=content.classList.contains("hidden")?"Ouvrir le dossier":"Réduire le dossier";});
+      head.append(identity,toggle);card.append(head,content);list.append(card);
     });
   }
   async function loadArtistResearch(version=workspaceLoadVersion){
-    const artistId=activeArtistId,status=$('#artistResearchStatus');
+    const artistId=activeArtistId,status=$("#artistResearchStatus");
     if(!artistId||!status)return;
-    status.textContent='Chargement des dossiers de recherche…';
+    status.textContent="Chargement des dossiers de recherche…";
     try{
       const {data:{session}}=await supabase.auth.getSession();
-      if(!session?.access_token)throw new Error('Session expirée. Reconnecte-toi.');
-      const response=await fetch('/api/research?artist_id='+encodeURIComponent(artistId),{headers:{authorization:'Bearer '+session.access_token}});
+      if(!session?.access_token)throw new Error("Session expirée. Reconnecte-toi.");
+      const response=await fetch("/api/research?artist_id="+encodeURIComponent(artistId),{headers:{authorization:"Bearer "+session.access_token}});
       const payload=await response.json().catch(()=>({}));
-      if(!response.ok)throw new Error(payload.error||'Historique de recherche indisponible.');
+      if(!response.ok)throw new Error(payload.error||"Historique de recherche indisponible.");
       if(version!==workspaceLoadVersion||artistId!==activeArtistId)return;
       const rows=Array.isArray(payload.research)?payload.research:[];
       renderArtistResearchHistory(rows);
-      status.textContent=rows.length?rows.length+' dossier(s) conservé(s) pour '+activeArtistName()+'.':'Aucun dossier de recherche enregistré pour cet artiste.';
+      status.textContent=rows.length?rows.length+" dossier(s) conservé(s) pour "+activeArtistName()+".":"Aucun dossier de recherche enregistré pour cet artiste.";
     }catch(error){
       if(version!==workspaceLoadVersion||artistId!==activeArtistId)return;
-      status.textContent='Historique indisponible : '+error.message+' La migration de recherche peut être nécessaire.';
+      status.textContent="Historique indisponible : "+error.message;
       renderArtistResearchHistory([]);
     }
   }
-  $('#artistResearchForm')?.addEventListener('submit',async event=>{
+  $("#artistResearchForm")?.addEventListener("submit",async event=>{
     event.preventDefault();
-    const artistId=activeArtistId,name=$('#researchArtistName').value.trim(),button=$('#artistResearchSubmit'),status=$('#artistResearchStatus');
-    if(!artistId||!name){status.textContent='Sélectionne un artiste et saisis un nom.';return;}
-    button.disabled=true;button.textContent='Recherche en cours…';status.textContent='Recherche de la discographie, de la biographie publique et des premières sorties…';
+    const artistId=activeArtistId,name=$("#researchArtistName").value.trim(),button=$("#artistResearchSubmit"),status=$("#artistResearchStatus");
+    if(!artistId||!name){status.textContent="Sélectionne un artiste et saisis son nom exact.";return;}
+    const read=id=>($("#"+id)?.value||"").trim();
+    const identity_context={
+      legal_name:read("researchLegalName"),country:read("researchCountry"),city:read("researchCity"),genre:read("researchGenre"),
+      affiliation:read("researchAffiliation"),youtube:read("researchYoutube"),instagram:read("researchInstagram"),
+      facebook:read("researchFacebook"),tiktok:read("researchTiktok"),website:read("researchWebsite"),notes:read("researchNotes")
+    };
+    button.disabled=true;button.textContent="Recherche en cours…";
+    status.textContent="Recherche ciblée : vérification de l’identité, de la discographie et des profils officiels…";
     try{
       const {data:{session}}=await supabase.auth.getSession();
-      if(!session?.access_token)throw new Error('Session expirée. Reconnecte-toi.');
-      const response=await fetch('/api/research',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+session.access_token},body:JSON.stringify({artist_id:artistId,artist_name:name})});
+      if(!session?.access_token)throw new Error("Session expirée. Reconnecte-toi.");
+      const response=await fetch("/api/research",{method:"POST",headers:{"content-type":"application/json",authorization:"Bearer "+session.access_token},body:JSON.stringify({artist_id:artistId,artist_name:name,identity_context})});
       const payload=await response.json().catch(()=>({}));
-      if(!response.ok)throw new Error([payload.error||'Recherche impossible.',Array.isArray(payload.missing)?'Configuration requise : '+payload.missing.join(', '):'',payload.diagnostic||''].filter(Boolean).join(' — '));
+      if(!response.ok)throw new Error([payload.error||"Recherche impossible.",Array.isArray(payload.missing)?"Configuration requise : "+payload.missing.join(", "):"",payload.diagnostic||""].filter(Boolean).join(" — "));
       if(artistId!==activeArtistId)return;
-      status.textContent='Recherche '+(payload.status==='partial'?'partielle':'terminée')+' : '+payload.source_count+' source(s) trouvée(s). Vérifie les informations dans les sources originales.';
+      status.textContent="Recherche "+(payload.status==="partial"?"partielle":"terminée")+" : "+payload.source_count+" source(s). Ouvre le dossier et vérifie l’identité des sources.";
       await loadArtistResearch();
-      toast('Dossier de recherche enregistré pour '+name+'.');
+      toast("Dossier de recherche enregistré pour "+name+".");
     }catch(error){if(artistId===activeArtistId){status.textContent=error.message;toast(error.message,true);}}
-    finally{button.disabled=false;button.textContent='Rechercher sur le web';}
+    finally{button.disabled=false;button.textContent="Rechercher sur le web →";}
   });
   async function loadMedia(version=workspaceLoadVersion){
     const artistId=activeArtistId;
