@@ -746,13 +746,11 @@
     if(cursor<text.length)parent.append(document.createTextNode(text.slice(cursor)));
   }
   function renderAssistantMarkdown(container,markdown){
-    container.replaceChildren();const lines=String(markdown||'').replace(/\r/g,'').split('
-');let i=0;
+    container.replaceChildren();const lines=String(markdown||'').replace(/\r/g,'').split('\n');let i=0;
     const isBlock=line=>/^\s*(#{1,3}\s|[-*•]\s+|\d+\.\s+|>\s?|\`\`\`|\|.*\|\s*$)/.test(line);
     while(i<lines.length){
       const line=lines[i].trim();if(!line){i++;continue;}
-      if(line.startsWith('```')){const code=[];i++;while(i<lines.length&&!lines[i].trim().startsWith('```'))code.push(lines[i++]);i++;const pre=document.createElement('pre'),block=document.createElement('code');block.textContent=code.join('
-');pre.append(block);container.append(pre);continue;}
+      if(line.startsWith('```')){const code=[];i++;while(i<lines.length&&!lines[i].trim().startsWith('```'))code.push(lines[i++]);i++;const pre=document.createElement('pre'),block=document.createElement('code');block.textContent=code.join('\n');pre.append(block);container.append(pre);continue;}
       const heading=line.match(/^(#{1,3})\s+(.+)$/);if(heading){const node=document.createElement('h'+Math.min(4,heading[1].length+1));appendAssistantInline(node,heading[2]);container.append(node);i++;continue;}
       if(/^[-*_]{3,}$/.test(line)){container.append(document.createElement('hr'));i++;continue;}
       if(/^\|.*\|$/.test(line)&&i+1<lines.length&&/^\s*\|?\s*:?-{2,}/.test(lines[i+1])){const rows=[line];i+=2;while(i<lines.length&&/^\|.*\|$/.test(lines[i].trim()))rows.push(lines[i++].trim());const table=document.createElement('table');rows.forEach((row,index)=>{const tr=document.createElement('tr');row.replace(/^\||\|$/g,'').split('|').forEach(cell=>{const td=document.createElement(index===0?'th':'td');appendAssistantInline(td,cell.trim());tr.append(td);});table.append(tr);});container.append(table);continue;}
@@ -788,9 +786,7 @@
   $('#assistantTask').addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();$('#assistantForm').requestSubmit();}});
   async function transcribeAssistantAudio(blob,recordingArtistId){
     const button=$('#assistantRecordButton'),recordStatus=$('#assistantRecordingStatus');button.disabled=true;recordStatus.textContent='Transcription…';$('#assistantStatus').textContent='Transcription de la note vocale…';
-    try{const {data:{session}}=await supabase.auth.getSession();if(!session?.access_token)throw new Error('Session expirée. Reconnecte-toi.');const form=new FormData();form.append('file',blob,'note-vocale.webm');const response=await fetch('/api/transcribe',{method:'POST',headers:{authorization:'Bearer '+session.access_token},body:form});const payload=await response.json().catch(()=>({}));if(!response.ok||!payload.text)throw new Error(payload.error||'Transcription impossible.');if(recordingArtistId&&recordingArtistId!==activeArtistId){const previous=assistantDrafts.get(recordingArtistId)||'';assistantDrafts.set(recordingArtistId,[previous,payload.text.trim()].filter(Boolean).join('
-'));toast('La transcription a été ajoutée au brouillon de l’artiste d’origine.');return;}const field=$('#assistantTask');field.value+=(field.value.trim()?'
-':'')+payload.text.trim();updateAssistantDraft();field.focus();$('#assistantStatus').textContent='Texte transcrit. Tu peux le relire et le modifier avant envoi.';recordStatus.textContent='Transcription ajoutée';}catch(error){recordStatus.textContent='';toast(error.message||'Transcription impossible.',true);}finally{button.disabled=false;}
+    try{const {data:{session}}=await supabase.auth.getSession();if(!session?.access_token)throw new Error('Session expirée. Reconnecte-toi.');const form=new FormData();form.append('file',blob,'note-vocale.webm');const response=await fetch('/api/transcribe',{method:'POST',headers:{authorization:'Bearer '+session.access_token},body:form});const payload=await response.json().catch(()=>({}));if(!response.ok||!payload.text)throw new Error(payload.error||'Transcription impossible.');if(recordingArtistId&&recordingArtistId!==activeArtistId){const previous=assistantDrafts.get(recordingArtistId)||'';assistantDrafts.set(recordingArtistId,[previous,payload.text.trim()].filter(Boolean).join('\n'));toast('La transcription a été ajoutée au brouillon de l’artiste d’origine.');return;}const field=$('#assistantTask');field.value+=(field.value.trim()?'\n':'')+payload.text.trim();updateAssistantDraft();field.focus();$('#assistantStatus').textContent='Texte transcrit. Tu peux le relire et le modifier avant envoi.';recordStatus.textContent='Transcription ajoutée';}catch(error){recordStatus.textContent='';toast(error.message||'Transcription impossible.',true);}finally{button.disabled=false;}
   }
   $('#assistantRecordButton').addEventListener('click',async()=>{
     const button=$('#assistantRecordButton'),recordStatus=$('#assistantRecordingStatus');
@@ -921,8 +917,7 @@
       "7. Termine par une liste de préparation, les risques/points à confirmer et les 5 prochaines actions prioritaires.",
       ...(isNuriaDollArtist(artistName)?["CADRE SPÉCIFIQUE NURIA DOLL : projet musical porté par une enfant. Le parent est l'interlocuteur unique. Aucune sollicitation privée de l'enfant, aucune information personnelle, localisation, école ou emploi du temps. Toutes les prises de contact, dépenses et publications restent à valider et exécuter par le parent."]:[]),
       "Signale clairement les informations manquantes au lieu de les inventer."
-    ].join("
-");
+    ].join("\n");
     const submit=$('#strategySubmit'),result=$('#strategyResult'),status=$('#strategyStatus'),answer=$('#strategyAnswer');
     submit.disabled=true;submit.textContent='Analyse et préparation…';status.textContent='L’assistant prépare le plan stratégique…';show(result);answer.textContent='';
     try{
@@ -1005,9 +1000,7 @@
   }
   function normalizeRecommendationText(value){
     const namedEntities={amp:'&',lt:'<',gt:'>',quot:'"',apos:"'",nbsp:' ',ndash:'–',mdash:'—',rsquo:'’',lsquo:'‘',rdquo:'”',ldquo:'“',bull:'•',middot:'·',hellip:'…'};
-    return String(value||'').replace(/\r
-?/g,'
-')
+    return String(value||'').replace(/\r\n?/g,'\n')
       .replace(/&#(?:x([0-9a-f]{1,6})|(\d{1,7}));?/gi,(match,hex,decimal)=>{
         const code=hex?parseInt(hex,16):Number(decimal);
         return Number.isInteger(code)&&code>=0&&code<=0x10ffff&&!(code>=0xd800&&code<=0xdfff)?String.fromCodePoint(code):match;
@@ -1019,8 +1012,7 @@
   function renderRecommendationMarkdown(markdown,root){
     root.replaceChildren();
     const normalized=normalizeRecommendationText(markdown);
-    const lines=normalized.split('
-');
+    const lines=normalized.split('\n');
     let i=0;
     const isTableLine=line=>/^\s*\|.*\|\s*$/.test(line);
     const isDivider=line=>/^\s*(---+|\*\s*\*\s*\*|___+)\s*$/.test(line);
@@ -1174,77 +1166,37 @@
           url:v.url
         }))
       };
-      const task='Tu es analyste marketing YouTube senior pour '+artistName+'. Analyse les données de la chaîne associée à cet artiste et produis un rapport utile à son gestionnaire. Appuie-toi sur le profil actif et ses consignes de communication.
-
-'+
-        'RÈGLES DE FIABILITÉ OBLIGATOIRES :
-'+
-        '1) Utilise uniquement les chiffres du bloc DONNÉES. Ne crée aucun chiffre, date, pic, tendance, cause, source de trafic, taux de clic, rétention, commentaire, partage, donnée démographique ou résultat non fourni.
-'+
-        '2) Le bloc SNAPSHOT contient des contrôles de qualité. Si missing_daily_dates n’est pas vide, ne traite pas une journée absente comme zéro : indique que la série quotidienne est incomplète. Le meilleur jour est seulement le meilleur parmi les lignes reçues. Une comparaison sur 7 jours n’est valable que si last_7_days_views et previous_7_days_views sont tous deux des nombres ; sinon indique « comparaison indisponible (données quotidiennes incomplètes ou période insuffisante) ». N’utilise jamais les 7 dernières lignes comme si elles représentaient forcément 7 jours calendaires.
-'+
-        '3) Vérifie daily_totals_match et daily_minutes_match. En cas de false, signale l’écart et privilégie totals pour les totaux de chaîne ; ne tente pas de le corriger en inventant ou en additionnant les vidéos du classement. Les totaux de la chaîne sont la référence.
-'+
-        '4) top_videos_are_top_five_only=true signifie que la liste est un classement partiel, pas toutes les vidéos. Ne compare jamais la somme des vidéos du top 5 au total de la chaîne comme si les périmètres étaient identiques. Les valeurs minutes_watched du classement peuvent être arrondies à l’affichage : ne les utilise pas pour contredire les totaux de chaîne.
-'+
-        '5) Pour chaque vidéo, average_view_seconds est la métrique native averageViewDuration renvoyée par YouTube Analytics : utilise-la en priorité et indique qu’elle vient de YouTube. calculated_seconds_per_view est un contrôle arithmétique dérivé de minutes_watched × 60 / views ; ne l’utilise qu’en contrôle secondaire et signale tout écart notable sans déclarer automatiquement l’une des valeurs fausse. Ces durées moyennes ne sont pas un taux de rétention ni un pourcentage de vidéo regardée. Ne compare pas des vidéos sans connaître leur durée exacte.
-'+
-        '6) Distingue explicitement « FAITS MESURÉS », « INTERPRÉTATIONS À TESTER » et « DONNÉES MANQUANTES ». Si une explication n’est pas prouvée, formule-la comme une question ou hypothèse, jamais comme un fait. Signale les petits volumes et évite les conclusions définitives. N’affirme pas que la chaîne est « très faible », « virale » ou « en croissance durable » sur un échantillon aussi réduit. Une hausse de vues ou un pic journalier ne prouve jamais une origine externe, une campagne ou une cause précise.
-'+
-        '7) Ne déduis jamais un pourcentage de vues, une part de 100 %, un nombre total de vidéos ou une attribution d’abonnés à une vidéo si le dénominateur ou la métrique correspondante ne sont pas explicitement fournis. Une liste top vidéos ne prouve pas à elle seule qu’elle contient toutes les vidéos. Si tu calcules un pourcentage, refais la division et vérifie le résultat avant de l’écrire (exemple : 24/64 = 37,5 %, et non 40 %).
-'+
-        '8) Ne qualifie pas une vidéo de courte ou longue sans connaître sa durée exacte. Ne déduis pas que sa durée explique son average_view_seconds. Ne compare pas ces durées comme un taux de rétention. Pour calculated_seconds_per_view, utilise uniquement les minutes_watched et views de la même vidéo (minutes_watched × 60 / views) ; présente le résultat comme un calcul dérivé et approximatif si les minutes sont arrondies. Ne divise jamais les minutes totales de la chaîne par les vues d’une vidéo. Ne prétends pas que l’écart avec average_view_seconds prouve une différence de comptage ou une anomalie.
-'+
-        '9) Ne crée aucune cible chiffrée arbitraire (ex. 15 vues, 45 secondes, +2 abonnés) : propose plutôt de mesurer l’évolution par rapport à une période comparable, ou indique clairement qu’un objectif doit être fixé par le gestionnaire.
-'+
-        '10) Pour tout calcul dérivé (moyenne, ratio, pourcentage), vérifie l’opération et affiche le calcul ou sa base. Arrondis clairement ; si les données d’entrée sont arrondies ou de périmètres différents, présente le résultat comme approximatif ou ne le calcule pas.
-'+
+      const task='Tu es analyste marketing YouTube senior pour '+artistName+'. Analyse les données de la chaîne associée à cet artiste et produis un rapport utile à son gestionnaire. Appuie-toi sur le profil actif et ses consignes de communication.\n\n'+
+        'RÈGLES DE FIABILITÉ OBLIGATOIRES :\n'+
+        '1) Utilise uniquement les chiffres du bloc DONNÉES. Ne crée aucun chiffre, date, pic, tendance, cause, source de trafic, taux de clic, rétention, commentaire, partage, donnée démographique ou résultat non fourni.\n'+
+        '2) Le bloc SNAPSHOT contient des contrôles de qualité. Si missing_daily_dates n’est pas vide, ne traite pas une journée absente comme zéro : indique que la série quotidienne est incomplète. Le meilleur jour est seulement le meilleur parmi les lignes reçues. Une comparaison sur 7 jours n’est valable que si last_7_days_views et previous_7_days_views sont tous deux des nombres ; sinon indique « comparaison indisponible (données quotidiennes incomplètes ou période insuffisante) ». N’utilise jamais les 7 dernières lignes comme si elles représentaient forcément 7 jours calendaires.\n'+
+        '3) Vérifie daily_totals_match et daily_minutes_match. En cas de false, signale l’écart et privilégie totals pour les totaux de chaîne ; ne tente pas de le corriger en inventant ou en additionnant les vidéos du classement. Les totaux de la chaîne sont la référence.\n'+
+        '4) top_videos_are_top_five_only=true signifie que la liste est un classement partiel, pas toutes les vidéos. Ne compare jamais la somme des vidéos du top 5 au total de la chaîne comme si les périmètres étaient identiques. Les valeurs minutes_watched du classement peuvent être arrondies à l’affichage : ne les utilise pas pour contredire les totaux de chaîne.\n'+
+        '5) Pour chaque vidéo, average_view_seconds est la métrique native averageViewDuration renvoyée par YouTube Analytics : utilise-la en priorité et indique qu’elle vient de YouTube. calculated_seconds_per_view est un contrôle arithmétique dérivé de minutes_watched × 60 / views ; ne l’utilise qu’en contrôle secondaire et signale tout écart notable sans déclarer automatiquement l’une des valeurs fausse. Ces durées moyennes ne sont pas un taux de rétention ni un pourcentage de vidéo regardée. Ne compare pas des vidéos sans connaître leur durée exacte.\n'+
+        '6) Distingue explicitement « FAITS MESURÉS », « INTERPRÉTATIONS À TESTER » et « DONNÉES MANQUANTES ». Si une explication n’est pas prouvée, formule-la comme une question ou hypothèse, jamais comme un fait. Signale les petits volumes et évite les conclusions définitives. N’affirme pas que la chaîne est « très faible », « virale » ou « en croissance durable » sur un échantillon aussi réduit. Une hausse de vues ou un pic journalier ne prouve jamais une origine externe, une campagne ou une cause précise.\n'+
+        '7) Ne déduis jamais un pourcentage de vues, une part de 100 %, un nombre total de vidéos ou une attribution d’abonnés à une vidéo si le dénominateur ou la métrique correspondante ne sont pas explicitement fournis. Une liste top vidéos ne prouve pas à elle seule qu’elle contient toutes les vidéos. Si tu calcules un pourcentage, refais la division et vérifie le résultat avant de l’écrire (exemple : 24/64 = 37,5 %, et non 40 %).\n'+
+        '8) Ne qualifie pas une vidéo de courte ou longue sans connaître sa durée exacte. Ne déduis pas que sa durée explique son average_view_seconds. Ne compare pas ces durées comme un taux de rétention. Pour calculated_seconds_per_view, utilise uniquement les minutes_watched et views de la même vidéo (minutes_watched × 60 / views) ; présente le résultat comme un calcul dérivé et approximatif si les minutes sont arrondies. Ne divise jamais les minutes totales de la chaîne par les vues d’une vidéo. Ne prétends pas que l’écart avec average_view_seconds prouve une différence de comptage ou une anomalie.\n'+
+        '9) Ne crée aucune cible chiffrée arbitraire (ex. 15 vues, 45 secondes, +2 abonnés) : propose plutôt de mesurer l’évolution par rapport à une période comparable, ou indique clairement qu’un objectif doit être fixé par le gestionnaire.\n'+
+        '10) Pour tout calcul dérivé (moyenne, ratio, pourcentage), vérifie l’opération et affiche le calcul ou sa base. Arrondis clairement ; si les données d’entrée sont arrondies ou de périmètres différents, présente le résultat comme approximatif ou ne le calcule pas.\n'+
 
         (isNuriaDollArtist(artistName)
-          ? 'SÉCURITÉ ET CADRE PARENTAL :
-- NURIA DOLL est une artiste enfant : le parent est l’unique gestionnaire et interlocuteur. Toutes les idées sont des brouillons soumis à validation parentale. Ne publie, ne programme, ne contacte et ne réponds à personne.
-- Ne propose aucun défi, concours ou appel à participation demandant aux enfants d’envoyer, publier ou partager des contenus personnels. N’organise aucune collecte de coordonnées, aucun échange privé avec des mineurs ni aucune rencontre.
-- Protège l’école, le domicile, les habitudes, les horaires, les déplacements, la localisation et toutes les informations personnelles de l’enfant.
-- Privilégie les contenus que le parent peut produire et contrôler ; toute dépense ou action publique doit être validée par le parent.
-
-'
-          : 'CONSIGNES DE GESTION :
-- Prépare des analyses et recommandations adaptées à l’artiste et à son public. Ce rapport ne publie, ne programme et ne contacte personne.
-- Respecte les informations et limites définies dans le profil de cet artiste.
-
-')+
-        'FORMAT ET PROPRETÉ DU RAPPORT :
-'+
-        '- Écris exclusivement en Markdown standard. N’insère aucune balise HTML (<br>, <p>, <div>, etc.) et n’écris aucune entité HTML (&lt;, &#x20;, &#x63;, &nbsp;, etc.). Pour séparer des éléments, utilise de vrais retours à la ligne, des listes Markdown et des tableaux Markdown.
-'+
-        '- N’écris pas de balises HTML échappées ou précédées d’une barre oblique inverse. Les mots doivent être écrits normalement, sans encodage caractère par caractère.
-'+
-        '- N’invente pas l’existence de vidéos, playlists, visuels, campagnes, making-of ou ressources qui ne figurent pas dans les données ou le profil. Présente toute nouvelle création comme une idée facultative à produire par le gestionnaire.
-'+
-        (isNuriaDollArtist(artistName)?'- Pour NURIA DOLL, ne recommande aucun concours, défi participatif, collecte de dessins/photos/vidéos ou contenu personnel d’enfants. Ne demande jamais à l’enfant de se filmer ni de montrer son domicile, son école, ses proches, ses habitudes ou ses coulisses personnelles. Privilégie les contenus réalisés et contrôlés par le parent.
-':'')+
-        'FORMAT DE SORTIE (en français, Markdown lisible) :
-'+
-        'A. SYNTHÈSE EN 3 LIGNES : période exacte, vues, heures regardées, abonnés gagnés/perdus/net.
-'+
-        'B. FAITS MESURÉS : tableau avec indicateur, valeur et ce que la donnée permet réellement de dire.
-'+
-        'C. INTERPRÉTATIONS À TESTER : au maximum 3 hypothèses, chacune accompagnée de la donnée qui pourrait la confirmer.
-'+
-        'D. DONNÉES MANQUANTES : liste précise des métriques nécessaires pour mieux décider (ex. impressions/CTR, rétention, sources de trafic), sans prétendre les connaître.
-'+
-        'E. 3 ACTIONS PRIORITAIRES : pour chacune, objectif, justification fondée sur les données, étapes pratiques, effort (faible/moyen/élevé), indicateur à surveiller. Classe-les par priorité et commence par les actions gratuites et sûres.
-'+
-        'F. 3 IDÉES DE CONTENUS : adaptées au genre, au positionnement et au public cible indiqués dans le profil actif, avec format, durée indicative, angle créatif et appel à l’action approprié.
-'+
-        'G. MINI-PLAN SUR 7 JOURS : tâches réalistes côté gestionnaire, sans obligation de publier chaque jour.
-'+
-        'H. PROCHAINE ÉTAPE : indique les actions que le gestionnaire doit examiner avant toute mise en œuvre.
-'+
-        'Évite les recommandations génériques ou risquées. N’invente pas de playlist déjà créée, de campagne existante ou de partenariat. Si les données sont insuffisantes pour une recommandation, dis-le.
-
-DONNÉES MESURÉES (source : YouTube Analytics) :
-'+JSON.stringify(snapshot);
+          ? 'SÉCURITÉ ET CADRE PARENTAL :\n- NURIA DOLL est une artiste enfant : le parent est l’unique gestionnaire et interlocuteur. Toutes les idées sont des brouillons soumis à validation parentale. Ne publie, ne programme, ne contacte et ne réponds à personne.\n- Ne propose aucun défi, concours ou appel à participation demandant aux enfants d’envoyer, publier ou partager des contenus personnels. N’organise aucune collecte de coordonnées, aucun échange privé avec des mineurs ni aucune rencontre.\n- Protège l’école, le domicile, les habitudes, les horaires, les déplacements, la localisation et toutes les informations personnelles de l’enfant.\n- Privilégie les contenus que le parent peut produire et contrôler ; toute dépense ou action publique doit être validée par le parent.\n\n'
+          : 'CONSIGNES DE GESTION :\n- Prépare des analyses et recommandations adaptées à l’artiste et à son public. Ce rapport ne publie, ne programme et ne contacte personne.\n- Respecte les informations et limites définies dans le profil de cet artiste.\n\n')+
+        'FORMAT ET PROPRETÉ DU RAPPORT :\n'+
+        '- Écris exclusivement en Markdown standard. N’insère aucune balise HTML (<br>, <p>, <div>, etc.) et n’écris aucune entité HTML (&lt;, &#x20;, &#x63;, &nbsp;, etc.). Pour séparer des éléments, utilise de vrais retours à la ligne, des listes Markdown et des tableaux Markdown.\n'+
+        '- N’écris pas de balises HTML échappées ou précédées d’une barre oblique inverse. Les mots doivent être écrits normalement, sans encodage caractère par caractère.\n'+
+        '- N’invente pas l’existence de vidéos, playlists, visuels, campagnes, making-of ou ressources qui ne figurent pas dans les données ou le profil. Présente toute nouvelle création comme une idée facultative à produire par le gestionnaire.\n'+
+        (isNuriaDollArtist(artistName)?'- Pour NURIA DOLL, ne recommande aucun concours, défi participatif, collecte de dessins/photos/vidéos ou contenu personnel d’enfants. Ne demande jamais à l’enfant de se filmer ni de montrer son domicile, son école, ses proches, ses habitudes ou ses coulisses personnelles. Privilégie les contenus réalisés et contrôlés par le parent.\n':'')+
+        'FORMAT DE SORTIE (en français, Markdown lisible) :\n'+
+        'A. SYNTHÈSE EN 3 LIGNES : période exacte, vues, heures regardées, abonnés gagnés/perdus/net.\n'+
+        'B. FAITS MESURÉS : tableau avec indicateur, valeur et ce que la donnée permet réellement de dire.\n'+
+        'C. INTERPRÉTATIONS À TESTER : au maximum 3 hypothèses, chacune accompagnée de la donnée qui pourrait la confirmer.\n'+
+        'D. DONNÉES MANQUANTES : liste précise des métriques nécessaires pour mieux décider (ex. impressions/CTR, rétention, sources de trafic), sans prétendre les connaître.\n'+
+        'E. 3 ACTIONS PRIORITAIRES : pour chacune, objectif, justification fondée sur les données, étapes pratiques, effort (faible/moyen/élevé), indicateur à surveiller. Classe-les par priorité et commence par les actions gratuites et sûres.\n'+
+        'F. 3 IDÉES DE CONTENUS : adaptées au genre, au positionnement et au public cible indiqués dans le profil actif, avec format, durée indicative, angle créatif et appel à l’action approprié.\n'+
+        'G. MINI-PLAN SUR 7 JOURS : tâches réalistes côté gestionnaire, sans obligation de publier chaque jour.\n'+
+        'H. PROCHAINE ÉTAPE : indique les actions que le gestionnaire doit examiner avant toute mise en œuvre.\n'+
+        'Évite les recommandations génériques ou risquées. N’invente pas de playlist déjà créée, de campagne existante ou de partenariat. Si les données sont insuffisantes pour une recommandation, dis-le.\n\nDONNÉES MESURÉES (source : YouTube Analytics) :\n'+JSON.stringify(snapshot);
       const response=await fetch('/api/assistant',{
         method:'POST',
         headers:{'content-type':'application/json','authorization':'Bearer '+sessionData.session.access_token},
@@ -1347,12 +1299,7 @@ DONNÉES MESURÉES (source : YouTube Analytics) :
   }
   function openSocialPlatform(platform){
     const names={facebook:"Facebook",instagram:"Instagram",youtube:"YouTube",tiktok:"TikTok"};
-    const subtitles={
-      facebook:"Page Facebook, communauté et performances de la Page.",
-      instagram:"Compte professionnel, audience, portée et interactions.",
-      youtube:"Chaîne, statistiques vidéo et recommandations marketing.",
-      tiktok:"Espace de suivi · intégration officielle à venir."
-    };
+    const subtitles={facebook:"Page Facebook, communauté et performances de la Page.",instagram:"Compte professionnel, audience, portée et interactions.",youtube:"Chaîne, statistiques vidéo et recommandations marketing.",tiktok:"Espace de suivi · intégration officielle à venir."};
     if(!names[platform])return;
     activeSocialPlatform=platform;
     $('#socialPlatformGrid')?.classList.add('hidden');
@@ -1400,8 +1347,8 @@ DONNÉES MESURÉES (source : YouTube Analytics) :
       if(igDetailTag){igDetailTag.textContent=instagramConnected?'Connecté':'À connecter';igDetailTag.className='tag '+(instagramConnected?'green':'amber');}
       const fbInsightStatus=$('#facebookInsightsStatus'),igInsightStatus=$('#instagramInsightsStatus');
       const hasPageInsights=(d.scopes||[]).includes('read_insights'),hasInstagramInsights=(d.scopes||[]).includes('instagram_manage_insights');
-      if(fbInsightStatus)fbInsightStatus.textContent=facebookConnected?(hasPageInsights?'Accès aux insights autorisé. Les données seront chargées lors de la prochaine synchronisation.':'Connexion active. Pour afficher les chiffres détaillés, ajoute « read_insights » à la configuration Meta et reconnecte le compte.'):'Connecte une Page Facebook pour consulter ses statistiques.';
-      if(igInsightStatus)igInsightStatus.textContent=instagramConnected?(hasInstagramInsights?'Accès aux insights autorisé. Les données seront chargées lors de la prochaine synchronisation.':'Connexion active. Pour afficher les chiffres détaillés, ajoute « instagram_manage_insights » à la configuration Meta et reconnecte le compte.'):'Connecte un compte Instagram professionnel pour consulter ses statistiques.';
+      if(fbInsightStatus)fbInsightStatus.textContent=facebookConnected?(hasPageInsights?'Accès aux insights autorisé.':'Connexion active. Pour afficher les chiffres détaillés, ajoute « read_insights » à la configuration Meta et reconnecte le compte.'):'Connecte une Page Facebook pour consulter ses statistiques.';
+      if(igInsightStatus)igInsightStatus.textContent=instagramConnected?(hasInstagramInsights?'Accès aux insights autorisé.':'Connexion active. Pour afficher les chiffres détaillés, ajoute « instagram_manage_insights » à la configuration Meta et reconnecte le compte.'):'Connecte un compte Instagram professionnel pour consulter ses statistiques.';
       const igSummary=$('#instagramAccountSummary');if(igSummary)igSummary.textContent=instagramConnected?'Compte(s) Instagram professionnel(s) relié(s) à « '+activeArtistName()+' ».':'Aucun compte Instagram professionnel détecté pour cet artiste.';
       if(connected&&accounts){
         pages.forEach(page=>{
@@ -1409,13 +1356,14 @@ DONNÉES MESURÉES (source : YouTube Analytics) :
           const strong=document.createElement('strong');strong.textContent=page.page_name||'Page Facebook';
           const detail=document.createElement('span');detail.textContent=' · Page Facebook';
           item.append(strong,detail);accounts.append(item);
-          const igList=$('#instagramAccountList');if(igList){const copy=item.cloneNode(true);igList.append(copy);}
         });
         instagramAccounts.forEach(account=>{
           const item=document.createElement('div');item.className='youtube-channel-sync';
           const strong=document.createElement('strong');strong.textContent=account.instagram_username?'@'+account.instagram_username:'Compte Instagram';
           const detail=document.createElement('span');detail.textContent=' · Instagram'+(account.name?' · '+account.name:'');
-          item.append(strong,detail);accounts.append(item);
+          item.append(strong,detail);
+          const igList=$('#instagramAccountList');if(igList)igList.append(item.cloneNode(true));
+          accounts.append(item);
         });
       }
     }catch(e){if(artistId===activeArtistId)box.textContent='Statut Meta indisponible : '+e.message;}
