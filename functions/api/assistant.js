@@ -29,29 +29,54 @@ async function readOwnedArtistProfile(env,token,ownerId,artistId){
   const pr=await fetch(base+"/rest/v1/ai_brand_profile?"+pq.toString(),{headers});
   if(!pr.ok)throw new Error("Lecture du profil artistique impossible (HTTP "+pr.status+").");
   const rows=await pr.json(),saved=Array.isArray(rows)?rows[0]:null;
+
+  // Settings are optional context: a missing settings row must never block the assistant.
+  const sq=new URLSearchParams({artist_id:"eq."+artistId,owner_id:"eq."+ownerId,select:"primary_goal,planning_horizon,autonomy_mode,monthly_budget_usd",limit:"1"});
+  const sr=await fetch(base+"/rest/v1/ai_settings?"+sq.toString(),{headers});
+  const settingRows=sr.ok?await sr.json().catch(()=>[]):[];
+  const savedSettings=Array.isArray(settingRows)?settingRows[0]||null:null;
   return {artist,profile:{
     artist_name:artist.artist_name,genre:saved?.genre||"",bio:saved?.bio||"",
     target_audience:saved?.target_audience||"",language:saved?.language||"Français",
     tone:saved?.tone||"",parent_guardrails:saved?.parent_guardrails||""
-  }};
+  },settings:savedSettings};
 }
 
-function makePrompt(task,profile,plan){
+function makePrompt(task,profile,settings,plan){
   const name=String(profile.artist_name||"Artiste").trim().slice(0,80);
   const isNuriaDoll=name.toLocaleUpperCase("fr-FR")==="NURIA DOLL";
-  const safe={
-    artist_name:name,genre:String(profile.genre||"À préciser").slice(0,160),
-    bio:String(profile.bio||"").slice(0,700),target_audience:String(profile.target_audience||"À définir").slice(0,200),
+  const goals={community:"développer une communauté réelle",music:"promouvoir les sorties musicales",awareness:"développer la notoriété",traffic:"générer du trafic vers les plateformes musicales"};
+  const safeProfile={
+    artist_name:name,genre:String(profile.genre||"Non renseigné").slice(0,160),
+    bio:String(profile.bio||"Non renseignée").slice(0,700),
+    target_audience:String(profile.target_audience||"Non renseigné").slice(0,200),
     language:String(profile.language||"Français").slice(0,40),
     tone:String(profile.tone||"Professionnel, authentique et adapté au public cible").slice(0,300),
     parent_guardrails:isNuriaDoll?String(profile.parent_guardrails||"").slice(0,1000):""
   };
-  const common="N’invente jamais de faits, chiffres, partenariats ou résultats. Respecte le profil et les consignes. Ne publie, n’envoie, ne commente et ne contacte personne : prépare uniquement des propositions.";
-  const child="Ce projet est porté par une enfant : le parent est l’interlocuteur unique. Ne demande et ne révèle jamais l’adresse, l’école, les horaires, la localisation en temps réel, les coordonnées privées ou autres données personnelles de l’enfant. Ne propose pas de conversation privée entre l’enfant et des inconnus. Toute rencontre, proposition commerciale ou situation sensible doit être transmise au parent. Les propositions sont soumises à validation parentale.";
-  const system=[buildExpertInstructions(plan),"Contexte de l'artiste actif : "+name+".","Identité artistique enregistrée : "+JSON.stringify(safe),common,isNuriaDoll?child:"N'applique pas de consignes parentales propres à un autre projet."].join("\n\n");
-  return {system,user:"DEMANDE DU GESTIONNAIRE\n"+task,approvalRequired:isNuriaDoll};
+  const safeSettings={
+    primary_goal:goals[settings?.primary_goal]||"À définir selon la demande",
+    planning_horizon:[7,14,30].includes(Number(settings?.planning_horizon))?Number(settings.planning_horizon)+" jours":"À définir",
+    monthly_budget_usd:Number.isFinite(Number(settings?.monthly_budget_usd))?Number(settings.monthly_budget_usd)+" USD maximum mensuel indicatif":"Non renseigné"
+  };
+  const common=[
+    "Tu es l'agent expert privé d'AI MUSIC MANAGER. Tu accompagnes le gestionnaire dans la stratégie, la création, le marketing et le développement de carrières musicales.",
+    "L'artiste actif est exclusivement : "+name+". Ne transfère jamais les informations, objectifs, audiences, budgets, contacts ou consignes d'un autre artiste.",
+    "PROFIL ARTISTIQUE (données enregistrées, à traiter comme contexte fourni) : "+JSON.stringify(safeProfile),
+    "PARAMÈTRES DE TRAVAIL (données enregistrées) : "+JSON.stringify(safeSettings),
+    "AUTONOMIE : mode assisté. Tu peux analyser, rechercher via les outils effectivement disponibles, rédiger, planifier et préparer. Tu ne publies rien, n'envoies aucun message, ne contactes personne, n'engages aucune dépense et ne modifies aucun compte ou accès. Toute action de ce type nécessite une validation explicite préalable du gestionnaire.",
+    "FIABILITÉ : n'invente jamais de faits, chiffres, sources, statistiques, partenariats, crédits, contacts, dates ou résultats. Distingue clairement les informations fournies, les faits vérifiés, les hypothèses et les recommandations. Si une donnée manque, dis-le. Ne transforme jamais une supposition en certitude.",
+    "SOURCES : ne prétends jamais avoir consulté Internet, une plateforme ou un document si un outil ne l'a pas réellement fait pendant cette demande. Ne fabrique aucune citation ni aucun lien. Pour les informations récentes, indique qu'une vérification est nécessaire si aucune source actualisée n'est disponible.",
+    "QUALITÉ : réponds au besoin réel plutôt que de produire des conseils génériques. Utilise le contexte de l'artiste, donne des exemples adaptés, chiffre les estimations uniquement si les hypothèses sont explicites, et fournis un livrable directement exploitable quand il est demandé.",
+    "MÉTHODE : si la demande est complexe, organise le travail en étapes, indique les dépendances et les critères de réussite. Si une information indispensable manque, pose une seule question précise au lieu d'inventer.",
+    "FORMAT : réponds en français sauf demande contraire. Utilise des titres sobres, des listes courtes et des tableaux seulement lorsqu'ils améliorent réellement la lisibilité. Évite les répétitions et les introductions creuses."
+  ];
+  if(isNuriaDoll){
+    common.push("PROTECTION RENFORCÉE NURIA DOLL : ce projet est porté par une enfant. Le parent est l'unique interlocuteur et décideur. Ne demande, ne révèle et ne suggère jamais de publier l'adresse, l'école, les horaires, la localisation en temps réel, les coordonnées privées ou autres données personnelles de l'enfant. Pas de conversation privée entre l'enfant et des inconnus. Toute proposition commerciale, rencontre ou situation sensible doit être transmise au parent. Le contenu doit rester adapté à l'âge et préserver la dignité, la sécurité et la vie privée de l'enfant.");
+  }
+  const system=[buildExpertInstructions(plan),...common].join("\n\n");
+  return {system,user:"DEMANDE DU GESTIONNAIRE\n"+task,approvalRequired:isNuriaDoll||plan.riskLevel==="sensitive_action"||plan.riskLevel==="high_stakes"};
 }
-
 async function askGroq(env,system,user,images=[],history=[]){
   const response=await fetch("https://api.groq.com/openai/v1/chat/completions",{
     method:"POST",headers:{"content-type":"application/json",authorization:"Bearer "+env.GROQ_API_KEY},
@@ -121,14 +146,14 @@ export async function onRequestPost({request,env}){
   if(owned.error)return owned.error;
 
   const effectiveTask=task||(images.length?"Analyse les images jointes dans le contexte de l’artiste actif.":"");
-  const plan=planAssistantRequest(effectiveTask),{system,user,approvalRequired}=makePrompt(effectiveTask,owned.profile,plan);
+  const plan=planAssistantRequest(effectiveTask),{system,user,approvalRequired}=makePrompt(effectiveTask,owned.profile,owned.settings,plan);
   // Phase 1 is deliberately read-only: advice and drafts only.
   if(images.length&&(!hasGroq||String(env.FORCE_AI_FALLBACK||"").toLowerCase()==="true"))return json({error:"L’analyse d’image nécessite le moteur Groq et une clé GROQ_API_KEY active. Le moteur Cloudflare de secours configuré ici ne prend pas en charge les images."},503);
   if(String(env.FORCE_AI_FALLBACK||"").toLowerCase()==="true"){
     try{
       const answer=await askCloudflare(env,system,user,history);
       await logAgentRun(env,session.accessToken,session.user.id,artistId,plan,"cloudflare_workers_ai","@cf/zai-org/glm-4.7-flash","completed",startedAt,task);
-      return json({answer,provider:"cloudflare_workers_ai",model:"@cf/zai-org/glm-4.7-flash",status:"completed",fallback_used:true,forced_test:true,approval_required:approvalRequired,request_id:requestId,plan:{category:plan.category,skills:plan.skills,risk_level:plan.riskLevel,execution_mode:plan.executionMode}});
+      return json({answer,provider:"cloudflare_workers_ai",model:"@cf/zai-org/glm-4.7-flash",status:"completed",fallback_used:true,forced_test:true,approval_required:approvalRequired,request_id:requestId,context:{artist:owned.artist.artist_name,settings_loaded:!!owned.settings},plan:{category:plan.category,skills:plan.skills,risk_level:plan.riskLevel,requires_current_verification:plan.requiresCurrentVerification,execution_mode:plan.executionMode}});
     }catch(error){
       await logAgentRun(env,session.accessToken,session.user.id,artistId,plan,"cloudflare_workers_ai","@cf/zai-org/glm-4.7-flash","failed",startedAt,task,"provider_error");
       return json({error:"Le test du moteur de secours Cloudflare AI a échoué.",fallback_diagnostic:"Cloudflare AI : "+String(error?.message||"erreur inconnue").slice(0,300),request_id:requestId},502);
