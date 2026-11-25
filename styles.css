@@ -441,3 +441,60 @@
 .research-source-foot a{font-size:9px;font-weight:800;color:#74518e;text-decoration:none}
 .research-disclaimer{margin:0;padding:10px 12px;border-left:3px solid #b49acb;border-radius:0 8px 8px 0;background:#f7f3fa;color:#766981;font-size:10px;line-height:1.6}
 @media(max-width:680px){.artist-research-panel{padding:15px}.research-identity-grid,.research-source-grid{grid-template-columns:1fr}.research-span-2{grid-column:auto}.research-identity-intro{align-items:flex-start;flex-direction:column}.research-submit-row{align-items:stretch;flex-direction:column}.research-submit-row .btn{width:100%}.artist-research-card-head{align-items:stretch}.artist-research-card-head .btn{width:100%}.research-source-foot{align-items:flex-start;flex-direction:column}}
+
+
+/* Tableau de bord social unifié et navigation par plateforme */
+.social-platform-grid{grid-template-columns:repeat(4,minmax(0,1fr));align-items:stretch}
+.social-platform-card{appearance:none;width:100%;display:flex;flex-direction:column;align-items:stretch;gap:0;min-height:190px;text-align:left;color:var(--ink);font:inherit;cursor:pointer;transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
+.social-platform-card:hover{transform:translateY(-3px);border-color:#d9c9e7;box-shadow:0 14px 30px rgba(38,23,55,.09)}
+.social-platform-card:focus-visible{outline:3px solid #b99bd4;outline-offset:3px}
+.social-platform-card .social-card-top{justify-content:space-between}
+.social-platform-name{display:block;font:800 15px Manrope,sans-serif;margin:2px 0 5px}
+.social-platform-description{display:block;color:#a49daa;font-size:10px;line-height:1.45;min-height:30px}
+.social-platform-card .social-card-foot{margin-top:10px}
+.social-card-action{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:auto;padding-top:15px;color:#7047a6;font-size:10px;font-weight:800}
+.social-card-youtube{grid-column:auto}
+.social-detail-view{margin-top:18px;padding:20px;background:#fff;border:1px solid #eee8f2;border-radius:15px;box-shadow:var(--shadow);min-width:0}
+.social-detail-header{display:flex;align-items:center;gap:17px;padding-bottom:17px;border-bottom:1px solid #eee8f2;margin-bottom:17px}
+.social-detail-header>div{min-width:0}
+.social-detail-header .eyebrow{margin:0 0 4px}
+.social-detail-header h3{font:800 19px Manrope;margin:0 0 3px}
+.social-detail-header .muted{font-size:10px;margin:0}
+.social-detail-header .btn{flex-shrink:0;margin:0}
+.social-detail-panel{min-width:0}
+.social-detail-panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.social-detail-panel-head h3{font:800 14px Manrope;margin:0 0 4px}
+.social-detail-panel-head p{font-size:10px;margin:0}
+.social-detail-panel .btn{margin-top:12px}
+.meta-account-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:12px 0}
+.meta-account-list:empty{display:none}
+.meta-account-list>div{padding:9px 11px;background:#faf8fc;border:1px solid #eee8f2;border-radius:8px;margin:0}
+.social-insights-panel{margin-top:15px;padding:15px;border:1px solid #e9e1f0;border-radius:11px;background:#fcfaff}
+.social-insights-panel h4{font:800 12px Manrope;margin:0 0 12px}
+.social-insights-panel>p{font-size:10px;line-height:1.55;margin:12px 0 0}
+.social-insights-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.social-insights-grid>div{padding:13px 8px;background:#fff;border:1px solid #eee8f2;border-radius:9px;text-align:center;min-width:0}
+.social-insights-grid strong,.social-insights-grid small{display:block}
+.social-insights-grid strong{font:800 17px Manrope;color:#51376a}
+.social-insights-grid small{font-size:9px;color:#92869a;margin-top:4px}
+.social-detail-panel .youtube-channel-panel{margin-top:15px}
+.social-detail-panel .youtube-channel-panel .btn{width:100%}
+#socialYoutubeDetail>#connectYoutube{display:none}
+@media(max-width:1050px){.social-platform-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){
+ .social-platform-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+ .social-platform-card{min-height:170px;padding:14px 12px}
+ .social-platform-card .social-card-top{align-items:center;flex-direction:row}
+ .social-platform-name{font-size:14px}
+ .social-platform-description{font-size:10px;min-height:42px}
+ .social-card-action{font-size:9px;padding-top:12px}
+ .social-detail-view{padding:13px;margin-top:13px}
+ .social-detail-header{align-items:flex-start;flex-direction:column;gap:12px}
+ .social-detail-header .btn{width:100%}
+ .social-detail-panel-head{align-items:flex-start}
+ .meta-account-list{grid-template-columns:1fr}
+ .social-insights-grid{gap:6px}
+ .social-insights-grid>div{padding:10px 5px}
+ .social-insights-grid strong{font-size:14px}
+ .social-insights-grid small{font-size:8px}
+}
