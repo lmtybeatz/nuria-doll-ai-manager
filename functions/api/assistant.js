@@ -47,7 +47,7 @@ function makePrompt(task, profile) {
 
   const user = "IDENTITÉ ARTISTIQUE (informations de marque uniquement)\n" +
     JSON.stringify(safeProfile) + "\n\nDEMANDE DU GESTIONNAIRE\n" + task;
-  return { system, user };
+  return { system, user, approvalRequired: isNuriaDoll };
 }
 
 async function askGroq(env, system, user) {
@@ -124,7 +124,7 @@ export async function onRequestPost({ request, env }) {
   if (task.length > 20000) return json({ error: "La demande est trop longue (20 000 caractères maximum)." }, 400);
 
   const profile = body.profile && typeof body.profile === "object" ? body.profile : {};
-  const { system, user } = makePrompt(task, profile);
+  const { system, user, approvalRequired } = makePrompt(task, profile);
 
   // Temporary controlled test: FORCE_AI_FALLBACK=true skips Groq and tests Cloudflare Workers AI.
   if (String(env.FORCE_AI_FALLBACK || "").toLowerCase() === "true") {
@@ -137,7 +137,7 @@ export async function onRequestPost({ request, env }) {
         status: "completed",
         fallback_used: true,
         forced_test: true,
-        approval_required: isNuriaDoll
+        approval_required: approvalRequired
       });
     } catch (fallbackError) {
       return json({
@@ -152,7 +152,7 @@ export async function onRequestPost({ request, env }) {
   if (hasGroq) {
     try {
       const answer = await askGroq(env, system, user);
-      return json({ answer, provider: "groq", model: "openai/gpt-oss-120b", status: "completed", approval_required: isNuriaDoll });
+      return json({ answer, provider: "groq", model: "openai/gpt-oss-120b", status: "completed", approval_required: approvalRequired });
     } catch (error) {
       groqError = error;
     }
@@ -165,7 +165,7 @@ export async function onRequestPost({ request, env }) {
       model: "@cf/zai-org/glm-4.7-flash",
       status: "completed",
       fallback_used: true,
-      approval_required: isNuriaDoll
+      approval_required: approvalRequired
     });
   } catch (fallbackError) {
     return json({
