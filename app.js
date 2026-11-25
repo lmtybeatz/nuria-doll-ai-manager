@@ -1317,7 +1317,7 @@
     $('#socialDetailView')?.classList.add('hidden');
     $('#socialPlatformGrid')?.classList.remove('hidden');
   }
-  $('#socialPlatformGrid [data-social-platform]').forEach(card=>{
+  $$('#socialPlatformGrid [data-social-platform]').forEach(card=>{
     card.addEventListener('click',()=>openSocialPlatform(card.dataset.socialPlatform));
   });
   $('#socialBackButton')?.addEventListener('click',closeSocialPlatform);
