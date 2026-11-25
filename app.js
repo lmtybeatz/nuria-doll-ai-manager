@@ -12,6 +12,12 @@
   let campaigns = [], editingCampaignId = null;
   const toast = (msg, bad=false) => { const el=$('#toast'); el.textContent=msg; el.className='toast show'+(bad?' error':''); setTimeout(()=>el.className='toast',3600); };
   const show = (el) => el.classList.remove('hidden'); const hide = (el) => el.classList.add('hidden');
+  function clearAssistantResult(){
+    const result=$('#assistantResult');if(result)hide(result);
+    const answer=$('#assistantAnswer');if(answer)answer.textContent='';
+    const status=$('#assistantStatus');if(status)status.textContent='';
+    const approval=$('#assistantApprovalControl');if(approval)approval.innerHTML='';
+  }
   function setupMessage() {
     const n=$('#setupNotice'); n.innerHTML='<strong>Configuration nécessaire.</strong> Crée un nouveau projet Supabase, exécute <code>supabase/schema.sql</code>, puis renseigne son URL et sa clé publique dans <code>config.js</code>. Aucun secret privé ne doit être placé dans ce fichier.'; show(n); show($('#authScreen'));
     $('#authTitle').textContent='Configuration requise'; $('#authSubtitle').textContent='L’interface est prête. Connecte d’abord ton nouveau projet Supabase.'; $('#authForm').classList.add('disabled-form'); $('#authSubmit').disabled=true;
@@ -92,6 +98,7 @@
   $('#artistSwitcher')?.addEventListener('change',async e=>{
     if(activeArtistId)assistantDrafts.set(activeArtistId,$('#assistantTask')?.value||'');
     activeArtistId=e.target.value;
+    clearAssistantResult();
     $('#assistantTask').value=assistantDrafts.get(activeArtistId)||'';
     // Mettre à jour immédiatement tous les libellés dépendant de l’artiste actif.
     renderArtistSwitcher();
@@ -110,7 +117,7 @@
       const {data,error}=await supabase.from('ai_artists').insert({owner_id:user.id,artist_name:artistName,status:'active',is_default:false}).select('id,artist_name,is_default,status,created_at').single();
       if(error)throw error;
       if(activeArtistId)assistantDrafts.set(activeArtistId,$('#assistantTask')?.value||'');
-      artists.push(data);activeArtistId=data.id;$('#assistantTask').value=assistantDrafts.get(activeArtistId)||'';renderArtistSwitcher();
+      artists.push(data);activeArtistId=data.id;clearAssistantResult();$('#assistantTask').value=assistantDrafts.get(activeArtistId)||'';renderArtistSwitcher();
       await reloadArtistWorkspace();
       toast('Espace « '+artistName+' » créé. Tu peux maintenant compléter son identité.');
       nav('brand');
