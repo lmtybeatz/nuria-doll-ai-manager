@@ -16,7 +16,7 @@ export async function onRequestPost({request,env}){
   const file=incoming.get("file");
   if(!file||typeof file.arrayBuffer!=="function"||!file.size)return json({error:"Aucun enregistrement audio reçu."},400);
   if(file.size>24*1024*1024)return json({error:"La note vocale dépasse 24 Mo."},413);
-  const allowed=/^(audio\/(webm|ogg|mp4|mpeg|wav|x-wav|flac|mp3)|video\/webm)$/i;
+  const allowed=/^(audio\/(webm|ogg|mp4|mpeg|wav|x-wav|flac|mp3))(?:;.*)?$/i;
   if(file.type&&!allowed.test(file.type))return json({error:"Format audio non pris en charge. Utilise WebM, OGG, MP4, WAV ou MP3."},415);
   try{
     const form=new FormData();form.set("file",file,file.name||"voice-note.webm");form.set("model","whisper-large-v3-turbo");form.set("response_format","json");form.set("prompt","Transcris fidèlement dans la langue parlée. Conserve les noms propres et le vocabulaire de la musique et du marketing.");
