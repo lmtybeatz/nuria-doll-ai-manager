@@ -40,11 +40,14 @@ export async function onRequestGet({request,env}){
   const artist=await fetch(base+"/rest/v1/ai_artists?id=eq."+encodeURIComponent(artistId)+"&owner_id=eq."+encodeURIComponent(u.id)+"&status=eq.active&select=id",{headers});
   if(!artist.ok||!(await artist.json()).length)return json({error:"Espace artiste introuvable ou non autorisé."},404);
   stage="lecture_connexion";
-  const r=await fetch(base+"/rest/v1/ai_social_connections?owner_id=eq."+encodeURIComponent(u.id)+"&artist_id=eq."+encodeURIComponent(artistId)+"&provider=eq.meta&select=token_ciphertext,scopes",{headers});
+  const r=await fetch(base+"/rest/v1/ai_social_connections?owner_id=eq."+encodeURIComponent(u.id)+"&artist_id=eq."+encodeURIComponent(artistId)+"&provider=eq.meta&select=token_ciphertext,scopes,account_metadata",{headers});
   if(!r.ok)return json({error:"Lecture de la connexion Meta impossible."},502);
   const rows=await r.json();if(!rows.length)return json({error:"Aucune connexion Meta pour cet artiste."},404);
   const scopes=rows[0].scopes||[];
-  const required=["pages_read_engagement","read_insights","instagram_manage_insights"];
+  const metadata=rows[0].account_metadata||{};
+  const hasPages=Array.isArray(metadata.pages)&&metadata.pages.length>0;
+  const hasInstagram=Array.isArray(metadata.instagram_accounts)&&metadata.instagram_accounts.length>0;
+  const required=[...(hasPages?["pages_read_engagement","read_insights"]:[]),...(hasInstagram?["instagram_manage_insights"]:[])];
   const missingPermissions=required.filter(x=>!scopes.includes(x));
   if(missingPermissions.length)return json({connected:true,ready:false,missing_permissions:missingPermissions,error:"Les autorisations de statistiques Meta ne sont pas encore accordées."},403);
   stage="dechiffrement_jeton";const tokens=await decrypt(rows[0].token_ciphertext,env.META_TOKEN_ENCRYPTION_KEY);
@@ -54,6 +57,8 @@ export async function onRequestGet({request,env}){
   const page=(tokens.pages||[]).find(x=>x.access_token);
   const instagram=(tokens.instagram_accounts||[])[0];
   const result={facebook:null,instagram:null,synced_at:new Date().toISOString()};
+  if(hasPages&&!page)throw new Error("Jeton d’accès à la Page absent. Reconnecte Facebook après avoir activé les autorisations d’insights.");
+  if(hasInstagram&&!instagram)throw new Error("Compte Instagram professionnel absent dans la connexion Meta.");
   if(page){
    stage="insights_facebook";
    const data=await readInsights(version,page.id,page.access_token,["page_impressions","page_post_engagements","page_media_view"],"days_28");
