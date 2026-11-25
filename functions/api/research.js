@@ -5,10 +5,10 @@ function json(data,status=200){return new Response(JSON.stringify(data),{status,
 function sbHeaders(env,token){return {apikey:env.SUPABASE_PUBLISHABLE_KEY,authorization:"Bearer "+token,"content-type":"application/json"};}
 
 async function verifySession(request,env){
-  const match=(request.headers.get("authorization")||"").match(/^Bearer\\s+(.+)$/i);
+  const match=(request.headers.get("authorization")||"").match(/^Bearer\s+(.+)$/i);
   if(!match)return {error:json({error:"Connexion requise."},401)};
   try{
-    const response=await fetch(env.SUPABASE_URL.replace(/\\/$/,"")+"/auth/v1/user",{headers:{apikey:env.SUPABASE_PUBLISHABLE_KEY,authorization:"Bearer "+match[1]}});
+    const response=await fetch(env.SUPABASE_URL.replace(/\/$/,"")+"/auth/v1/user",{headers:{apikey:env.SUPABASE_PUBLISHABLE_KEY,authorization:"Bearer "+match[1]}});
     if(!response.ok)return {error:json({error:"Session expirée ou invalide. Reconnecte-toi."},401)};
     const user=await response.json();
     if(!user?.id)return {error:json({error:"Identité utilisateur invalide."},401)};
@@ -41,7 +41,7 @@ export async function onRequestPost({request,env}){
   if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(artistId))return json({error:"Identifiant d’artiste invalide."},400);
   if(!subject)return json({error:"Le nom de l’artiste est obligatoire."},400);
 
-  const base=env.SUPABASE_URL.replace(/\\/$/,"");
+  const base=env.SUPABASE_URL.replace(/\/$/,"");
   const artistQuery=new URLSearchParams({id:"eq."+artistId,owner_id:"eq."+session.user.id,status:"eq.active",select:"id,artist_name",limit:"1"});
   const artistResponse=await fetch(base+"/rest/v1/ai_artists?"+artistQuery,{headers:sbHeaders(env,session.token)});
   if(!artistResponse.ok)return json({error:"Vérification du profil artiste impossible."},502);
