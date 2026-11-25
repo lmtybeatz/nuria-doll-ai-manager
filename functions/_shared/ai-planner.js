@@ -3,7 +3,7 @@
 const SKILLS = [
   { key:"music",label:"expertise musicale",terms:/composition|arrangement|beat|instrumental|production musicale|mixage|mastering|genre|direction artistique|sonor/i },
   { key:"marketing",label:"marketing musical",terms:/marketing|promotion|campagne|sortie|single|album|publicité|audience|réseaux sociaux|playlist|radio|presse/i },
-  { key:"business",label:"industrie musicale et business",terms:/contrat|édition|éditeur|droit d'auteur|sacem|royalt|distribution|label|licence|cession|synchronisation|management/i },
+  { key:"business",label:"industrie musicale et business",terms:/contrat|édition|éditeur|droit d'auteur|sacem|royalt|distribution|distributeur|label|licence|cession|synchronisation|management/i },
   { key:"career",label:"développement de carrière",terms:/carrière|développer|positionnement|partenariat|booking|concert|festival|professionnalis/i },
   { key:"creative",label:"communication et création",terms:/biographie|communiqué|storytelling|visuel|clip|concept|légende|caption|affiche|contenu/i },
   { key:"analytics",label:"analyse et stratégie",terms:/analyse|statistique|performance|concurrence|marché|budget|rentabilité|indicateur|kpi|diagnostic/i }
