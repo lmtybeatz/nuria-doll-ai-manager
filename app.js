@@ -6,6 +6,32 @@
   let supabase = null, user = null, signupMode = false, profile = null, settings = null, media = [];
   let artists = [], activeArtistId = null, switchingArtist = false, workspaceLoadVersion = 0;
   const assistantDrafts = new Map();
+  const assistantConversations = new Map();
+  const assistantApprovals = new Map();
+  function assistantConversationKey(artistId){
+    return user?.id&&artistId?'nuriaAiManager:assistant:'+user.id+':'+artistId:null;
+  }
+  function getAssistantConversation(artistId){
+    if(!artistId)return [];
+    if(assistantConversations.has(artistId))return assistantConversations.get(artistId);
+    let messages=[];
+    try{
+      const key=assistantConversationKey(artistId),saved=key?JSON.parse(sessionStorage.getItem(key)||'[]'):[];
+      if(Array.isArray(saved))messages=saved.filter(item=>(item?.role==='user'||item?.role==='assistant')&&typeof item.content==='string').slice(-20).map(item=>({role:item.role,content:item.content.slice(0,5000)}));
+    }catch{}
+    assistantConversations.set(artistId,messages);
+    return messages;
+  }
+  function persistAssistantConversation(artistId){
+    const key=assistantConversationKey(artistId);if(!key)return;
+    try{sessionStorage.setItem(key,JSON.stringify((getAssistantConversation(artistId)).slice(-20)));}catch{}
+  }
+  let assistantAttachments = [];
+  let assistantRecorder = null;
+  let assistantRecordingArtistId = null;
+  let assistantRecordingChunks = [];
+  let assistantRecordingTimeout = null;
+  const lastAssistantTasks = new Map();
   let latestYoutubeAnalytics=null;
   const oauthArtistId=new URLSearchParams(location.search).get('artist_id');
   const recommendationBusy=new Set();
@@ -17,6 +43,7 @@
     const answer=$('#assistantAnswer');if(answer)answer.textContent='';
     const status=$('#assistantStatus');if(status)status.textContent='';
     const approval=$('#assistantApprovalControl');if(approval)approval.innerHTML='';
+    const conversation=$('#assistantConversation');if(conversation)conversation.innerHTML='';
     const strategyResult=$('#strategyResult');if(strategyResult)hide(strategyResult);
     const strategyAnswer=$('#strategyAnswer');if(strategyAnswer)strategyAnswer.textContent='';
     const strategyStatus=$('#strategyStatus');if(strategyStatus)strategyStatus.textContent='';
@@ -62,7 +89,7 @@
       const {data:{session},error}=await supabase.auth.getSession();
       if(error)throw error;
       if(session){user=session.user;await enterApp();}else show($('#authScreen'));
-      supabase.auth.onAuthStateChange(async(_event,session)=>{if(session&&!user){user=session.user;await enterApp();}else if(!session&&user){user=null;hide($('#appShell'));show($('#authScreen'));}});
+      supabase.auth.onAuthStateChange(async(_event,session)=>{if(session&&!user){user=session.user;await enterApp();}else if(!session&&user){user=null;assistantConversations.clear();assistantApprovals.clear();assistantDrafts.clear();lastAssistantTasks.clear();hide($('#appShell'));show($('#authScreen'));}});
     }catch(error){
       show($('#authScreen'));
       $('#authSubtitle').textContent='Impossible d’initialiser la connexion : '+(error.message||'erreur inconnue');
@@ -74,6 +101,7 @@
     const shell=$('#appShell');
     $('#userEmail').textContent=user.email||'Compte connecté';
     await loadArtists();
+    renderAssistantConversation(activeArtistId);
     const savedView=readWorkspaceState().view;
     const validViews=['overview','brand','strategy','library','agent','connections'];
     // Restaurer la rubrique pendant que l'application est encore masquée.
@@ -174,12 +202,16 @@
   }
   $('#artistSwitcher')?.addEventListener('change',async e=>{
     if(activeArtistId)assistantDrafts.set(activeArtistId,$('#assistantTask')?.value||'');
+    if(assistantRecorder?.state==='recording')assistantRecorder.stop();
+    clearAssistantAttachments();
     activeArtistId=e.target.value;
     saveWorkspaceState({artistId:activeArtistId});
     clearAssistantResult();
     resetCampaignForm();
     resetYoutubeDashboard();
     $('#assistantTask').value=assistantDrafts.get(activeArtistId)||'';
+    renderAssistantConversation(activeArtistId);
+    resizeAssistantComposer();
     // Mettre à jour immédiatement tous les libellés dépendant de l’artiste actif.
     renderArtistSwitcher();
     await reloadArtistWorkspace();
@@ -192,12 +224,15 @@
     const artistName=name.trim();
     if(!artistName){toast('Saisis un nom d’artiste.',true);return;}
     if(artists.some(a=>a.artist_name.trim().toLocaleLowerCase()===artistName.toLocaleLowerCase())){toast('Cet artiste existe déjà dans ton espace.',true);return;}
+    if(activeArtistId)assistantDrafts.set(activeArtistId,$('#assistantTask')?.value||'');
+    if(assistantRecorder?.state==='recording')assistantRecorder.stop();
+    clearAssistantAttachments();
     const button=$('#addArtistButton');button.disabled=true;
     try{
       const {data,error}=await supabase.from('ai_artists').insert({owner_id:user.id,artist_name:artistName,status:'active',is_default:false}).select('id,artist_name,is_default,status,created_at').single();
       if(error)throw error;
       if(activeArtistId)assistantDrafts.set(activeArtistId,$('#assistantTask')?.value||'');
-      artists.push(data);activeArtistId=data.id;saveWorkspaceState({artistId:activeArtistId});clearAssistantResult();resetCampaignForm();resetYoutubeDashboard();$('#assistantTask').value=assistantDrafts.get(activeArtistId)||'';renderArtistSwitcher();
+      artists.push(data);activeArtistId=data.id;saveWorkspaceState({artistId:activeArtistId});clearAssistantResult();resetCampaignForm();resetYoutubeDashboard();$('#assistantTask').value=assistantDrafts.get(activeArtistId)||'';renderAssistantConversation(activeArtistId);renderArtistSwitcher();
       await reloadArtistWorkspace();
       toast('Espace « '+artistName+' » créé. Tu peux maintenant compléter son identité.');
       nav('brand');
@@ -479,36 +514,101 @@
   $('#backToDashboard').onclick=()=>nav('overview');
   $('#brandForm').addEventListener('submit',async e=>{e.preventDefault();const f=new FormData(e.currentTarget),payload=Object.fromEntries(f.entries());payload.owner_id=user.id;payload.artist_id=activeArtistId;payload.updated_at=new Date().toISOString();const query=supabase.from('ai_brand_profile').upsert(payload,{onConflict:'artist_id'});const {error}=await query;if(error){$('#brandMessage').textContent=error.message;toast('Impossible d’enregistrer le profil.',true);return;}$('#brandMessage').textContent='Profil enregistré.';toast('Identité artistique enregistrée.');await loadProfile();});
   $('#settingsForm').addEventListener('submit',async e=>{e.preventDefault();const f=new FormData(e.currentTarget),p=Object.fromEntries(f.entries());p.owner_id=user.id;p.artist_id=activeArtistId;p.monthly_budget_usd=Number(p.monthly_budget_usd);p.planning_horizon=Number(p.planning_horizon);p.updated_at=new Date().toISOString();const {error}=await supabase.from('ai_settings').upsert(p,{onConflict:'artist_id'});if(error){$('#settingsMessage').textContent=error.message;toast(error.message,true);return;}$('#settingsMessage').textContent='Paramètres enregistrés. Aucun service payant n’a été activé.';toast('Paramètres enregistrés.');});
-  $('#assistantForm').addEventListener('submit',async e=>{
-    e.preventDefault();
-    if(!supabase||!user)return;
-    const task=$('#assistantTask').value.trim();
-    if(!task)return;
-    const artistId=activeArtistId;
-    const submit=$('#assistantSubmit'),status=$('#assistantStatus'),result=$('#assistantResult'),answer=$('#assistantAnswer');
-    submit.disabled=true;submit.textContent='Préparation en cours…';status.textContent='Groq prépare une proposition…';hide(result);
+  function appendAssistantInline(parent,text){
+    const pattern=/(\*\*[^*]+\*\*|__[^_]+__|`[^`]+`|\*[^*]+\*)/g;let cursor=0,match;
+    while((match=pattern.exec(text))){if(match.index>cursor)parent.append(document.createTextNode(text.slice(cursor,match.index)));const token=match[0];let node;
+      if(token.startsWith('`')){node=document.createElement('code');node.textContent=token.slice(1,-1);}
+      else if(token.startsWith('**')||token.startsWith('__')){node=document.createElement('strong');node.textContent=token.slice(2,-2);}
+      else{node=document.createElement('em');node.textContent=token.slice(1,-1);}
+      parent.append(node);cursor=pattern.lastIndex;
+    }
+    if(cursor<text.length)parent.append(document.createTextNode(text.slice(cursor)));
+  }
+  function renderAssistantMarkdown(container,markdown){
+    container.replaceChildren();const lines=String(markdown||'').replace(/\r/g,'').split('\n');let i=0;
+    const isBlock=line=>/^\s*(#{1,3}\s|[-*•]\s+|\d+\.\s+|>\s?|\`\`\`|\|.*\|\s*$)/.test(line);
+    while(i<lines.length){
+      const line=lines[i].trim();if(!line){i++;continue;}
+      if(line.startsWith('```')){const code=[];i++;while(i<lines.length&&!lines[i].trim().startsWith('```'))code.push(lines[i++]);i++;const pre=document.createElement('pre'),block=document.createElement('code');block.textContent=code.join('\n');pre.append(block);container.append(pre);continue;}
+      const heading=line.match(/^(#{1,3})\s+(.+)$/);if(heading){const node=document.createElement('h'+Math.min(4,heading[1].length+1));appendAssistantInline(node,heading[2]);container.append(node);i++;continue;}
+      if(/^[-*_]{3,}$/.test(line)){container.append(document.createElement('hr'));i++;continue;}
+      if(/^\|.*\|$/.test(line)&&i+1<lines.length&&/^\s*\|?\s*:?-{2,}/.test(lines[i+1])){const rows=[line];i+=2;while(i<lines.length&&/^\|.*\|$/.test(lines[i].trim()))rows.push(lines[i++].trim());const table=document.createElement('table');rows.forEach((row,index)=>{const tr=document.createElement('tr');row.replace(/^\||\|$/g,'').split('|').forEach(cell=>{const td=document.createElement(index===0?'th':'td');appendAssistantInline(td,cell.trim());tr.append(td);});table.append(tr);});container.append(table);continue;}
+      if(/^>\s?/.test(line)){const quote=document.createElement('blockquote');const p=document.createElement('p');appendAssistantInline(p,line.replace(/^>\s?/,'').trim());quote.append(p);container.append(quote);i++;continue;}
+      if(/^[-*•]\s+/.test(line)||/^\d+\.\s+/.test(line)){const ordered=/^\d+\.\s+/.test(line),list=document.createElement(ordered?'ol':'ul');while(i<lines.length&&((ordered?/^\d+\.\s+/:/^[-*•]\s+/).test(lines[i].trim()))){const li=document.createElement('li');appendAssistantInline(li,lines[i++].trim().replace(ordered?/^\d+\.\s+/:/^[-*•]\s+/,''));list.append(li);}container.append(list);continue;}
+      const paragraph=[line];i++;while(i<lines.length&&lines[i].trim()&&!isBlock(lines[i].trim()))paragraph.push(lines[i++].trim());const p=document.createElement('p');appendAssistantInline(p,paragraph.join(' '));container.append(p);
+    }
+  }
+  function renderAssistantConversation(artistId=activeArtistId){
+    const container=$('#assistantConversation');if(!container)return;container.replaceChildren();
+    const messages=getAssistantConversation(artistId);
+    if(!messages.length){const empty=document.createElement('div');empty.className='assistant-empty';const symbol=document.createElement('span');symbol.textContent='✧';const title=document.createElement('strong');title.textContent='Comment puis-je t’aider ?';const detail=document.createElement('p');detail.textContent='Décris ton objectif ou commence avec une suggestion ci-dessus.';empty.append(symbol,title,detail);container.append(empty);hide($('#assistantResult'));return;}
+    messages.forEach(message=>{const article=document.createElement('article');article.className='assistant-message '+(message.role==='user'?'user':'assistant');const label=document.createElement('span');label.className='assistant-message-label';label.textContent=message.role==='user'?'Toi':'Assistant';const body=document.createElement('div');body.className='assistant-message-content';if(message.role==='assistant')renderAssistantMarkdown(body,message.content);else body.textContent=message.content;article.append(label,body);container.append(article);});
+    const last=[...messages].reverse().find(message=>message.role==='assistant');if(last){$('#assistantAnswer').textContent=last.content;show($('#assistantResult'));const approval=assistantApprovals.get(artistId);if(approval)renderApprovalControl(approval,$('#assistantApprovalControl'));else $('#assistantApprovalControl').replaceChildren();}
+    container.scrollTop=container.scrollHeight;
+  }
+  function resizeAssistantComposer(){const field=$('#assistantTask');if(!field)return;field.style.height='auto';field.style.height=Math.min(field.scrollHeight,220)+'px';}
+  function updateAssistantDraft(){if(activeArtistId)assistantDrafts.set(activeArtistId,$('#assistantTask').value);resizeAssistantComposer();}
+  function renderAssistantAttachments(){
+    const preview=$('#assistantAttachmentPreview');if(!preview)return;preview.replaceChildren();preview.classList.toggle('hidden',assistantAttachments.length===0);
+    assistantAttachments.forEach((item,index)=>{const chip=document.createElement('div');chip.className='assistant-attachment-chip';const img=document.createElement('img');img.src=item.previewUrl;img.alt=item.file.name;const name=document.createElement('span');name.textContent=item.file.name;const remove=document.createElement('button');remove.type='button';remove.textContent='×';remove.setAttribute('aria-label','Retirer '+item.file.name);remove.addEventListener('click',()=>{URL.revokeObjectURL(item.previewUrl);assistantAttachments.splice(index,1);renderAssistantAttachments();});chip.append(img,name,remove);preview.append(chip);});
+  }
+  function clearAssistantAttachments(){assistantAttachments.forEach(item=>URL.revokeObjectURL(item.previewUrl));assistantAttachments=[];renderAssistantAttachments();$('#assistantImageInput').value='';}
+  async function imageAsDataUrl(file){
+    const bitmap=await createImageBitmap(file);const scale=Math.min(1,1600/Math.max(bitmap.width,bitmap.height));const canvas=document.createElement('canvas');canvas.width=Math.max(1,Math.round(bitmap.width*scale));canvas.height=Math.max(1,Math.round(bitmap.height*scale));const ctx=canvas.getContext('2d');ctx.drawImage(bitmap,0,0,canvas.width,canvas.height);bitmap.close?.();
+    const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',0.82));if(!blob)throw new Error('Impossible de préparer cette image.');return await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(new Error('Lecture de l’image impossible.'));reader.readAsDataURL(blob);});
+  }
+  $('#assistantImageInput').addEventListener('change',event=>{
+    const files=[...event.target.files];for(const file of files){if(assistantAttachments.length>=3){toast('Trois images maximum par message.',true);break;}if(!file.type.startsWith('image/')){toast('Choisis un fichier image.',true);continue;}if(file.size>12*1024*1024){toast(file.name+' dépasse 12 Mo.',true);continue;}assistantAttachments.push({file,previewUrl:URL.createObjectURL(file)});}renderAssistantAttachments();event.target.value='';
+  });
+  $('#assistantAttachButton').addEventListener('click',()=>$('#assistantImageInput').click());
+  $('#assistantTask').addEventListener('input',updateAssistantDraft);
+  $('#assistantTask').addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();$('#assistantForm').requestSubmit();}});
+  async function transcribeAssistantAudio(blob,recordingArtistId){
+    const button=$('#assistantRecordButton'),recordStatus=$('#assistantRecordingStatus');button.disabled=true;recordStatus.textContent='Transcription…';$('#assistantStatus').textContent='Transcription de la note vocale…';
+    try{const {data:{session}}=await supabase.auth.getSession();if(!session?.access_token)throw new Error('Session expirée. Reconnecte-toi.');const form=new FormData();form.append('file',blob,'note-vocale.webm');const response=await fetch('/api/transcribe',{method:'POST',headers:{authorization:'Bearer '+session.access_token},body:form});const payload=await response.json().catch(()=>({}));if(!response.ok||!payload.text)throw new Error(payload.error||'Transcription impossible.');if(recordingArtistId&&recordingArtistId!==activeArtistId){const previous=assistantDrafts.get(recordingArtistId)||'';assistantDrafts.set(recordingArtistId,[previous,payload.text.trim()].filter(Boolean).join('\n'));toast('La transcription a été ajoutée au brouillon de l’artiste d’origine.');return;}const field=$('#assistantTask');field.value+=(field.value.trim()?'\n':'')+payload.text.trim();updateAssistantDraft();field.focus();$('#assistantStatus').textContent='Texte transcrit. Tu peux le relire et le modifier avant envoi.';recordStatus.textContent='Transcription ajoutée';}catch(error){recordStatus.textContent='';toast(error.message||'Transcription impossible.',true);}finally{button.disabled=false;}
+  }
+  $('#assistantRecordButton').addEventListener('click',async()=>{
+    const button=$('#assistantRecordButton'),recordStatus=$('#assistantRecordingStatus');
+    if(assistantRecorder&&assistantRecorder.state==='recording'){assistantRecorder.stop();button.classList.remove('recording');button.textContent='🎙';recordStatus.textContent='Traitement de la note…';return;}
+    if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){toast('L’enregistrement audio n’est pas pris en charge par ce navigateur.',true);return;}
+    try{const stream=await navigator.mediaDevices.getUserMedia({audio:true});assistantRecordingArtistId=activeArtistId;const mime=MediaRecorder.isTypeSupported('audio/webm;codecs=opus')?'audio/webm;codecs=opus':(MediaRecorder.isTypeSupported('audio/webm')?'audio/webm':'');assistantRecordingChunks=[];assistantRecorder=new MediaRecorder(stream,mime?{mimeType:mime}:undefined);assistantRecorder.ondataavailable=event=>{if(event.data?.size)assistantRecordingChunks.push(event.data);};assistantRecorder.onstop=async()=>{clearTimeout(assistantRecordingTimeout);stream.getTracks().forEach(track=>track.stop());const blob=new Blob(assistantRecordingChunks,{type:assistantRecorder.mimeType||'audio/webm'});assistantRecorder=null;button.classList.remove('recording');button.textContent='🎙';const recordedFor=assistantRecordingArtistId;assistantRecordingArtistId=null;if(blob.size)await transcribeAssistantAudio(blob,recordedFor);};assistantRecorder.start();button.classList.add('recording');button.textContent='■';recordStatus.textContent='Enregistrement…';$('#assistantStatus').textContent='Parle maintenant. Appuie de nouveau sur le micro pour terminer.';assistantRecordingTimeout=setTimeout(()=>{if(assistantRecorder?.state==='recording'){assistantRecorder.stop();button.classList.remove('recording');button.textContent='🎙';recordStatus.textContent='Limite de 60 secondes atteinte.';}},60000);}catch(error){toast('Accès au microphone refusé ou indisponible : '+(error.message||''),true);}
+  });
+  async function submitAssistantTask(task){
+    const cleanTask=String(task||'').trim();if(!cleanTask&&!assistantAttachments.length)return;
+    const artistId=activeArtistId,submit=$('#assistantSubmit'),status=$('#assistantStatus');lastAssistantTasks.set(artistId,cleanTask);
+    submit.disabled=true;status.classList.add('is-thinking');status.textContent='L’assistant réfléchit…';hide($('#assistantResult'));
     try{
-      const {data:{session},error:sessionError}=await supabase.auth.getSession();
-      if(sessionError||!session?.access_token)throw new Error('Session expirée. Reconnecte-toi.');
-      const response=await fetch('/api/assistant',{
-        method:'POST',
-        headers:{'content-type':'application/json','authorization':'Bearer '+session.access_token},
-        body:JSON.stringify({task,artist_id:artistId})
-      });
+      const {data:{session},error:sessionError}=await supabase.auth.getSession();if(sessionError||!session?.access_token)throw new Error('Session expirée. Reconnecte-toi.');
+      const images=[];for(const item of assistantAttachments)images.push({data_url:await imageAsDataUrl(item.file)});
+      const messages=(getAssistantConversation(artistId)).slice(-8).map(message=>({role:message.role,content:message.content.slice(0,5000)}));
+      const taskText=cleanTask||(images.length?'Analyse les images jointes dans le contexte de l’artiste actif.':'');
+      const response=await fetch('/api/assistant',{method:'POST',headers:{'content-type':'application/json','authorization':'Bearer '+session.access_token},body:JSON.stringify({task:taskText,artist_id:artistId,images,history:messages})});
       const payload=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error([payload.error||'Le service IA n’a pas répondu correctement.',Array.isArray(payload.missing)&&payload.missing.length?'Variables manquantes : '+payload.missing.join(', '):'',payload.diagnostic||'',payload.fallback_diagnostic||''].filter(Boolean).join(' — '));
       if(!payload.answer)throw new Error('Aucune proposition exploitable reçue.');
       const approval=payload.approval_required===true?await saveParentApproval('assistant',crypto.randomUUID(),'Proposition de l’assistant',payload.answer,artistId):null;
+      const conversation=getAssistantConversation(artistId);
+      if(cleanTask)conversation.push({role:'user',content:cleanTask});else conversation.push({role:'user',content:'Analyse les images jointes.'});
+      conversation.push({role:'assistant',content:payload.answer});
+      assistantConversations.set(artistId,conversation.slice(-20));
+      persistAssistantConversation(artistId);
+      if(approval)assistantApprovals.set(artistId,approval);
       if(artistId===activeArtistId){
-        answer.textContent=payload.answer;
-        show(result);
-        if(approval)renderApprovalControl(approval,$('#assistantApprovalControl'));else $('#assistantApprovalControl').innerHTML='';
+        renderAssistantConversation(artistId);
         const providerLabel=payload.provider==='cloudflare_workers_ai'?'Cloudflare AI (secours)':'Groq';
-        status.textContent='Proposition générée par '+providerLabel+'. Mode préparation uniquement · ID : '+(payload.request_id||'non disponible')+'. Vérifie-la avant toute utilisation.';
+        status.textContent='Réponse générée par '+providerLabel+'. Mode préparation uniquement · Vérifie-la avant toute utilisation.';
+        clearAssistantAttachments();$('#assistantTask').value='';updateAssistantDraft();
       }
-    }catch(err){if(artistId===activeArtistId){status.textContent=err.message||'Une erreur est survenue.';toast(status.textContent,true);}}
-    finally{submit.disabled=false;submit.innerHTML='Générer une proposition <span>→</span>';}
-  });
+    }catch(error){if(artistId===activeArtistId){status.textContent=error.message||'Une erreur est survenue.';toast(status.textContent,true);}}
+    finally{submit.disabled=false;submit.textContent='↑';submit.setAttribute('aria-label','Envoyer le message');status.classList.remove('is-thinking');}
+  }
+  $('#assistantForm').addEventListener('submit',event=>{event.preventDefault();void submitAssistantTask($('#assistantTask').value);});
+  $('#regenerateAssistant').addEventListener('click',()=>{const task=lastAssistantTasks.get(activeArtistId)||'';if(task)void submitAssistantTask(task);});
+  const assistantTemplates={calendar:'Prépare un calendrier éditorial réaliste de 7 jours pour l’artiste actif, avec des idées de contenus et les objectifs de chaque journée.',captions:'Propose plusieurs légendes adaptées à une prochaine sortie musicale de l’artiste actif, avec des tons différents.',videos:'Propose 5 idées de vidéos courtes adaptées à l’univers et au public de l’artiste actif.'};
+  $('[data-prompt-template]').forEach(button=>button.addEventListener('click',()=>{$('#assistantTask').value=button.dataset.prompt||assistantTemplates[button.dataset.promptTemplate]||'';updateAssistantDraft();$('#assistantTask').focus();}));
+  $('#copyAssistant').addEventListener('click',async()=>{const value=$('#assistantAnswer').textContent;try{await navigator.clipboard.writeText(value);toast('Réponse copiée.');}catch{toast('Copie indisponible sur ce navigateur.',true);}});
+  resizeAssistantComposer();
+
 
   const campaignTypes={single:'Single / sortie',album:'Album / EP',brand:'Marque'};
   const campaignStatuses={draft:'Brouillon',planned:'Planifiée',active:'En cours',completed:'Terminée',archived:'Archivée'};

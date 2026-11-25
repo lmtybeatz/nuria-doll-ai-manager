@@ -52,10 +52,10 @@ function makePrompt(task,profile,plan){
   return {system,user:"DEMANDE DU GESTIONNAIRE\n"+task,approvalRequired:isNuriaDoll};
 }
 
-async function askGroq(env,system,user){
+async function askGroq(env,system,user,images=[],history=[]){
   const response=await fetch("https://api.groq.com/openai/v1/chat/completions",{
     method:"POST",headers:{"content-type":"application/json",authorization:"Bearer "+env.GROQ_API_KEY},
-    body:JSON.stringify({model:"openai/gpt-oss-120b",messages:[{role:"system",content:system},{role:"user",content:user}],max_completion_tokens:3000}),
+    body:JSON.stringify({model:images.length?"qwen/qwen3.8-27b":"openai/gpt-oss-120b",messages:[{role:"system",content:system},...history,{role:"user",content:images.length?[{type:"text",text:user},...images.map(url=>({type:"image_url",image_url:{url}}))]:user}],max_completion_tokens:3000}),
     signal:AbortSignal.timeout(18000)
   });
   const data=await response.json().catch(()=>({}));
@@ -65,9 +65,9 @@ async function askGroq(env,system,user){
   return answer.trim();
 }
 
-async function askCloudflare(env,system,user){
+async function askCloudflare(env,system,user,history=[]){
   if(!env.AI||typeof env.AI.run!=="function")throw new Error("La liaison Cloudflare Workers AI (AI) est absente.");
-  const result=await env.AI.run("@cf/zai-org/glm-4.7-flash",{messages:[{role:"system",content:system},{role:"user",content:user}],max_tokens:3000});
+  const result=await env.AI.run("@cf/zai-org/glm-4.7-flash",{messages:[{role:"system",content:system},...history,{role:"user",content:user}],max_tokens:3000});
   const answer=typeof result==="string"?result:typeof result?.response==="string"?result.response:typeof result?.choices?.[0]?.message?.content==="string"?result.choices[0].message.content:"";
   if(!answer.trim())throw new Error("Cloudflare Workers AI n'a retourné aucun texte.");
   return answer.trim();
@@ -93,12 +93,24 @@ export async function onRequestPost({request,env}){
   const session=await verifySession(request,env);
   if(session.error)return session.error;
   let body;
-  try{const raw=await request.text();if(raw.length>30000)return json({error:"Demande trop volumineuse (30 000 caractères maximum)."},413);body=JSON.parse(raw);}
+  try{const raw=await request.text();if(raw.length>8*1024*1024)return json({error:"Demande trop volumineuse (8 Mo maximum, images comprises)."},413);body=JSON.parse(raw);}
   catch{return json({error:"Format de demande invalide."},400);}
   const task=typeof body.task==="string"?body.task.trim():"";
   const artistId=typeof body.artist_id==="string"?body.artist_id.trim():"";
-  if(!task)return json({error:"Décris ce que tu souhaites préparer."},400);
+  const rawImages=Array.isArray(body.images)?body.images:[];
+  if(rawImages.length>3)return json({error:"Trois images maximum par message."},400);
+  const images=[];let imageBytes=0;
+  for(const item of rawImages){
+    const data=typeof item?.data_url==="string"?item.data_url:"";
+    const match=data.match(/^data:(image\/(?:jpeg|png|webp|gif));base64,([A-Za-z0-9+/=]+)$/);
+    if(!match)return json({error:"Format d’image invalide. Utilise JPG, PNG, WebP ou GIF."},400);
+    imageBytes+=Math.floor(match[2].length*3/4);
+    if(imageBytes>5*1024*1024)return json({error:"Les images préparées dépassent 5 Mo au total. Réduis leur taille et réessaie."},413);
+    images.push(data);
+  }
+  if(!task&&!images.length)return json({error:"Écris un message ou joins une image."},400);
   if(task.length>20000)return json({error:"La demande est trop longue (20 000 caractères maximum)."},400);
+  const history=Array.isArray(body.history)?body.history.slice(-8).filter(item=>(item?.role==="user"||item?.role==="assistant")&&typeof item?.content==="string").map(item=>({role:item.role,content:item.content.slice(0,5000)})):[];
   if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(artistId))
     return json({error:"Identifiant d'artiste invalide. Sélectionne un artiste puis réessaie."},400);
 
@@ -108,11 +120,13 @@ export async function onRequestPost({request,env}){
   catch(error){return json({error:"Impossible de vérifier le profil de l'artiste.",diagnostic:String(error?.message||"Erreur Supabase").slice(0,250),request_id:requestId},502);}
   if(owned.error)return owned.error;
 
-  const plan=planAssistantRequest(task),{system,user,approvalRequired}=makePrompt(task,owned.profile,plan);
+  const effectiveTask=task||(images.length?"Analyse les images jointes dans le contexte de l’artiste actif.":"");
+  const plan=planAssistantRequest(effectiveTask),{system,user,approvalRequired}=makePrompt(effectiveTask,owned.profile,plan);
   // Phase 1 is deliberately read-only: advice and drafts only.
+  if(images.length&&(!hasGroq||String(env.FORCE_AI_FALLBACK||"").toLowerCase()==="true"))return json({error:"L’analyse d’image nécessite le moteur Groq et une clé GROQ_API_KEY active. Le moteur Cloudflare de secours configuré ici ne prend pas en charge les images."},503);
   if(String(env.FORCE_AI_FALLBACK||"").toLowerCase()==="true"){
     try{
-      const answer=await askCloudflare(env,system,user);
+      const answer=await askCloudflare(env,system,user,history);
       await logAgentRun(env,session.accessToken,session.user.id,artistId,plan,"cloudflare_workers_ai","@cf/zai-org/glm-4.7-flash","completed",startedAt,task);
       return json({answer,provider:"cloudflare_workers_ai",model:"@cf/zai-org/glm-4.7-flash",status:"completed",fallback_used:true,forced_test:true,approval_required:approvalRequired,request_id:requestId,plan:{category:plan.category,skills:plan.skills,risk_level:plan.riskLevel,execution_mode:plan.executionMode}});
     }catch(error){
@@ -123,13 +137,18 @@ export async function onRequestPost({request,env}){
   let groqError=null;
   if(hasGroq){
     try{
-      const answer=await askGroq(env,system,user);
-      await logAgentRun(env,session.accessToken,session.user.id,artistId,plan,"groq","openai/gpt-oss-120b","completed",startedAt,task);
-      return json({answer,provider:"groq",model:"openai/gpt-oss-120b",status:"completed",approval_required:approvalRequired,request_id:requestId,plan:{category:plan.category,skills:plan.skills,risk_level:plan.riskLevel,execution_mode:plan.executionMode}});
+      const model=images.length?"qwen/qwen3.8-27b":"openai/gpt-oss-120b";
+      const answer=await askGroq(env,system,user,images,history);
+      await logAgentRun(env,session.accessToken,session.user.id,artistId,plan,"groq",model,"completed",startedAt,effectiveTask);
+      return json({answer,provider:"groq",model,status:"completed",approval_required:approvalRequired,request_id:requestId,plan:{category:plan.category,skills:plan.skills,risk_level:plan.riskLevel,execution_mode:plan.executionMode}});
     }catch(error){groqError=error;}
   }
+  if(images.length){
+    await logAgentRun(env,session.accessToken,session.user.id,artistId,plan,"groq","qwen/qwen3.8-27b","failed",startedAt,effectiveTask,"provider_error");
+    return json({error:"Le moteur Groq n'a pas pu analyser les images jointes.",diagnostic:String(groqError?.message||"Erreur du fournisseur vision").slice(0,300),request_id:requestId},502);
+  }
   try{
-    const answer=await askCloudflare(env,system,user);
+    const answer=await askCloudflare(env,system,user,history);
     await logAgentRun(env,session.accessToken,session.user.id,artistId,plan,"cloudflare_workers_ai","@cf/zai-org/glm-4.7-flash","completed",startedAt,task);
     return json({answer,provider:"cloudflare_workers_ai",model:"@cf/zai-org/glm-4.7-flash",status:"completed",fallback_used:true,approval_required:approvalRequired,request_id:requestId,plan:{category:plan.category,skills:plan.skills,risk_level:plan.riskLevel,execution_mode:plan.executionMode}});
   }catch(error){
