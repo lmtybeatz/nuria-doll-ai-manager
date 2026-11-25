@@ -34,7 +34,7 @@
   function nav(view) {
     if(!view||!$(`#view-${view}`))return;
     saveWorkspaceState({view,artistId:activeArtistId||null});
-    $('.view').forEach(v=>v.classList.toggle('active-view',v.id===`view-${view}`));
+    document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active-view',v.id===`view-${view}`));
     $$('.nav-item[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===view));
     const names={overview:"Vue d'ensemble",brand:'Identité artistique',strategy:'Stratégie marketing',library:'Bibliothèque média',agent:'Configuration IA',connections:'Réseaux sociaux'};
     $('#pageTitle').textContent=names[view]; $('#crumb').textContent=view==='overview'?'CENTRE DE COMMANDE':activeArtistName().toUpperCase()+' · '+names[view].toUpperCase();
