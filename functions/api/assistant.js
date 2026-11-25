@@ -143,8 +143,11 @@ export async function onRequestPost({request,env}){
       return json({answer,provider:"groq",model,status:"completed",approval_required:approvalRequired,request_id:requestId,plan:{category:plan.category,skills:plan.skills,risk_level:plan.riskLevel,execution_mode:plan.executionMode}});
     }catch(error){groqError=error;}
   }
+  if(images.length){
+    await logAgentRun(env,session.accessToken,session.user.id,artistId,plan,"groq","qwen/qwen3.8-27b","failed",startedAt,effectiveTask,"provider_error");
+    return json({error:"Le moteur Groq n'a pas pu analyser les images jointes.",diagnostic:String(groqError?.message||"Erreur du fournisseur vision").slice(0,300),request_id:requestId},502);
+  }
   try{
-    if(images.length)throw new Error("Le moteur Cloudflare de secours ne prend pas en charge les images. Réessaie lorsque Groq est disponible.");
     const answer=await askCloudflare(env,system,user,history);
     await logAgentRun(env,session.accessToken,session.user.id,artistId,plan,"cloudflare_workers_ai","@cf/zai-org/glm-4.7-flash","completed",startedAt,task);
     return json({answer,provider:"cloudflare_workers_ai",model:"@cf/zai-org/glm-4.7-flash",status:"completed",fallback_used:true,approval_required:approvalRequired,request_id:requestId,plan:{category:plan.category,skills:plan.skills,risk_level:plan.riskLevel,execution_mode:plan.executionMode}});
