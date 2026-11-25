@@ -879,7 +879,7 @@
       const response=await fetch('/api/assistant',{
         method:'POST',
         headers:{'content-type':'application/json','authorization':'Bearer '+sessionData.session.access_token},
-        body:JSON.stringify({task,profile:artistProfile})
+        body:JSON.stringify({task,artist_id:artistId})
       });
       const payload=await response.json().catch(()=>({}));
       if(!response.ok||!payload.answer)throw new Error([payload.error||'La génération IA a échoué.',payload.diagnostic||'',payload.fallback_diagnostic||''].filter(Boolean).join(' — '));
