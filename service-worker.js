@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ai-music-manager-shell-v5';
+const CACHE_NAME = 'ai-music-manager-shell-v6';
 const APP_SHELL = [
   '/',
   '/index.html',

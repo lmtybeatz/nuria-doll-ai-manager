@@ -346,3 +346,20 @@
 #assistantStatus.is-thinking{display:inline-flex;align-items:center;gap:7px;color:#765492}
 #assistantStatus.is-thinking::after{content:'';width:5px;height:5px;border-radius:50%;background:currentColor;box-shadow:9px 0 currentColor,18px 0 currentColor;animation:assistant-thinking 1s ease-in-out infinite}
 @keyframes assistant-thinking{0%,100%{opacity:.35;transform:translateY(0)}50%{opacity:1;transform:translateY(-2px)}}
+
+
+/* Gestion des profils artistes et menu du compte */
+.delete-artist-button{border:1px solid #f0dada;border-radius:8px;background:#fff5f5;color:#a44747;padding:8px 10px;font-size:10px;font-weight:800;white-space:nowrap}
+.delete-artist-button:hover:not(:disabled){background:#fbe8e8}
+.delete-artist-button:disabled{opacity:.42;cursor:not-allowed}
+.top-avatar{border:0;cursor:pointer;transition:transform .15s,box-shadow .15s}
+.top-avatar:hover{transform:translateY(-1px);box-shadow:0 0 0 4px #7047a61c}
+.top-avatar:focus-visible{outline:3px solid #a984ce;outline-offset:3px}
+.account-menu-wrap{position:relative;flex-shrink:0}
+.account-menu{position:absolute;right:0;top:calc(100% + 12px);width:250px;padding:15px;background:#fff;border:1px solid #eee7f2;border-radius:13px;box-shadow:0 16px 40px #24163322;z-index:60}
+.account-menu-heading strong{display:block;font-size:12px;color:#352640}
+.account-menu-heading small{display:block;font-size:10px;color:#8d8295;margin-top:4px}
+.account-menu p{font-size:11px;color:#776c80;overflow-wrap:anywhere;margin:12px 0;padding:10px;background:#f8f5fa;border-radius:8px}
+.account-menu>button{width:100%;border:0;border-radius:8px;background:#f8eeee;color:#984747;text-align:left;padding:10px 11px;font-size:11px;font-weight:800}
+.account-menu>button:hover{background:#f3e1e1}
+@media(max-width:760px){.delete-artist-button,.add-artist-button{padding:8px;font-size:9px}.account-menu{right:0;top:calc(100% + 8px)}}
