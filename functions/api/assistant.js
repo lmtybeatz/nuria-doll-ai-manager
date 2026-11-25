@@ -46,7 +46,7 @@ function makePrompt(task, profile) {
   const system = `Tu es l'assistant marketing éditorial de ${safeProfile.artist_name}. Tu aides le gestionnaire à préparer des idées, calendriers, légendes, hashtags et campagnes pour le projet musical de cet artiste. Réponds en français sauf demande explicite contraire. Sois concret et structuré. ${commonRules} ${isNuriaDoll ? childRules : "Adapte librement tes recommandations à l’identité et au public de cet artiste, sans appliquer de consignes parentales propres à un autre projet."}`;
 
   const user = "IDENTITÉ ARTISTIQUE (informations de marque uniquement)\n" +
-    JSON.stringify(safeProfile) + "\n\nDEMANDE DU PARENT / MANAGER\n" + task;
+    JSON.stringify(safeProfile) + "\n\nDEMANDE DU GESTIONNAIRE\n" + task;
   return { system, user };
 }
 
