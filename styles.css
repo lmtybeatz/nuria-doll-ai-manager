@@ -512,7 +512,7 @@
 .tiktok-recommendations .yt-recommendations-head strong{font:800 14px Manrope,sans-serif;color:#392b45}
 .tiktok-recommendations .yt-recommendations-head small{font-size:10px;color:#8d8295;line-height:1.45}
 .tiktok-recommendations #tiktokRecommendationStatus{margin:12px 0;color:#82768a;font-size:10px;line-height:1.6}
-.tiktok-recommendation-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:14px 0 18px}
+.tiktok-recommendation-facts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:14px 0 18px}
 .tiktok-recommendation-facts>div{min-width:0;padding:13px 12px;background:#faf8fc;border:1px solid #eee8f2;border-radius:10px}
 .tiktok-recommendation-facts strong,.tiktok-recommendation-facts small{display:block}
 .tiktok-recommendation-facts strong{font:800 18px Manrope,sans-serif;color:#4e3764;overflow-wrap:anywhere}
