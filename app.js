@@ -1525,7 +1525,9 @@
       ['Vidéos analysées',summary.videos_in_window+' / 28 j'],
       ['Vues cumulées',formatTikTokFact(summary.views)],
       ['J’aime cumulés',formatTikTokFact(summary.likes)],
-      ['Taux likes / vues',summary.like_rate_percent===null?'Indisponible':summary.like_rate_percent.toLocaleString('fr-FR')+' %']
+      ['Commentaires',formatTikTokFact(summary.comments)],
+      ['Partages',formatTikTokFact(summary.shares)],
+      ['Engagement complet',summary.engagement_rate_percent===null?'Non calculable':summary.engagement_rate_percent.toLocaleString('fr-FR')+' %']
     ];
     facts.forEach(([label,value])=>{const card=document.createElement('div'),strong=document.createElement('strong'),small=document.createElement('small');strong.textContent=value;small.textContent=label;card.append(strong,small);root.append(card);});
     const note=document.createElement('p');
