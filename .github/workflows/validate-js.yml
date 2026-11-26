@@ -16,5 +16,7 @@ jobs:
           node-version: 22
       - name: Check application JavaScript
         run: node --check app.js
+      - name: Check TikTok publishing client
+        run: node --check tiktok-publishing.js
       - name: Check API JavaScript
         run: find functions -type f -name '*.js' -print0 | xargs -0 -n1 node --check

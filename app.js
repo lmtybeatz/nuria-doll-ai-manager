@@ -37,6 +37,7 @@
   const recommendationBusy=new Set();
   let campaigns = [], editingCampaignId = null;
   const toast = (msg, bad=false) => { const el=$('#toast'); el.textContent=msg; el.className='toast show'+(bad?' error':''); setTimeout(()=>el.className='toast',3600); };
+  window.AIMusicManagerTikTokContext = { get: async () => { const result = await supabase?.auth?.getSession?.(); return { artistId: activeArtistId, artistName: activeArtistName(), accessToken: result?.data?.session?.access_token || null }; } };
   const show = (el) => el.classList.remove('hidden'); const hide = (el) => el.classList.add('hidden');
   function clearAssistantResult(){
     const result=$('#assistantResult');if(result)hide(result);
