@@ -99,7 +99,9 @@
     try{
       setBusy(true,button,draft?"Préparation du brouillon…":"Préparation de la publication…");
       const info=creatorInfo||await loadCreatorInfo(),max=Number(info.max_video_post_duration_sec||0);
-      if(!["video/mp4","video/quicktime","video/webm"].includes(file.type))throw new Error("Format non pris en charge. Utilise MP4, MOV ou WebM.");\n      if(file.size>4*1024*1024*1024)throw new Error("La vidéo dépasse la limite de taille prise en charge (4 Go).");\n      const duration=await readVideoDuration(file);if(max&&duration>max)throw new Error("Cette vidéo dure "+Math.ceil(duration)+" s, au-delà de la limite de ce compte ("+max+" s).");
+      if(!["video/mp4","video/quicktime","video/webm"].includes(file.type))throw new Error("Format non pris en charge. Utilise MP4, MOV ou WebM.");
+      if(file.size>4*1024*1024*1024)throw new Error("La vidéo dépasse la limite de taille prise en charge (4 Go).");
+      const duration=await readVideoDuration(file);if(max&&duration>max)throw new Error("Cette vidéo dure "+Math.ceil(duration)+" s, au-delà de la limite de ce compte ("+max+" s).");
       const chunkSize=10*1024*1024,totalChunks=Math.ceil(file.size/chunkSize);
       const init=await api(draft?"init_draft":"init_video",{title:caption,video_size:file.size,privacy_level:draft?"SELF_ONLY":$("#ttVideoPrivacy").value,disable_comment:!$("#ttAllowComments").checked,disable_duet:!$("#ttAllowDuet").checked,disable_stitch:!$("#ttAllowStitch").checked});
       await uploadVideo(file,init.upload_url,init.chunk_size||chunkSize,ctx.artistId,ctx.accessToken,resultNode);
