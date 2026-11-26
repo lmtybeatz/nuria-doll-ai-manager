@@ -1299,7 +1299,7 @@
   }
   function openSocialPlatform(platform){
     const names={facebook:"Facebook",instagram:"Instagram",youtube:"YouTube",tiktok:"TikTok"};
-    const subtitles={facebook:"Page Facebook, communauté et performances de la Page.",instagram:"Compte professionnel, audience, portée et interactions.",youtube:"Chaîne, statistiques vidéo et recommandations marketing.",tiktok:"Espace de suivi · intégration officielle à venir."};
+    const subtitles={facebook:"Page Facebook, communauté et performances de la Page.",instagram:"Compte professionnel, audience, portée et interactions.",youtube:"Chaîne, statistiques vidéo et recommandations marketing.",tiktok:"Intégration officielle active · suivi du profil, de l’audience et des vidéos."};
     if(!names[platform])return;
     activeSocialPlatform=platform;
     $('#socialPlatformGrid')?.classList.add('hidden');
@@ -1458,9 +1458,9 @@
       const connected=!!d.connected,account=d.account||{};
       const tag=$('#tiktokTag'),detail=$('#tiktokDetailTag');
       [tag,detail].forEach(el=>{if(el){el.textContent=connected?'Connecté':'À connecter';el.className='tag '+(connected?'green':'amber');}});
-      box.textContent=connected?'Compte TikTok relié à « '+activeArtistName()+' ».':'Aucun compte TikTok connecté pour cet artiste.';
+      box.textContent=connected?'Connexion officielle active pour « '+activeArtistName()+' ». Les données du compte sont accessibles.':'Aucun compte TikTok connecté pour cet artiste.';
       if(button)button.textContent=connected?'Reconnecter ce compte TikTok':'Connecter un compte TikTok';
-      if(connected){$('#tiktokAccountPanel')?.classList.remove('hidden');$('#tiktokDisplayName').textContent=account.display_name||'Compte TikTok';$('#tiktokUsername').textContent=account.username?'@'+account.username:'Identifiant non communiqué';const avatar=$('#tiktokAvatar');if(account.avatar_url&&avatar){avatar.src=account.avatar_url;avatar.classList.remove('hidden');}const link=$('#tiktokProfileLink');if(link){link.href=account.profile_deep_link||'https://www.tiktok.com/';}void loadTikTokAnalytics(artistId);}
+      if(connected){const recStatus=$('#tiktokRecommendationStatus'),recButton=$('#generateTikTokRecommendations');if(recStatus)recStatus.textContent='Compte connecté. Chargement des statistiques avant analyse IA…';if(recButton)recButton.disabled=true;$('#tiktokAccountPanel')?.classList.remove('hidden');$('#tiktokDisplayName').textContent=account.display_name||'Compte TikTok';$('#tiktokUsername').textContent=account.username?'@'+account.username:'Nom d’utilisateur non disponible avec les autorisations actuelles';const avatar=$('#tiktokAvatar');if(account.avatar_url&&avatar){avatar.src=account.avatar_url;avatar.classList.remove('hidden');}const link=$('#tiktokProfileLink');if(link){link.href=account.profile_deep_link||'https://www.tiktok.com/';}void loadTikTokAnalytics(artistId);}
       else $('#tiktokAccountPanel')?.classList.add('hidden');
     }catch(e){if(artistId===activeArtistId)box.textContent='Statut TikTok indisponible : '+e.message;}
   }
@@ -1478,12 +1478,12 @@
       $('#ttFollowing').textContent=a.following_count==null?'—':ytNumber(a.following_count);
       if(status)status.textContent='Données actualisées '+new Date(d.synced_at).toLocaleString('fr-FR')+(d.warnings?.length?' · '+d.warnings.join(' · '):'');
       if(list){list.replaceChildren();if(!d.videos?.length){list.textContent='Aucune vidéo accessible ou autorisation video.list non accordée.';}else d.videos.forEach(v=>{const card=document.createElement('article');card.className='tiktok-video-card';if(v.cover_image_url){const img=document.createElement('img');img.src=v.cover_image_url;img.alt='Aperçu vidéo';img.loading='lazy';card.append(img);}const info=document.createElement('div'),title=document.createElement('strong'),meta=document.createElement('small'),link=document.createElement('a');title.textContent=v.title||v.video_description||'Vidéo TikTok';meta.textContent=(v.view_count==null?'—':ytNumber(v.view_count)+' vues')+' · '+(v.like_count==null?'—':ytNumber(v.like_count)+' j’aime');link.href=v.share_url||'#';link.target='_blank';link.rel='noopener noreferrer';link.textContent='Voir la vidéo';info.append(title,meta,link);card.append(info);list.append(card);});}
-      latestTikTokAnalytics={...a,videos:d.videos||[],warnings:d.warnings||[],synced_at:d.synced_at};
-    }catch(e){if(artistId===activeArtistId&&status)status.textContent='Statistiques TikTok indisponibles : '+e.message;}
+      latestTikTokAnalytics={...a,videos:d.videos||[],warnings:d.warnings||[],synced_at:d.synced_at};const recStatus=$('#tiktokRecommendationStatus'),recButton=$('#generateTikTokRecommendations');if(recStatus)recStatus.textContent='Statistiques TikTok chargées. Tu peux maintenant générer une analyse marketing pour cet artiste.';if(recButton)recButton.disabled=false;
+    }catch(e){if(artistId===activeArtistId){if(status)status.textContent='Statistiques TikTok indisponibles : '+e.message;const recStatus=$('#tiktokRecommendationStatus'),recButton=$('#generateTikTokRecommendations');if(recStatus)recStatus.textContent='Les statistiques ne sont pas encore disponibles. Vérifie la connexion puis actualise les données.';if(recButton)recButton.disabled=true;}}
   }
   async function generateTikTokRecommendations(){
     const artistId=activeArtistId,data=latestTikTokAnalytics,status=$('#tiktokRecommendationStatus'),button=$('#generateTikTokRecommendations');
-    if(!artistId||!data){if(status)status.textContent='Actualise d’abord les statistiques TikTok.';return;}
+    if(!artistId||!data){if(status)status.textContent='Les statistiques TikTok doivent être chargées avant de lancer l’analyse.';return;}
     if(recommendationBusy.has(artistId+':tiktok'))return;
     recommendationBusy.add(artistId+':tiktok');button.disabled=true;button.textContent='Analyse en cours…';
     try{
@@ -1494,7 +1494,7 @@
       const payload=await response.json();if(!response.ok||!payload.answer)throw new Error(payload.error||'Génération IA impossible.');
       if(artistId!==activeArtistId)return;
       $('#tiktokRecommendationText').textContent=payload.answer;$('#tiktokRecommendationMeta').textContent='TikTok · '+new Date().toLocaleString('fr-FR');$('#tiktokRecommendationResult').classList.remove('hidden');status.textContent='Recommandations prêtes à examiner.';
-    }catch(e){if(artistId===activeArtistId)status.textContent=e.message;}
+    }catch(e){if(artistId===activeArtistId)status.textContent='Analyse marketing impossible : '+e.message;}
     finally{recommendationBusy.delete(artistId+':tiktok');if(artistId===activeArtistId){button.disabled=false;button.textContent='Générer mes recommandations';}}
   }
   $('#connectTikTok')?.addEventListener('click',async()=>{
