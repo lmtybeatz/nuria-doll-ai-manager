@@ -16,7 +16,7 @@ export async function onRequestPost({request,env}){
    const total=Math.ceil(size/chunkSize),privacy=String(body.privacy_level||"SELF_ONLY");
    const postInfo={title:body.title,privacy_level:privacy,disable_comment:!!body.disable_comment,disable_duet:!!body.disable_duet,disable_stitch:!!body.disable_stitch};
    const path=draft?"/v2/post/publish/inbox/video/init/":"/v2/post/publish/video/init/";
-   const data=await tiktokApi(path,token,{post_info:postInfo,source_info:{source:"FILE_UPLOAD",video_size:size,chunk_size:chunkSize,total_chunk_count:total}});
+   const requestBody=draft?{source_info:{source:"FILE_UPLOAD",video_size:size,chunk_size:chunkSize,total_chunk_count:total}}:{post_info:postInfo,source_info:{source:"FILE_UPLOAD",video_size:size,chunk_size:chunkSize,total_chunk_count:total}};\n   const data=await tiktokApi(path,token,requestBody);
    if(!data.upload_url||!data.publish_id)throw new Error("TikTok n’a pas fourni les informations de téléversement.");
    return reply({publish_id:data.publish_id,upload_url:data.upload_url,chunk_size:chunkSize,total_chunks:total,draft});
   }
