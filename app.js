@@ -732,12 +732,42 @@
   $('#accountMenuManageArtists')?.addEventListener('click',()=>{hide(accountMenu);accountMenuButton?.setAttribute('aria-expanded','false');renderArtistManagement();nav('artists');});
   $('#managementAddArtist')?.addEventListener('click',()=>$('#addArtistButton')?.click());
   const mobileMenu=$('#mobileMenu'),sidebar=$('#sidebar');
-  const closeMobileMenu=()=>{sidebar?.classList.remove('open');mobileMenu?.setAttribute('aria-expanded','false');mobileMenu?.setAttribute('aria-label','Ouvrir le menu');};
+  let mobileMenuBackdrop=$('#mobileMenuBackdrop');
+  if(!mobileMenuBackdrop){
+    mobileMenuBackdrop=document.createElement('button');
+    mobileMenuBackdrop.type='button';
+    mobileMenuBackdrop.id='mobileMenuBackdrop';
+    mobileMenuBackdrop.className='mobile-menu-backdrop';
+    mobileMenuBackdrop.setAttribute('aria-label','Fermer le menu');
+    mobileMenuBackdrop.setAttribute('aria-hidden','true');
+    document.body.append(mobileMenuBackdrop);
+  }
+  const closeMobileMenu=()=>{
+    sidebar?.classList.remove('open');
+    mobileMenuBackdrop?.classList.remove('active');
+    mobileMenu?.setAttribute('aria-expanded','false');
+    mobileMenu?.setAttribute('aria-label','Ouvrir le menu');
+    mobileMenuBackdrop?.setAttribute('aria-hidden','true');
+    document.body.classList.remove('mobile-navigation-open');
+  };
+  const openMobileMenu=()=>{
+    if(!sidebar)return;
+    sidebar.classList.add('open');
+    mobileMenuBackdrop?.classList.add('active');
+    mobileMenu?.setAttribute('aria-expanded','true');
+    mobileMenu?.setAttribute('aria-label','Fermer le menu');
+    mobileMenuBackdrop?.setAttribute('aria-hidden','false');
+    document.body.classList.add('mobile-navigation-open');
+  };
   $('.nav-item[data-view]').forEach(b=>b.onclick=()=>{nav(b.dataset.view);closeMobileMenu();});
   $('[data-goto]').forEach(b=>b.onclick=()=>{nav(b.dataset.goto);closeMobileMenu();});
-  mobileMenu?.addEventListener('click',()=>{const opening=!sidebar?.classList.contains('open');sidebar?.classList.toggle('open',opening);mobileMenu.setAttribute('aria-expanded',String(opening));mobileMenu.setAttribute('aria-label',opening?'Fermer le menu':'Ouvrir le menu');});
+  mobileMenu?.addEventListener('click',()=>{
+    if(sidebar?.classList.contains('open'))closeMobileMenu();
+    else openMobileMenu();
+  });
+  mobileMenuBackdrop?.addEventListener('click',closeMobileMenu);
   document.addEventListener('keydown',event=>{if(event.key==='Escape')closeMobileMenu();});
-  document.addEventListener('click',event=>{if(window.matchMedia('(max-width: 760px)').matches&&sidebar?.classList.contains('open')&&!sidebar.contains(event.target)&&!mobileMenu?.contains(event.target))closeMobileMenu();});
+  window.addEventListener('resize',()=>{if(!window.matchMedia('(max-width: 760px)').matches)closeMobileMenu();});
   $('#backToDashboard').onclick=()=>nav('overview');
   $('#brandForm').addEventListener('submit',async e=>{e.preventDefault();const f=new FormData(e.currentTarget),payload=Object.fromEntries(f.entries());payload.owner_id=user.id;payload.artist_id=activeArtistId;payload.updated_at=new Date().toISOString();const query=supabase.from('ai_brand_profile').upsert(payload,{onConflict:'artist_id'});const {error}=await query;if(error){$('#brandMessage').textContent=error.message;toast('Impossible d’enregistrer le profil.',true);return;}$('#brandMessage').textContent='Profil enregistré.';toast('Identité artistique enregistrée.');await loadProfile();});
   $('#settingsForm').addEventListener('submit',async e=>{e.preventDefault();const f=new FormData(e.currentTarget),p=Object.fromEntries(f.entries());p.owner_id=user.id;p.artist_id=activeArtistId;p.monthly_budget_usd=Number(p.monthly_budget_usd);p.planning_horizon=Number(p.planning_horizon);p.updated_at=new Date().toISOString();const {error}=await supabase.from('ai_settings').upsert(p,{onConflict:'artist_id'});if(error){$('#settingsMessage').textContent=error.message;toast(error.message,true);return;}$('#settingsMessage').textContent='Paramètres enregistrés. Aucun service payant n’a été activé.';toast('Paramètres enregistrés.');});
