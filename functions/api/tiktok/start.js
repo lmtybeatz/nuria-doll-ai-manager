@@ -15,6 +15,8 @@ export async function onRequestPost({request,env}){
  const cookie="amm_tiktok_oauth="+payload+"."+sig+"; HttpOnly; Secure; SameSite=Lax; Path=/api/tiktok; Max-Age=600";
  const url=new URL("https://www.tiktok.com/v2/auth/authorize/");
  url.searchParams.set("client_key",env.TIKTOK_CLIENT_KEY);url.searchParams.set("response_type","code");
- const requestedScopes=["user.info.basic","user.info.stats","video.list"];\n if(env.TIKTOK_CONTENT_POSTING_ENABLED==="true")requestedScopes.push("video.publish","video.upload");\n url.searchParams.set("scope",requestedScopes.join(","));url.searchParams.set("redirect_uri",env.TIKTOK_REDIRECT_URI);url.searchParams.set("state",state);
+ const requestedScopes=["user.info.basic","user.info.stats","video.list"];
+ if(env.TIKTOK_CONTENT_POSTING_ENABLED==="true")requestedScopes.push("video.publish","video.upload");
+ url.searchParams.set("scope",requestedScopes.join(","));url.searchParams.set("redirect_uri",env.TIKTOK_REDIRECT_URI);url.searchParams.set("state",state);
  return new Response(JSON.stringify({authorization_url:url.toString()}),{status:200,headers:{...H,"set-cookie":cookie}});
 }
