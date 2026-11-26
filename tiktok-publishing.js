@@ -33,7 +33,7 @@
       <div class="tiktok-publish-footnote">Chaque envoi exige une action explicite du gestionnaire. Les vidéos envoyées en brouillon doivent être finalisées dans TikTok. Tant que l’application n’a pas passé l’audit TikTok, les publications directes peuvent être limitées à « Moi uniquement ».</div>`;
     const rec=$("#socialTiktokDetail .tiktok-recommendations");
     root.insertBefore(section,rec||null);
-    $("#ttCreatorRefresh")?.addEventListener("click",loadCreatorInfo);
+    $("#ttCreatorRefresh")?.addEventListener("click",()=>loadCreatorInfo().catch(()=>{}));
     $("#ttVideoForm")?.addEventListener("submit",publishVideo);
     $("#ttPhotoForm")?.addEventListener("submit",publishPhotos);
     $("#ttVideoMode")?.addEventListener("change",()=>{const draft=$("#ttVideoMode").value==="draft";$("#ttPublishVideo").textContent=draft?"Envoyer le brouillon":"Publier la vidéo";});
@@ -89,7 +89,7 @@
     }
     return last||{status:"PROCESSING_UPLOAD"};
   }
-  async function publishVideo(event){
+  async function readVideoDuration(file){return new Promise((resolve,reject)=>{const video=document.createElement("video"),url=URL.createObjectURL(file);video.preload="metadata";video.onloadedmetadata=()=>{const duration=video.duration;URL.revokeObjectURL(url);resolve(duration);};video.onerror=()=>{URL.revokeObjectURL(url);reject(new Error("Impossible de lire la durée de cette vidéo."));};video.src=url;});}\n  async function publishVideo(event){
     event.preventDefault();if(busy)return;
     const button=$("#ttPublishVideo"),resultNode=$("#ttVideoResult"),file=$("#ttVideoFile")?.files?.[0],caption=$("#ttVideoCaption")?.value.trim();
     if(!file||!caption){if(resultNode)resultNode.textContent="Choisis une vidéo et sa légende.";return;}
@@ -98,7 +98,7 @@
     try{
       setBusy(true,button,draft?"Préparation du brouillon…":"Préparation de la publication…");
       const info=creatorInfo||await loadCreatorInfo(),max=Number(info.max_video_post_duration_sec||0);
-      if(max&&file.type.startsWith("video/")&&file.size>4*1024*1024*1024)throw new Error("La vidéo dépasse la limite de taille prise en charge.");
+      if(!["video/mp4","video/quicktime","video/webm"].includes(file.type))throw new Error("Format non pris en charge. Utilise MP4, MOV ou WebM.");\n      if(file.size>4*1024*1024*1024)throw new Error("La vidéo dépasse la limite de taille prise en charge (4 Go).");\n      const duration=await readVideoDuration(file);if(max&&duration>max)throw new Error("Cette vidéo dure "+Math.ceil(duration)+" s, au-delà de la limite de ce compte ("+max+" s).");
       const chunkSize=10*1024*1024,totalChunks=Math.ceil(file.size/chunkSize);
       const init=await api(draft?"init_draft":"init_video",{title:caption,video_size:file.size,privacy_level:draft?"SELF_ONLY":$("#ttVideoPrivacy").value,disable_comment:!$("#ttAllowComments").checked,disable_duet:!$("#ttAllowDuet").checked,disable_stitch:!$("#ttAllowStitch").checked});
       await uploadVideo(file,init.upload_url,init.chunk_size||chunkSize,ctx.artistId,ctx.accessToken,resultNode);
