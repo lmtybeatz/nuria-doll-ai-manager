@@ -1515,6 +1515,7 @@
   }
   function formatTikTokFact(metric){
     if(!metric)return 'Indisponible';
+    if(metric.total_items===0)return '—';
     if(metric.value===null)return 'Partiel · '+metric.available+'/'+metric.total_items+' données';
     return Number(metric.value).toLocaleString('fr-FR');
   }
