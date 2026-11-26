@@ -89,7 +89,8 @@
     }
     return last||{status:"PROCESSING_UPLOAD"};
   }
-  async function readVideoDuration(file){return new Promise((resolve,reject)=>{const video=document.createElement("video"),url=URL.createObjectURL(file);video.preload="metadata";video.onloadedmetadata=()=>{const duration=video.duration;URL.revokeObjectURL(url);resolve(duration);};video.onerror=()=>{URL.revokeObjectURL(url);reject(new Error("Impossible de lire la durée de cette vidéo."));};video.src=url;});}\n  async function publishVideo(event){
+  async function readVideoDuration(file){return new Promise((resolve,reject)=>{const video=document.createElement("video"),url=URL.createObjectURL(file);video.preload="metadata";video.onloadedmetadata=()=>{const duration=video.duration;URL.revokeObjectURL(url);resolve(duration);};video.onerror=()=>{URL.revokeObjectURL(url);reject(new Error("Impossible de lire la durée de cette vidéo."));};video.src=url;});}
+  async function publishVideo(event){
     event.preventDefault();if(busy)return;
     const button=$("#ttPublishVideo"),resultNode=$("#ttVideoResult"),file=$("#ttVideoFile")?.files?.[0],caption=$("#ttVideoCaption")?.value.trim();
     if(!file||!caption){if(resultNode)resultNode.textContent="Choisis une vidéo et sa légende.";return;}
