@@ -731,8 +731,13 @@
   $('#accountMenuSignOut')?.addEventListener('click',()=>$('#signOut')?.click());
   $('#accountMenuManageArtists')?.addEventListener('click',()=>{hide(accountMenu);accountMenuButton?.setAttribute('aria-expanded','false');renderArtistManagement();nav('artists');});
   $('#managementAddArtist')?.addEventListener('click',()=>$('#addArtistButton')?.click());
-  $$('.nav-item[data-view]').forEach(b=>b.onclick=()=>nav(b.dataset.view));$$('[data-goto]').forEach(b=>b.onclick=()=>nav(b.dataset.goto));
-  $('#mobileMenu').onclick=()=>$('#sidebar').classList.toggle('open');
+  const mobileMenu=$('#mobileMenu'),sidebar=$('#sidebar');
+  const closeMobileMenu=()=>{sidebar?.classList.remove('open');mobileMenu?.setAttribute('aria-expanded','false');mobileMenu?.setAttribute('aria-label','Ouvrir le menu');};
+  $('.nav-item[data-view]').forEach(b=>b.onclick=()=>{nav(b.dataset.view);closeMobileMenu();});
+  $('[data-goto]').forEach(b=>b.onclick=()=>{nav(b.dataset.goto);closeMobileMenu();});
+  mobileMenu?.addEventListener('click',()=>{const opening=!sidebar?.classList.contains('open');sidebar?.classList.toggle('open',opening);mobileMenu.setAttribute('aria-expanded',String(opening));mobileMenu.setAttribute('aria-label',opening?'Fermer le menu':'Ouvrir le menu');});
+  document.addEventListener('keydown',event=>{if(event.key==='Escape')closeMobileMenu();});
+  document.addEventListener('click',event=>{if(window.matchMedia('(max-width: 760px)').matches&&sidebar?.classList.contains('open')&&!sidebar.contains(event.target)&&!mobileMenu?.contains(event.target))closeMobileMenu();});
   $('#backToDashboard').onclick=()=>nav('overview');
   $('#brandForm').addEventListener('submit',async e=>{e.preventDefault();const f=new FormData(e.currentTarget),payload=Object.fromEntries(f.entries());payload.owner_id=user.id;payload.artist_id=activeArtistId;payload.updated_at=new Date().toISOString();const query=supabase.from('ai_brand_profile').upsert(payload,{onConflict:'artist_id'});const {error}=await query;if(error){$('#brandMessage').textContent=error.message;toast('Impossible d’enregistrer le profil.',true);return;}$('#brandMessage').textContent='Profil enregistré.';toast('Identité artistique enregistrée.');await loadProfile();});
   $('#settingsForm').addEventListener('submit',async e=>{e.preventDefault();const f=new FormData(e.currentTarget),p=Object.fromEntries(f.entries());p.owner_id=user.id;p.artist_id=activeArtistId;p.monthly_budget_usd=Number(p.monthly_budget_usd);p.planning_horizon=Number(p.planning_horizon);p.updated_at=new Date().toISOString();const {error}=await supabase.from('ai_settings').upsert(p,{onConflict:'artist_id'});if(error){$('#settingsMessage').textContent=error.message;toast(error.message,true);return;}$('#settingsMessage').textContent='Paramètres enregistrés. Aucun service payant n’a été activé.';toast('Paramètres enregistrés.');});
