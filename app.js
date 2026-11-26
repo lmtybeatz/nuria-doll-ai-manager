@@ -1519,25 +1519,44 @@
     if(metric.value===null)return 'Partiel · '+metric.available+'/'+metric.total_items+' données';
     return Number(metric.value).toLocaleString('fr-FR');
   }
+  function formatTikTokDate(value){
+    if(!value)return 'Date inconnue';
+    const date=new Date(value);
+    return Number.isNaN(date.getTime())?'Date inconnue':date.toLocaleDateString('fr-FR',{day:'2-digit',month:'short',year:'numeric'});
+  }
   function renderTikTokRecommendationFacts(summary){
     const root=$('#tiktokRecommendationFacts');if(!root)return;
     root.replaceChildren();
+    const sampleRange=summary.observed_sample_start&&summary.observed_sample_end
+      ?formatTikTokDate(summary.observed_sample_start)+' – '+formatTikTokDate(summary.observed_sample_end)
+      :'Dates insuffisantes';
     const facts=[
-      ['Vidéos analysées',summary.videos_in_window+' / 28 j'],
-      ['Vues cumulées',formatTikTokFact(summary.views)],
-      ['J’aime cumulés',formatTikTokFact(summary.likes)],
+      ['Vidéos reçues',String(summary.returned_videos)],
+      ['Période de l’échantillon',sampleRange],
+      ['Vidéos sur 28 jours',String(summary.videos_in_window)],
+      ['Vues sur 28 jours',formatTikTokFact(summary.views)],
+      ['J’aime sur 28 jours',formatTikTokFact(summary.likes)],
+      ['Taux j’aime / vues',summary.like_rate_percent===null?'Non calculable':summary.like_rate_percent.toLocaleString('fr-FR')+' %'],
       ['Commentaires',formatTikTokFact(summary.comments)],
       ['Partages',formatTikTokFact(summary.shares)],
       ['Engagement complet',summary.engagement_rate_percent===null?'Non calculable':summary.engagement_rate_percent.toLocaleString('fr-FR')+' %']
     ];
-    facts.forEach(([label,value])=>{const card=document.createElement('div'),strong=document.createElement('strong'),small=document.createElement('small');strong.textContent=value;small.textContent=label;card.append(strong,small);root.append(card);});
+    facts.forEach(([label,value])=>{
+      const card=document.createElement('div'),strong=document.createElement('strong'),small=document.createElement('small');
+      strong.textContent=value;small.textContent=label;card.append(strong,small);root.append(card);
+    });
     const note=document.createElement('p');
-    note.textContent='Périmètre : vidéos récupérées et datées dans les 28 jours précédant la synchronisation. Les statistiques du compte (abonnés, j’aime cumulés et nombre total de vidéos) sont des compteurs globaux, pas des résultats sur 28 jours.';
+    note.textContent='Lecture des chiffres : l’échantillon correspond aux vidéos renvoyées par TikTok, tandis que les totaux et taux de performance portent uniquement sur les vidéos datées dans les 28 jours précédant la synchronisation. Ces deux périmètres ne doivent pas être confondus.';
     root.append(note);
-    if(summary.comments.value===null||summary.shares.value===null){
-      const missing=document.createElement('p');
-      missing.textContent='Le taux d’engagement complet n’est pas calculé : les commentaires ou partages ne sont pas tous disponibles.';
-      root.append(missing);
+    const missing=[];
+    if(summary.views.value===null)missing.push('vues');
+    if(summary.likes.value===null)missing.push('j’aime');
+    if(summary.comments.value===null)missing.push('commentaires');
+    if(summary.shares.value===null)missing.push('partages');
+    if(missing.length){
+      const warning=document.createElement('p');
+      warning.textContent='Données incomplètes : '+missing.join(', ')+'. Les totaux ou taux qui en dépendent ne sont pas présentés comme complets.';
+      root.append(warning);
     }
   }
   async function generateTikTokRecommendations(){
@@ -1551,6 +1570,7 @@
       const task='Tu es un analyste marketing musical senior spécialisé TikTok. Prépare un rapport utile, précis et directement exploitable pour '+activeArtistName()+'.\n\n'+
         'RÈGLES DE FIABILITÉ OBLIGATOIRES : utilise uniquement les données fournies. Les compteurs du compte sont des valeurs globales à la date de synchronisation, pas des résultats sur 28 jours. Le nombre de vidéos récupérées dans la fenêtre n’est pas le nombre total de vidéos du compte. Les vidéos sans date valide sont exclues du calcul de période. N’additionne jamais des métriques partielles pour les présenter comme un total complet : indique la couverture disponible. Ne calcule un taux que si tous ses composants sont présents. N’invente ni commentaires, ni partages, ni évolution, ni démographie, ni heures optimales, ni causalité. Si l’échantillon est faible, dis-le. Ne prétends pas que TikTok favorise mécaniquement une fréquence de publication.\n'+
         'ANALYSE : commence par une synthèse de 3 lignes, puis les faits mesurés, les limites/données manquantes, 3 priorités argumentées, 5 idées de vidéos avec accroche et format, un calendrier souple sur 7 jours et les indicateurs à suivre. Les recommandations doivent être proportionnées à la taille réelle de l’audience et aux performances observées. Ne fixe pas de quotas de publication arbitraires ; propose un rythme testable et soutenable. Les heures de publication sont à tester, jamais à présenter comme optimales sans données.\n'+
+        'DISTINCTION DES PÉRIMÈTRES : indique explicitement le nombre de vidéos reçues par l’API et leur plage de dates observée, puis sépare les vidéos réellement incluses dans la fenêtre de 28 jours. N’utilise jamais les vues/j’aime de l’échantillon complet comme s’ils correspondaient aux 28 jours. Si les dates observées couvrent une période plus longue ou plus courte que 28 jours, signale-le.\n'+
         (isNuriaDollArtist(activeArtistName())?'SÉCURITÉ ENFANT RENFORCÉE : NURIA DOLL est une artiste enfant. Les idées sont des propositions destinées au parent/gestionnaire et nécessitent sa validation. Ne propose ni live, ni défi participatif, ni concours, ni collecte de contenus/photos/coordonnées d’enfants, ni conversation privée avec des mineurs, ni rencontre avec des abonnés. N’expose jamais école, domicile, habitudes, trajets, localisation en temps réel ou informations personnelles. Les commentaires sont modérés par le parent. Les CTA doivent inviter à apprécier la musique sans solliciter de contact privé.':'GESTION : aucune publication, programmation ou prise de contact automatique. Toutes les propositions restent des brouillons à valider par le gestionnaire.')+'\n'+
         'PRÉSENTATION : Markdown propre, avec vrais retours à la ligne. Utilise des titres courts (##), des listes à puces et des paragraphes courts. N’utilise aucun tableau, aucune balise HTML, aucun <br>, aucun bloc de texte compact. Ne répète pas les données sans les interpréter. Termine par une action immédiate claire. Réponds en français.\n\nDONNÉES CALCULÉES ET PÉRIMÈTRE :\n'+JSON.stringify(summary);
       const response=await fetch('/api/assistant',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+sessionData.session.access_token},body:JSON.stringify({task,artist_id:artistId})});
