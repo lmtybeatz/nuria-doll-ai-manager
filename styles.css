@@ -503,3 +503,34 @@
 .social-recommendations{margin-top:18px;padding:16px;border:1px solid #e9e1f0;border-radius:12px;background:#fcfaff}.social-recommendations .yt-recommendations-head{align-items:center}.social-recommendations .yt-recommendation-history{margin-top:14px}.social-recommendations .yt-recommendation-text{max-height:none}.social-recommendations .yt-recommendation-text.is-collapsed{max-height:330px;overflow:hidden;mask-image:linear-gradient(#000 78%,transparent)}
 
 .tiktok-avatar{width:48px;height:48px;border-radius:50%;object-fit:cover}.tiktok-video-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}.tiktok-video-card{display:flex;gap:10px;align-items:flex-start;padding:10px;border:1px solid var(--border);border-radius:10px}.tiktok-video-card img{width:82px;aspect-ratio:9/16;object-fit:cover;border-radius:7px}.tiktok-video-card strong{display:block;font-size:12px}.tiktok-video-card small{display:block;color:var(--muted);font-size:10px;margin-top:5px}.tiktok-insights-grid{grid-template-columns:repeat(4,minmax(0,1fr))}@media(max-width:560px){.tiktok-insights-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+
+/* Rapport TikTok — chiffres vérifiables et lecture éditoriale */
+.tiktok-recommendations{background:#fff;border-color:#e8e1ee}
+.tiktok-recommendations .yt-recommendations-head{gap:14px;align-items:center}
+.tiktok-recommendations .yt-recommendations-head>div{display:grid;gap:5px}
+.tiktok-recommendations .yt-recommendations-head strong{font:800 14px Manrope,sans-serif;color:#392b45}
+.tiktok-recommendations .yt-recommendations-head small{font-size:10px;color:#8d8295;line-height:1.45}
+.tiktok-recommendations #tiktokRecommendationStatus{margin:12px 0;color:#82768a;font-size:10px;line-height:1.6}
+.tiktok-recommendation-facts{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:14px 0 18px}
+.tiktok-recommendation-facts>div{min-width:0;padding:13px 12px;background:#faf8fc;border:1px solid #eee8f2;border-radius:10px}
+.tiktok-recommendation-facts strong,.tiktok-recommendation-facts small{display:block}
+.tiktok-recommendation-facts strong{font:800 18px Manrope,sans-serif;color:#4e3764;overflow-wrap:anywhere}
+.tiktok-recommendation-facts small{margin-top:5px;font-size:9px;color:#8b8092}
+.tiktok-recommendation-facts>p{grid-column:1/-1;margin:0;padding:9px 11px;border-left:3px solid #c5b2d5;background:#f8f5fa;color:#766b80;font-size:9px;line-height:1.6}
+.tiktok-recommendations .yt-recommendation-text{max-height:none;padding:2px 1px 4px;font-size:12px;line-height:1.75}
+.tiktok-recommendations .yt-recommendation-text.is-collapsed{max-height:520px;overflow:hidden;mask-image:linear-gradient(#000 88%,transparent)}
+.tiktok-recommendations .yt-recommendation-text h2{margin:20px 0 9px;font-size:16px}
+.tiktok-recommendations .yt-recommendation-text h2:first-child{margin-top:0}
+.tiktok-recommendations .yt-recommendation-text h3{margin:15px 0 7px;font-size:13px}
+.tiktok-recommendations .yt-recommendation-text p{margin:0 0 9px}
+.tiktok-recommendations .yt-recommendation-text li{margin-bottom:6px}
+.tiktok-recommendations .yt-report-toggle{margin-top:4px}
+@media(max-width:650px){
+ .tiktok-recommendations{padding:12px}
+ .tiktok-recommendations .yt-recommendations-head{align-items:stretch;flex-direction:column}
+ .tiktok-recommendations .yt-recommendations-head .btn{width:100%}
+ .tiktok-recommendation-facts{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+ .tiktok-recommendation-facts>div{padding:11px 9px}
+ .tiktok-recommendation-facts strong{font-size:16px}
+}
