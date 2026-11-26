@@ -1006,7 +1006,7 @@
         return Number.isInteger(code)&&code>=0&&code<=0x10ffff&&!(code>=0xd800&&code<=0xdfff)?String.fromCodePoint(code):match;
       })
       .replace(/&([a-z]+);/gi,(match,name)=>Object.prototype.hasOwnProperty.call(namedEntities,name.toLowerCase())?namedEntities[name.toLowerCase()]:match)
-      .replace(/\\?\s*<br\s*\/?>/gi,'; ')
+      .replace(/\\?\s*<br\s*\/?>/gi,'\n')
       .replace(/\\([*_\x60])/g,'$1');
   }
   function renderRecommendationMarkdown(markdown,root){
@@ -1481,6 +1481,62 @@
       latestTikTokAnalytics={...a,videos:d.videos||[],warnings:d.warnings||[],synced_at:d.synced_at};const recStatus=$('#tiktokRecommendationStatus'),recButton=$('#generateTikTokRecommendations');if(recStatus)recStatus.textContent='Statistiques TikTok chargées. Tu peux maintenant générer une analyse marketing pour cet artiste.';if(recButton)recButton.disabled=false;
     }catch(e){if(artistId===activeArtistId){if(status)status.textContent='Statistiques TikTok indisponibles : '+e.message;const recStatus=$('#tiktokRecommendationStatus'),recButton=$('#generateTikTokRecommendations');if(recStatus)recStatus.textContent='Les statistiques ne sont pas encore disponibles. Vérifie la connexion puis actualise les données.';if(recButton)recButton.disabled=true;}}
   }
+  function summarizeTikTokVideos(data){
+    const videos=Array.isArray(data.videos)?data.videos:[];
+    const syncedAt=new Date(data.synced_at||Date.now());
+    const end=Number.isNaN(syncedAt.getTime())?new Date():syncedAt;
+    const start=new Date(end.getTime()-28*24*60*60*1000);
+    const parsed=videos.map(video=>{
+      const raw=Number(video.create_time);
+      const date=Number.isFinite(raw)&&raw>0?new Date(raw*1000):null;
+      return {...video,_date:date&&!Number.isNaN(date.getTime())?date:null};
+    });
+    const inWindow=parsed.filter(video=>video._date&&video._date>=start&&video._date<=end);
+    const sum=(items,key)=>{
+      const available=items.filter(item=>item[key]!==null&&item[key]!==undefined&&item[key]!==''&&Number.isFinite(Number(item[key])));
+      const total=available.reduce((acc,item)=>acc+Number(item[key]),0);
+      return {value:available.length===items.length&&items.length?total:null,observed_total:total,available:available.length,total_items:items.length};
+    };
+    const views=sum(inWindow,'view_count'),likes=sum(inWindow,'like_count'),comments=sum(inWindow,'comment_count'),shares=sum(inWindow,'share_count');
+    const likeRate=views.value>0&&likes.value!==null?Number((likes.value/views.value*100).toFixed(2)):null;
+    const engagementRate=views.value>0&&likes.value!==null&&comments.value!==null&&shares.value!==null
+      ?Number(((likes.value+comments.value+shares.value)/views.value*100).toFixed(2)):null;
+    const dated=parsed.filter(video=>video._date).sort((a,b)=>a._date-b._date);
+    const asIso=date=>date?date.toISOString():null;
+    return {
+      window_days:28,window_start:asIso(start),window_end:asIso(end),
+      account:{followers:data.follower_count??null,following:data.following_count??null,lifetime_likes:data.likes_count??null,lifetime_video_count:data.video_count??null},
+      videos_in_window:inWindow.length,returned_videos:videos.length,undated_videos:parsed.length-dated.length,
+      observed_sample_start:asIso(dated[0]?._date),observed_sample_end:asIso(dated.at(-1)?._date),
+      views,likes,comments,shares,like_rate_percent:likeRate,engagement_rate_percent:engagementRate,
+      videos:inWindow.map(video=>({title:video.title||video.video_description||'Sans titre',views:video.view_count??null,likes:video.like_count??null,comments:video.comment_count??null,shares:video.share_count??null,created_at:asIso(video._date)})),
+      warnings:Array.isArray(data.warnings)?data.warnings:[]
+    };
+  }
+  function formatTikTokFact(metric){
+    if(!metric)return 'Indisponible';
+    if(metric.value===null)return 'Partiel · '+metric.available+'/'+metric.total_items+' données';
+    return Number(metric.value).toLocaleString('fr-FR');
+  }
+  function renderTikTokRecommendationFacts(summary){
+    const root=$('#tiktokRecommendationFacts');if(!root)return;
+    root.replaceChildren();
+    const facts=[
+      ['Vidéos analysées',summary.videos_in_window+' / 28 j'],
+      ['Vues cumulées',formatTikTokFact(summary.views)],
+      ['J’aime cumulés',formatTikTokFact(summary.likes)],
+      ['Taux likes / vues',summary.like_rate_percent===null?'Indisponible':summary.like_rate_percent.toLocaleString('fr-FR')+' %']
+    ];
+    facts.forEach(([label,value])=>{const card=document.createElement('div'),strong=document.createElement('strong'),small=document.createElement('small');strong.textContent=value;small.textContent=label;card.append(strong,small);root.append(card);});
+    const note=document.createElement('p');
+    note.textContent='Périmètre : vidéos récupérées et datées dans les 28 jours précédant la synchronisation. Les statistiques du compte (abonnés, j’aime cumulés et nombre total de vidéos) sont des compteurs globaux, pas des résultats sur 28 jours.';
+    root.append(note);
+    if(summary.comments.value===null||summary.shares.value===null){
+      const missing=document.createElement('p');
+      missing.textContent='Le taux d’engagement complet n’est pas calculé : les commentaires ou partages ne sont pas tous disponibles.';
+      root.append(missing);
+    }
+  }
   async function generateTikTokRecommendations(){
     const artistId=activeArtistId,data=latestTikTokAnalytics,status=$('#tiktokRecommendationStatus'),button=$('#generateTikTokRecommendations');
     if(!artistId||!data){if(status)status.textContent='Les statistiques TikTok doivent être chargées avant de lancer l’analyse.';return;}
@@ -1488,15 +1544,31 @@
     recommendationBusy.add(artistId+':tiktok');button.disabled=true;button.textContent='Analyse en cours…';
     try{
       const {data:sessionData,error}=await supabase.auth.getSession();if(error||!sessionData?.session?.access_token)throw new Error('Session expirée.');
-      const snapshot={platform:'tiktok',period_days:28,metrics:{followers:data.follower_count,likes:data.likes_count,following:data.following_count,videos:data.video_count,recent_videos:data.videos.map(v=>({title:v.title||v.video_description,views:v.view_count,likes:v.like_count,comments:v.comment_count,shares:v.share_count,created_at:v.create_time}))},warnings:data.warnings||[],synced_at:data.synced_at};
-      const task='Tu es un stratège marketing musical spécialisé TikTok. Analyse les données ci-dessous pour '+activeArtistName()+'. N’invente aucun chiffre ni tendance. Distingue faits et hypothèses. Propose 3 priorités, 5 idées de vidéos TikTok, formats/hooks, rythme éditorial sur 7 jours, indicateurs à suivre et prochaine étape. Respecte le profil artistique et, pour un artiste enfant, applique strictement les garde-fous parentaux : aucune interaction privée avec mineurs, aucun défi dangereux, aucune révélation de localisation ou d’école. Aucun contenu ne sera publié automatiquement. Réponds en français.\n\nDONNÉES : '+JSON.stringify(snapshot);
+      const summary=summarizeTikTokVideos(data);
+      const task='Tu es un analyste marketing musical senior spécialisé TikTok. Prépare un rapport utile, précis et directement exploitable pour '+activeArtistName()+'.\n\n'+
+        'RÈGLES DE FIABILITÉ OBLIGATOIRES : utilise uniquement les données fournies. Les compteurs du compte sont des valeurs globales à la date de synchronisation, pas des résultats sur 28 jours. Le nombre de vidéos récupérées dans la fenêtre n’est pas le nombre total de vidéos du compte. Les vidéos sans date valide sont exclues du calcul de période. N’additionne jamais des métriques partielles pour les présenter comme un total complet : indique la couverture disponible. Ne calcule un taux que si tous ses composants sont présents. N’invente ni commentaires, ni partages, ni évolution, ni démographie, ni heures optimales, ni causalité. Si l’échantillon est faible, dis-le. Ne prétends pas que TikTok favorise mécaniquement une fréquence de publication.\n'+
+        'ANALYSE : commence par une synthèse de 3 lignes, puis les faits mesurés, les limites/données manquantes, 3 priorités argumentées, 5 idées de vidéos avec accroche et format, un calendrier souple sur 7 jours et les indicateurs à suivre. Les recommandations doivent être proportionnées à la taille réelle de l’audience et aux performances observées. Ne fixe pas de quotas de publication arbitraires ; propose un rythme testable et soutenable. Les heures de publication sont à tester, jamais à présenter comme optimales sans données.\n'+
+        (isNuriaDollArtist(activeArtistName())?'SÉCURITÉ ENFANT RENFORCÉE : NURIA DOLL est une artiste enfant. Les idées sont des propositions destinées au parent/gestionnaire et nécessitent sa validation. Ne propose ni live, ni défi participatif, ni concours, ni collecte de contenus/photos/coordonnées d’enfants, ni conversation privée avec des mineurs, ni rencontre avec des abonnés. N’expose jamais école, domicile, habitudes, trajets, localisation en temps réel ou informations personnelles. Les commentaires sont modérés par le parent. Les CTA doivent inviter à apprécier la musique sans solliciter de contact privé.':'GESTION : aucune publication, programmation ou prise de contact automatique. Toutes les propositions restent des brouillons à valider par le gestionnaire.')+'\n'+
+        'PRÉSENTATION : Markdown propre, avec vrais retours à la ligne. Utilise des titres courts (##), des listes à puces et des paragraphes courts. N’utilise aucun tableau, aucune balise HTML, aucun <br>, aucun bloc de texte compact. Ne répète pas les données sans les interpréter. Termine par une action immédiate claire. Réponds en français.\n\nDONNÉES CALCULÉES ET PÉRIMÈTRE :\n'+JSON.stringify(summary);
       const response=await fetch('/api/assistant',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+sessionData.session.access_token},body:JSON.stringify({task,artist_id:artistId})});
       const payload=await response.json();if(!response.ok||!payload.answer)throw new Error(payload.error||'Génération IA impossible.');
       if(artistId!==activeArtistId)return;
-      $('#tiktokRecommendationText').textContent=payload.answer;$('#tiktokRecommendationMeta').textContent='TikTok · '+new Date().toLocaleString('fr-FR');$('#tiktokRecommendationResult').classList.remove('hidden');status.textContent='Recommandations prêtes à examiner.';
+      renderTikTokRecommendationFacts(summary);
+      renderRecommendationMarkdown(payload.answer,$('#tiktokRecommendationText'));
+      $('#tiktokRecommendationText').classList.add('is-collapsed');
+      const toggle=$('#toggleTikTokReport');if(toggle){toggle.textContent='Lire la suite';toggle.setAttribute('aria-expanded','false');}
+      $('#tiktokRecommendationMeta').textContent='TikTok · synchronisé le '+new Date(data.synced_at||Date.now()).toLocaleString('fr-FR')+' · '+(payload.provider==='cloudflare_workers_ai'?'Moteur IA de secours':'Moteur IA');
+      $('#tiktokRecommendationResult').classList.remove('hidden');status.textContent='Analyse terminée. Les chiffres calculés et les limites des données sont affichés séparément.';
     }catch(e){if(artistId===activeArtistId)status.textContent='Analyse marketing impossible : '+e.message;}
     finally{recommendationBusy.delete(artistId+':tiktok');if(artistId===activeArtistId){button.disabled=false;button.textContent='Générer mes recommandations';}}
   }
+  $('#toggleTikTokReport')?.addEventListener('click',()=>{
+    const output=$('#tiktokRecommendationText'),toggle=$('#toggleTikTokReport');
+    if(!output||!toggle)return;
+    const collapsed=output.classList.toggle('is-collapsed');
+    toggle.textContent=collapsed?'Lire la suite':'Réduire';
+    toggle.setAttribute('aria-expanded',String(!collapsed));
+  });
   $('#connectTikTok')?.addEventListener('click',async()=>{
     try{const artistId=activeArtistId;if(!artistId)throw new Error('Sélectionne un artiste.');const {data:{session}}=await supabase.auth.getSession();if(!session?.access_token)throw new Error('Reconnecte-toi.');
       const r=await fetch('/api/tiktok/start',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+session.access_token},body:JSON.stringify({artist_id:artistId})});
