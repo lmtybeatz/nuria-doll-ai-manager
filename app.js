@@ -1429,6 +1429,7 @@
   }
   async function youtubeStatus(){
     const artistId=activeArtistId;
+    setSocialConnectionGate('youtube',null);
     resetYoutubeDashboard();
     const box=$('#youtubeStatus'),button=$('#connectYoutube');
     try{
@@ -1442,8 +1443,45 @@
       $('#youtubeTag').className='tag '+(d.connected?'green':'amber');
       const ytCardStatus=$('#youtubeCardStatus');if(ytCardStatus)ytCardStatus.textContent=d.connected?'Chaîne connectée · Statistiques disponibles':'Connecte une chaîne pour activer les statistiques';
       const ytDetailTag=$('#youtubeDetailTag');if(ytDetailTag){ytDetailTag.textContent=d.connected?'Connecté':'À connecter';ytDetailTag.className='tag '+(d.connected?'green':'amber');}
+      setSocialConnectionGate('youtube',!!d.connected);
       if(d.connected){await loadYoutubeChannel();await loadYoutubeAnalytics(30);}else {$('#youtubeChannelPanel')?.classList.add('hidden');$('#youtubeAnalyticsStatus').textContent='Connecte une chaîne YouTube pour cet artiste afin de consulter ses statistiques.';}
-    }catch(e){if(artistId===activeArtistId){const missing=Array.isArray(e.missing)?' Variables manquantes : '+e.missing.join(', '):'';box.textContent='Statut indisponible : '+e.message+missing;}}
+    }catch(e){if(artistId===activeArtistId){const missing=Array.isArray(e.missing)?' Variables manquantes : '+e.missing.join(', '):'';box.textContent='Statut indisponible : '+e.message+missing;setSocialConnectionGate('youtube',null,'Impossible de vérifier YouTube : '+e.message);}}
+  }
+  function setSocialConnectionGate(platform,connected,errorMessage=''){
+    const labels={facebook:'Facebook',instagram:'Instagram',youtube:'YouTube',tiktok:'TikTok'};
+    const panel=$('#social'+platform[0].toUpperCase()+platform.slice(1)+'Detail');
+    if(!panel)return;
+    let gate=panel.querySelector('.social-connection-gate');
+    if(!gate){
+      gate=document.createElement('div');
+      gate.className='social-connection-gate';
+      gate.innerHTML='<div class="social-connection-gate-card"><span class="social-connection-gate-icon" aria-hidden="true">↗</span><h4></h4><p></p><button type="button" class="btn primary"></button></div>';
+      panel.prepend(gate);
+    }
+    panel.dataset.connectionState=connected===true?'connected':connected===false?'disconnected':'pending';
+    if(connected===true){
+      panel.classList.remove('is-locked');
+      gate.hidden=true;
+      return;
+    }
+    panel.classList.add('is-locked');
+    gate.hidden=false;
+    const checking=connected===null;
+    gate.querySelector('h4').textContent=checking?(errorMessage?'Connexion à vérifier':'Vérification du compte'):'Connectez votre compte '+labels[platform];
+    gate.querySelector('p').textContent=checking?(errorMessage||'Nous vérifions les autorisations de ce réseau pour l’artiste actif.'):'Pour accéder au tableau de bord, aux statistiques et aux outils, connectez d’abord un compte '+labels[platform]+'.';
+    const action=gate.querySelector('button');
+    action.hidden=checking&&!errorMessage;
+    action.textContent=checking?'Réessayer':'Connecter mon compte';
+    action.onclick=()=>{
+      if(checking){
+        if(platform==='facebook'||platform==='instagram')void metaStatus();
+        else if(platform==='youtube')void youtubeStatus();
+        else void loadTikTokStatus();
+        return;
+      }
+      const targets={facebook:'#connectMeta',instagram:'#connectMetaInstagram',youtube:'#connectYoutube',tiktok:'#connectTikTok'};
+      $(targets[platform])?.click();
+    };
   }
   function openSocialPlatform(platform){
     const names={facebook:"Facebook",instagram:"Instagram",youtube:"YouTube",tiktok:"TikTok"};
@@ -1458,6 +1496,8 @@
       const panel=$('#social'+name[0].toUpperCase()+name.slice(1)+'Detail');
       panel?.classList.toggle('hidden',name!==platform);
     });
+    const selectedPanel=$('#social'+platform[0].toUpperCase()+platform.slice(1)+'Detail');
+    if(selectedPanel&&!selectedPanel.dataset.connectionState)setSocialConnectionGate(platform,null);
     $('#socialBackButton')?.focus({preventScroll:true});
   }
   function closeSocialPlatform(){
@@ -1752,6 +1792,7 @@
   }
   async function loadTikTokStatus(){
     const artistId=activeArtistId,box=$('#tiktokStatus'),button=$('#connectTikTok');if(!artistId||!box)return;
+    setSocialConnectionGate('tiktok',null);
     $('#disconnectTikTok')?.classList.add('hidden');
     box.textContent='Vérification de la connexion TikTok…';
     try{
@@ -1760,6 +1801,7 @@
       const d=await r.json();if(!r.ok)throw new Error(d.error||'Statut TikTok indisponible.');
       if(artistId!==activeArtistId)return;
       const connected=!!d.connected,account=d.account||{};
+      setSocialConnectionGate('tiktok',connected);
       const tag=$('#tiktokTag'),detail=$('#tiktokDetailTag');
       [tag,detail].forEach(el=>{if(el){el.textContent=connected?'Connecté':'À connecter';el.className='tag '+(connected?'green':'amber');}});
       box.textContent=connected?'Connexion officielle active pour « '+activeArtistName()+' ». Les données du compte sont accessibles.':'Aucun compte TikTok connecté pour cet artiste.';
@@ -1774,7 +1816,7 @@
         $('#tiktokRecommendationResult')?.classList.add('hidden');
         const recButton=$('#generateTikTokRecommendations');if(recButton)recButton.disabled=true;
       }
-    }catch(e){if(artistId===activeArtistId)box.textContent='Statut TikTok indisponible : '+e.message;}
+    }catch(e){if(artistId===activeArtistId){box.textContent='Statut TikTok indisponible : '+e.message;setSocialConnectionGate('tiktok',null,'Impossible de vérifier TikTok : '+e.message);}}
   }
   async function loadTikTokAnalytics(artistId,options={}){
     const append=options.append===true,existing=append&&latestTikTokAnalyticsArtistId===artistId?latestTikTokAnalytics:null;
@@ -2018,6 +2060,7 @@
   async function metaStatus(){
     const artistId=activeArtistId,box=$('#metaStatus'),button=$('#connectMeta'),accounts=$('#metaAccounts');
     if(!box||!button||!artistId)return;
+    setSocialConnectionGate('facebook',null);setSocialConnectionGate('instagram',null);
     box.textContent='Vérification de la connexion Meta…';accounts?.replaceChildren();$('#instagramAccountList')?.replaceChildren();
     try{
       const {data:{session}}=await supabase.auth.getSession();if(!session?.access_token)throw new Error('Reconnecte-toi.');
@@ -2030,6 +2073,7 @@
         ?d.instagram_accounts
         :pages.filter(page=>page.instagram_id).map(page=>({instagram_id:page.instagram_id,instagram_username:page.instagram_username}));
       const facebookConnected=pages.length>0,instagramConnected=instagramAccounts.length>0;
+      setSocialConnectionGate('facebook',facebookConnected);setSocialConnectionGate('instagram',instagramConnected);
       box.textContent=connected
         ?'Comptes sociaux reliés à « '+activeArtistName()+' » · '+pages.length+' Page(s) Facebook · '+instagramAccounts.length+' compte(s) Instagram.'
         :'Aucune connexion Meta pour cet artiste.';
@@ -2059,7 +2103,7 @@
           const igList=$('#instagramAccountList');if(igList)igList.append(item);
         });
       }
-    }catch(e){if(artistId===activeArtistId)box.textContent='Statut Meta indisponible : '+e.message;}
+    }catch(e){if(artistId===activeArtistId){box.textContent='Statut Meta indisponible : '+e.message;setSocialConnectionGate('facebook',null,'Impossible de vérifier Facebook : '+e.message);setSocialConnectionGate('instagram',null,'Impossible de vérifier Instagram : '+e.message);}}
   }
   const startMetaConnection=async()=>{
     try{
