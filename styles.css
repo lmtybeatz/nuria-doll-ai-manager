@@ -1174,3 +1174,8 @@ body.tiktok-preview-open{overflow:hidden}
 #view-community .community-platform{padding-left:37px}
 #view-community .community-platform strong{font-size:11px}#view-community .community-platform span{font-size:9px}
 #view-community .community-filters{grid-template-columns:1fr}#view-community .community-search-label{grid-column:auto}}
+
+/* TikTok artist-scoped connection controls */
+.tiktok-connection-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:12px}
+.tiktok-connection-actions .btn{margin:0}
+@media(max-width:560px){.tiktok-connection-actions{display:grid;grid-template-columns:1fr}.tiktok-connection-actions .btn{width:100%}}
