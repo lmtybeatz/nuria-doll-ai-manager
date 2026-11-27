@@ -1,9 +1,32 @@
+import {getTikTokContext,tiktokApi} from "../../_shared/tiktok-auth.js";
 const H={"content-type":"application/json; charset=utf-8","cache-control":"no-store"};
-async function verify(req,env){const m=(req.headers.get("authorization")||"").match(/^Bearer\s+(.+)$/i);if(!m)return null;const r=await fetch(env.SUPABASE_URL.replace(/\/$/,"")+"/auth/v1/user",{headers:{apikey:env.SUPABASE_PUBLISHABLE_KEY,authorization:"Bearer "+m[1]}});return r.ok?r.json():null;}
-async function decrypt(v,keyB64){const raw=Uint8Array.from(atob(keyB64),c=>c.charCodeAt(0));if(raw.length!==32)throw new Error("Clé de chiffrement invalide.");const [iv,data]=v.split("."),key=await crypto.subtle.importKey("raw",raw,"AES-GCM",false,["decrypt"]);return JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({name:"AES-GCM",iv:Uint8Array.from(atob(iv),c=>c.charCodeAt(0))},key,Uint8Array.from(atob(data),c=>c.charCodeAt(0)))));}
-async function api(path,token,body,method="POST"){const r=await fetch("https://open.tiktokapis.com"+path,{method,headers:{authorization:"Bearer "+token,"content-type":"application/json"},...(method==="GET"?{}:{body:JSON.stringify(body)})});const d=await r.json();if(!r.ok||d.error?.code&&d.error.code!=="ok")throw new Error(d.error?.message||"TikTok API error");return d.data||{};}
-export async function onRequestGet({request,env}){const missing=["SUPABASE_URL","SUPABASE_PUBLISHABLE_KEY","SUPABASE_SERVICE_ROLE_KEY","META_TOKEN_ENCRYPTION_KEY","TIKTOK_CLIENT_KEY","TIKTOK_CLIENT_SECRET"].filter(k=>!env[k]);if(missing.length)return Response.json({error:"Configuration serveur incomplète.",missing},{status:503,headers:H});const u=await verify(request,env);if(!u?.id)return Response.json({error:"Connexion requise."},{status:401,headers:H});const id=new URL(request.url).searchParams.get("artist_id");if(!id)return Response.json({error:"Espace artiste manquant."},{status:400,headers:H});const base=env.SUPABASE_URL.replace(/\/$/,""),h={apikey:env.SUPABASE_SERVICE_ROLE_KEY,authorization:"Bearer "+env.SUPABASE_SERVICE_ROLE_KEY};const a=await fetch(base+"/rest/v1/ai_artists?id=eq."+encodeURIComponent(id)+"&owner_id=eq."+encodeURIComponent(u.id)+"&status=eq.active&select=id",{headers:h});if(!a.ok||!(await a.json()).length)return Response.json({error:"Espace artiste non autorisé."},{status:404,headers:H});const r=await fetch(base+"/rest/v1/ai_social_connections?owner_id=eq."+encodeURIComponent(u.id)+"&artist_id=eq."+encodeURIComponent(id)+"&provider=eq.tiktok&select=token_ciphertext",{headers:h});if(!r.ok)return Response.json({error:"Connexion TikTok introuvable."},{status:404,headers:H});const row=(await r.json())[0];if(!row)return Response.json({error:"Connecte d’abord un compte TikTok."},{status:404,headers:H});try{const token=await decrypt(row.token_ciphertext,env.META_TOKEN_ENCRYPTION_KEY);if(Date.now()>token.expires_at-300000){if(Date.now()>token.refresh_expires_at)throw new Error("Autorisation TikTok expirée. Reconnecte le compte.");const form=new URLSearchParams({client_key:env.TIKTOK_CLIENT_KEY,client_secret:env.TIKTOK_CLIENT_SECRET,grant_type:"refresh_token",refresh_token:token.refresh_token});const rr=await fetch("https://open.tiktokapis.com/v2/oauth/token/",{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body:form});const rd=await rr.json();if(!rr.ok||rd.error||!rd.access_token)throw new Error("Renouvellement du jeton TikTok impossible.");token.access_token=rd.access_token;token.refresh_token=rd.refresh_token||token.refresh_token;token.expires_at=Date.now()+Number(rd.expires_in||86400)*1000;token.refresh_expires_at=Date.now()+Number(rd.refresh_expires_in||31536000)*1000;const raw=Uint8Array.from(atob(env.META_TOKEN_ENCRYPTION_KEY),c=>c.charCodeAt(0)),key=await crypto.subtle.importKey("raw",raw,"AES-GCM",false,["encrypt"]),iv=crypto.getRandomValues(new Uint8Array(12)),enc=await crypto.subtle.encrypt({name:"AES-GCM",iv},key,new TextEncoder().encode(JSON.stringify(token))),cipher=btoa(String.fromCharCode(...iv))+"."+btoa(String.fromCharCode(...new Uint8Array(enc)));await fetch(base+"/rest/v1/ai_social_connections?owner_id=eq."+encodeURIComponent(u.id)+"&artist_id=eq."+encodeURIComponent(id)+"&provider=eq.tiktok",{method:"PATCH",headers:{...h,"content-type":"application/json"},body:JSON.stringify({token_ciphertext:cipher,updated_at:new Date().toISOString()})});}
- const warnings=[],account={};try{const p=await api("/v2/user/info/?fields=open_id,avatar_url,display_name,follower_count,following_count,likes_count,video_count",token.access_token,null,"GET");Object.assign(account,p.user||{});}catch(e){warnings.push("Profil : "+e.message);}
- let videos=[];try{const v=await api("/v2/video/list/?fields=id,title,video_description,duration,cover_image_url,share_url,view_count,like_count,comment_count,share_count,create_time",token.access_token,{max_count:20});videos=Array.isArray(v.videos)?v.videos:[];}catch(e){warnings.push("Vidéos : "+e.message);}
- return Response.json({account,videos,warnings,synced_at:new Date().toISOString()},{headers:H});
- }catch(e){return Response.json({error:e.message||"Statistiques TikTok indisponibles."},{status:502,headers:H});}}
+const VIDEO_FIELDS="id,title,video_description,duration,cover_image_url,share_url,view_count,like_count,comment_count,share_count,create_time";
+const PROFILE_FIELDS="open_id,avatar_url,display_name,follower_count,following_count,likes_count,video_count";
+const reply=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:H});
+
+export async function onRequestGet({request,env}){
+ const url=new URL(request.url),artistId=url.searchParams.get("artist_id"),rawCursor=url.searchParams.get("cursor");
+ if(!artistId)return reply({error:"Espace artiste manquant."},400);
+ let cursor=null;
+ if(rawCursor!==null){cursor=Number(rawCursor);if(!Number.isSafeInteger(cursor)||cursor<0)return reply({error:"Curseur de pagination invalide."},400);}
+ try{
+  const ctx=await getTikTokContext(request,env,artistId),warnings=[];
+  let account={};
+  try{
+   const response=await fetch("https://open.tiktokapis.com/v2/user/info/?fields="+encodeURIComponent(PROFILE_FIELDS),{headers:{authorization:"Bearer "+ctx.token.access_token}});
+   const payload=await response.json().catch(()=>({}));
+   if(!response.ok||payload.error?.code&&payload.error.code!=="ok")throw new Error(payload.error?.message||"Profil TikTok indisponible.");
+   account=payload.data?.user||{};
+  }catch(error){warnings.push("Profil : "+error.message);}
+  let videos=[],nextCursor=null,hasMore=false;
+  try{
+   const body={max_count:20};if(cursor!==null)body.cursor=cursor;
+   const data=await tiktokApi("/v2/video/list/",ctx.token.access_token,body,VIDEO_FIELDS);
+   videos=Array.isArray(data.videos)?data.videos:[];
+   nextCursor=data.cursor??null;hasMore=Boolean(data.has_more);
+  }catch(error){warnings.push("Vidéos : "+error.message);}
+  return reply({account,videos,cursor:nextCursor,has_more:hasMore,warnings,synced_at:new Date().toISOString()});
+ }catch(error){
+  return reply({error:error.message||"Statistiques TikTok indisponibles.",missing:error.missing||undefined},error.status||502);
+ }
+}
