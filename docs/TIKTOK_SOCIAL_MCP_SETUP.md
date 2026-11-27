@@ -5,9 +5,11 @@ AI Music Manager utilise deux connexions TikTok complémentaires :
 - **Login Kit / Content Posting API** : profil, statistiques, vidéos et flux de publication vidéo/photo déjà présents dans l'application.
 - **TikTok Social MCP** : outils officiels TikTok Organic pour découvrir les actions disponibles, consulter les commentaires, répondre et gérer les interactions autorisées.
 
-## Migration Supabase
+## Prérequis et migration Supabase
 
-Exécuter une seule fois le script `supabase/tiktok_social_mcp_migration.sql` dans Supabase SQL Editor. Il autorise le provider `tiktok_social_mcp` dans `ai_social_connections`. Les jetons MCP sont chiffrés avec la clé serveur existante `META_TOKEN_ENCRYPTION_KEY`.
+L’artiste doit d’abord avoir une connexion TikTok Developer active dans AI Music Manager : la route MCP réutilise la session Supabase et vérifie l’appartenance de l’artiste avant d’ouvrir la connexion de communauté.
+
+Exécuter le script `supabase/tiktok_social_mcp_migration.sql` dans Supabase SQL Editor. La migration est idempotente et peut être rejouée. Elle autorise le provider `tiktok_social_mcp`, ajoute les métadonnées de compte si nécessaire et conserve les connexions privées via RLS. Les jetons MCP sont chiffrés avec la clé serveur existante `META_TOKEN_ENCRYPTION_KEY`.
 
 ## Configuration Cloudflare
 
@@ -33,7 +35,7 @@ La connexion MCP s'enregistre dynamiquement auprès du serveur TikTok Social, ut
 
 `user.info.basic`, `user.info.username`, `user.info.stats`, `user.info.profile`, `user.account.type`, `user.insights`, `video.list`, `video.insights`, `comment.list`, `comment.list.manage`, `discovery.search.words`.
 
-Le tableau de bord interroge `tools/list` à la connexion et construit les champs à partir des schémas fournis par TikTok. Les outils de commentaires, vidéos, insights et découverte disponibles dans la région du compte sont exposés dans l'espace TikTok.
+Le tableau de bord interroge `tools/list` à la connexion et construit les champs à partir des schémas fournis par TikTok. Les outils de commentaires, vidéos, insights et découverte disponibles dans la région du compte sont exposés dans l'espace TikTok. Les actions de lecture restent consultatives ; toute action de réponse ou de modération demande une confirmation explicite.
 
 ## Limites connues
 
