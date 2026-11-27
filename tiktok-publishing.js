@@ -125,7 +125,8 @@
     const select=$("#"+selectId);if(!select)return;
     const directOption=Array.from(select.options).find(o=>o.value==="direct"),draftOption=Array.from(select.options).find(o=>o.value==="draft");
     if(directOption)directOption.disabled=!direct;if(draftOption)draftOption.disabled=!upload;
-    if(!direct&&upload)select.value="draft";else if(direct)select.value="direct";\n    if(selectId==="ttVideoMode")$("#ttPublishVideo").textContent=select.value==="draft"?"Envoyer le brouillon":"Publier la vidéo";\n    if(selectId==="ttPhotoMode")$("#ttPublishPhoto").textContent=select.value==="draft"?"Envoyer les photos en brouillon":"Publier les photos";
+    if(!direct&&upload)select.value="draft";else if(direct)select.value="direct";
+    if(selectId==="ttVideoMode")$("#ttPublishVideo").textContent=select.value==="draft"?"Envoyer le brouillon":"Publier la vidéo";\n    if(selectId==="ttPhotoMode")$("#ttPublishPhoto").textContent=select.value==="draft"?"Envoyer les photos en brouillon":"Publier les photos";
   }
   async function loadCapabilities(ctxOverride=null){
     const ctx=ctxOverride||await context(),result=await api("capabilities",{},ctx),current=await context();
