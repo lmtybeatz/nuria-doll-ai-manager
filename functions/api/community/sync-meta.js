@@ -37,10 +37,10 @@ export async function onRequestPost({request,env}){
   for(const account of accounts){
    if(!account.id)continue;
    try{
-    const mediaUrl=new URL("https://graph.facebook.com/"+version+"/"+encodeURIComponent(account.id)+"/media");mediaUrl.searchParams.set("fields","id,caption,permalink,timestamp,comments_count");mediaUrl.searchParams.set("limit","10");mediaUrl.searchParams.set("access_token",tokens.system_user_access_token||tokens.user_access_token);
+    const mediaUrl=new URL("https://graph.facebook.com/"+version+"/"+encodeURIComponent(account.id)+"/media");mediaUrl.searchParams.set("fields","id,caption,permalink,timestamp,comments_count");mediaUrl.searchParams.set("limit","10");mediaUrl.searchParams.set("access_token",tokens.access_token||tokens.system_user_access_token||tokens.user_access_token);
     const media=await collect(mediaUrl.toString(),1);
     for(const post of media){
-     const commentsUrl=new URL("https://graph.facebook.com/"+version+"/"+encodeURIComponent(post.id)+"/comments");commentsUrl.searchParams.set("fields","id,text,timestamp,username,like_count");commentsUrl.searchParams.set("limit","100");commentsUrl.searchParams.set("access_token",tokens.system_user_access_token||tokens.user_access_token);
+     const commentsUrl=new URL("https://graph.facebook.com/"+version+"/"+encodeURIComponent(post.id)+"/comments");commentsUrl.searchParams.set("fields","id,text,timestamp,username,like_count");commentsUrl.searchParams.set("limit","100");commentsUrl.searchParams.set("access_token",tokens.access_token||tokens.system_user_access_token||tokens.user_access_token);
      const comments=await collect(commentsUrl.toString(),2);
      for(const c of comments)all.push(row("instagram",c,{id:post.id,title:post.caption||"Publication Instagram",url:post.permalink}));
     }
