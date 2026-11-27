@@ -81,7 +81,7 @@ export async function onRequestGet({request,env}){
    if(linked?.id&&!instagramMap.has(linked.id))instagramMap.set(linked.id,{id:linked.id,username:linked.username,name:null,profile_picture_url:null,permitted_roles:[]});
   }
   const instagramAccounts=[...instagramMap.values()];
-  if(!instagramAccounts.length)throw new Error("Aucun compte Instagram professionnel attribué à cette connexion Meta.");
+  if(!pages.length&&!instagramAccounts.length)throw new Error("Aucune Page Facebook ni aucun compte Instagram professionnel attribué à cette connexion Meta.");
   const pagesForUi=pages.map(page=>{
    const ig=page.instagram_business_account?.id?instagramMap.get(page.instagram_business_account.id):null;
    return {page_id:page.id,page_name:page.name,instagram_id:ig?.id||null,instagram_username:ig?.username||null};
