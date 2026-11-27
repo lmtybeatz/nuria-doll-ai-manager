@@ -35,6 +35,7 @@
               <label><input id="ttVideoBranded" type="checkbox"> Contenu de marque / partenariat rémunéré</label>
               <small>Choisis au moins une option si le contenu est commercial.</small>
             </div>
+            <p id="ttVideoDisclosureNotice" class="tt-disclosure-notice hidden"></p>
             <label class="tt-aigc"><input id="ttVideoAigc" type="checkbox"> Ce contenu est généré par l’intelligence artificielle</label>
             <p id="ttVideoDeclaration" class="tt-declaration"></p>
             <label class="tt-consent"><input id="ttVideoConsent" type="checkbox" required> Je confirme et j’autorise l’envoi de ce contenu à TikTok.</label>
@@ -58,6 +59,7 @@
               <label><input id="ttPhotoBranded" type="checkbox"> Contenu de marque / partenariat rémunéré</label>
               <small>Choisis au moins une option si le contenu est commercial.</small>
             </div>
+            <p id="ttPhotoDisclosureNotice" class="tt-disclosure-notice hidden"></p>
             <label class="tt-aigc"><input id="ttPhotoAigc" type="checkbox"> Ces photos sont générées par l’intelligence artificielle</label>
             <p id="ttPhotoDeclaration" class="tt-declaration"></p>
             <label class="tt-consent"><input id="ttPhotoConsent" type="checkbox" required> Je confirme et j’autorise l’envoi de ces photos à TikTok.</label>
@@ -139,6 +141,7 @@
     const toggle=$("#"+prefix+"CommercialToggle"),options=$("#"+prefix+"CommercialOptions"),yourBrand=$("#"+prefix+"YourBrand"),branded=$("#"+prefix+"Branded"),privacy=$("#tt"+kind+"Privacy"),declaration=$("#"+prefix+"Declaration");
     const enabled=!!toggle?.checked;
     options?.classList.toggle("hidden",!enabled);
+    if(!enabled){if(yourBrand)yourBrand.checked=false;if(branded)branded.checked=false;}
     if(branded&&privacy){
       const selfOption=Array.from(privacy.options).find(o=>o.value==="SELF_ONLY");
       if(privacy.value==="SELF_ONLY"&&branded.checked)branded.checked=false;
@@ -146,6 +149,8 @@
       if(selfOption)selfOption.disabled=enabled&&branded.checked;
     }
     const brandedSelected=enabled&&!!branded?.checked;
+    const notice=$("#"+prefix+"DisclosureNotice");
+    if(notice){const organic=enabled&&!!yourBrand?.checked;notice.textContent=brandedSelected?"Votre photo/vidéo sera étiquetée « Paid partnership ».":organic?"Votre photo/vidéo sera étiquetée « Promotional content ».":"";notice.classList.toggle("hidden",!brandedSelected&&!organic);}
     if(declaration){
       declaration.innerHTML=brandedSelected
         ?'By posting, you agree to TikTok\'s <a href="'+BRAND_URL+'" target="_blank" rel="noopener noreferrer">Branded Content Policy</a> and <a href="'+MUSIC_URL+'" target="_blank" rel="noopener noreferrer">Music Usage Confirmation</a>.'
@@ -160,7 +165,7 @@
     if(direct&&!privacy)throw new Error("Choisis manuellement la visibilité de la publication.");
     if(direct&&commercial&&!yourBrand&&!branded)throw new Error("Indique si le contenu promeut ta marque, une autre marque, ou les deux.");
     if(direct&&branded&&privacy==="SELF_ONLY")throw new Error("Un contenu de marque ne peut pas être publié en visibilité privée.");
-    return {brand_organic_toggle:!!(direct&&commercial&&yourBrand),brand_content_toggle:!!(direct&&commercial&&branded),is_aigc:!!$("#"+prefix+"Aigc")?.checked};
+    return {commercial_disclosure:!!(direct&&commercial),brand_organic_toggle:!!(direct&&commercial&&yourBrand),brand_content_toggle:!!(direct&&commercial&&branded),is_aigc:!!$("#"+prefix+"Aigc")?.checked};
   }
   function previewVideo(){
     const file=$("#ttVideoFile")?.files?.[0],wrap=$("#ttVideoPreview"),player=$("#ttVideoPreviewPlayer");if(!wrap||!player)return;
@@ -209,9 +214,9 @@
     const draft=$("#ttVideoMode").value==="draft";
     try{
       setBusy(true,button,draft?"Préparation du brouillon…":"Préparation de la publication…");
-      const disclosure=validateConsent("Video",!draft);
       let info=creatorInfo;
       if(!draft){info=info||await loadCreatorInfo();if(!info?.privacy_level_options?.length)throw new Error("Les paramètres de visibilité du créateur ne sont pas disponibles.");}
+      const disclosure=validateConsent("Video",!draft);
       const max=Number(info?.max_video_post_duration_sec||0);
       if(!["video/mp4","video/quicktime","video/webm"].includes(file.type))throw new Error("Format non pris en charge. Utilise MP4, MOV ou WebM.");
       if(file.size>4*1024*1024*1024)throw new Error("La vidéo dépasse la limite de taille prise en charge (4 Go).");
@@ -236,9 +241,9 @@
       if(urls.length>35)throw new Error("TikTok accepte au maximum 35 photos par publication.");
       if(title.length>90)throw new Error("Le titre photo ne peut pas dépasser 90 caractères.");
       if(description.length>4000)throw new Error("La description photo ne peut pas dépasser 4 000 caractères.");
-      const disclosure=validateConsent("Photo",!draft);
       let info=creatorInfo;
       if(!draft){info=info||await loadCreatorInfo();if(!info?.privacy_level_options?.length)throw new Error("Les paramètres de visibilité du créateur ne sont pas disponibles.");}
+      const disclosure=validateConsent("Photo",!draft);
       const result=await api("init_photo",{photo_images:urls,title,description,privacy_level:$("#ttPhotoPrivacy").value,draft,disable_comment:!$("#ttPhotoAllowComments").checked,...disclosure});
       const status=await waitForStatus(result.publish_id,resultNode);
       if(status.status==="PUBLISH_COMPLETE")resultNode.textContent="Publication photo terminée. Identifiant : "+(status.post_ids?.[0]||result.publish_id);
