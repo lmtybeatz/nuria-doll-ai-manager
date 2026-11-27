@@ -203,6 +203,23 @@
           </form>
           <p id="artistResearchStatus" class="youtube-channel-sync" role="status">Aucune recherche lancée pour cet artiste.</p>
           <div id="artistResearchHistory" class="artist-research-history"><div class="empty-state">Aucun dossier de recherche enregistré pour cet artiste.</div></div>
+          <section class="artist-knowledge-section" aria-labelledby="artistKnowledgeTitle">
+            <div class="panel-head"><div><p class="eyebrow">MÉMOIRE FACTUELLE</p><h3 id="artistKnowledgeTitle">Connaissances vérifiées de l’artiste</h3></div><span class="tag green">Utilisées par l’IA</span></div>
+            <p class="muted">Ajoute ici les informations publiques confirmées : sorties disponibles, liens d’achat, plateformes, concerts, collaborations et réponses aux questions fréquentes. Seuls les faits confirmés par le gestionnaire ou une source officielle sont transmis à l’assistant pour rédiger les réponses.</p>
+            <form id="artistKnowledgeForm" class="artist-knowledge-form">
+              <label>Catégorie
+                <select id="knowledgeCategory" required>
+                  <option value="release">Sortie musicale</option><option value="availability">Disponibilité</option><option value="sales_link">Lien d’achat</option><option value="official_link">Lien officiel</option><option value="discography">Discographie</option><option value="faq">Question fréquente</option><option value="identity">Identité artistique</option><option value="event">Événement</option><option value="other">Autre fait</option>
+                </select>
+              </label>
+              <label>Identifiant court du fait<input id="knowledgeKey" maxlength="100" required placeholder="Ex. : doll_and_friends_purchase_url"></label>
+              <label class="research-span-2">Information confirmée<textarea id="knowledgeValue" rows="3" maxlength="1800" required placeholder="Ex. : L’album DOLL & FRIENDS est déjà disponible à la vente. Le public peut consulter les options d’achat sur le site officiel."></textarea></label>
+              <label class="research-span-2">Lien officiel ou source de confirmation<input id="knowledgeUrl" type="url" maxlength="1000" placeholder="https://..."></label>
+              <div class="research-submit-row"><small>Enregistrer signifie que tu confirmes ce fait pour l’artiste actif. Évite toute donnée personnelle ou privée.</small><button id="knowledgeSave" type="submit" class="btn primary">Enregistrer ce fait</button></div>
+            </form>
+            <p id="artistKnowledgeStatus" class="youtube-channel-sync" role="status">Chargement des faits confirmés…</p>
+            <div id="artistKnowledgeList" class="artist-knowledge-list"><div class="empty-state">Chargement de la mémoire factuelle…</div></div>
+          </section>
         </section>
         <div id="artistManagementList" class="artist-management-list"><div class="empty-state">Chargement des artistes…</div></div>
       </section>
