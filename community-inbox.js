@@ -71,6 +71,7 @@
         updateDraftCounter();textarea.addEventListener("input",updateDraftCounter);
         const save=makeButton("Enregistrer le brouillon",async()=>{if(textarea.value.trim().length>150){setStatus("Une réponse TikTok ne peut pas dépasser 150 caractères.",true);return;}save.disabled=true;try{const ctx=await context();await api("/api/community/inbox",ctx,"PATCH",{artist_id:ctx.artistId,id:item.id,ai_draft:textarea.value});await loadInbox();}catch(e){setStatus(e.message,true);}finally{save.disabled=false;}});
         draftBox.append(title,textarea,note,save);
+        if(item.workflow_status!=="replied")draftBox.append(makeButton("Régénérer la proposition IA",()=>prepareDraft(item,card,true),"secondary"));
         if(item.workflow_status!=="replied"){
           const publish=makeButton("Publier la réponse sur TikTok",()=>publishCommentReply(item,textarea,publish),"primary");
           publish.dataset.commentReply="true";publish.disabled=true;publish.textContent="Vérification de l’autorisation TikTok…";
@@ -85,7 +86,7 @@
         card.append(draftBox);
       }
       const actions=document.createElement("div");actions.className="community-comment-actions";
-      if(!item.ai_draft)actions.append(makeButton("Préparer une réponse IA",()=>prepareDraft(item,card), "primary"));
+      if(!item.ai_draft)actions.append(makeButton("Préparer une réponse IA",()=>prepareDraft(item,card,false), "primary"));
       if(item.workflow_status!=="ignored")actions.append(makeButton(item.workflow_status==="new"?"Marquer comme lu":"Ignorer",()=>updateMessage(item.id,{workflow_status:item.workflow_status==="new"?"read":"ignored"})));
       else actions.append(makeButton("Réintégrer",()=>updateMessage(item.id,{workflow_status:"new"})));
       card.append(actions);list.append(card);
@@ -258,16 +259,20 @@
     }catch(error){setStatus(error.message||"Publication impossible.",true);}
     finally{busy=false;if(button.isConnected){button.disabled=false;button.textContent="Publier la réponse sur TikTok";}}
   }
-  async function prepareDraft(item,card){
-    if(busy)return;busy=true;
-    const trigger=[...card.querySelectorAll("button")].find(button=>button.textContent.includes("Préparer"));
-    if(trigger){trigger.disabled=true;trigger.textContent="Préparation du brouillon…";}
+  async function prepareDraft(item,card,regenerate=false){
+    if(busy)return;
+    if(regenerate&&!window.confirm("Générer une nouvelle proposition ? L’ancien brouillon sera remplacé uniquement si la nouvelle réponse est bien générée."))return;
+    busy=true;
+    const trigger=[...card.querySelectorAll("button")].find(button=>button.textContent.includes(regenerate?"Régénérer":"Préparer"));
+    const originalTriggerText=trigger?.textContent||"";
+    if(trigger){trigger.disabled=true;trigger.textContent=regenerate?"Régénération…":"Préparation du brouillon…";}
     try{
       const ctx=await context();
       const child=String(ctx.artistName||"").trim().toUpperCase()==="NURIA DOLL";
       const task=[
         "Prépare un brouillon de réponse publique au commentaire suivant pour l’artiste "+String(ctx.artistName||"artiste actif")+".",
         "COMMENTAIRE : "+String(item.message_text||"").slice(0,1200),
+        regenerate?"NOUVELLE TENTATIVE : la proposition précédente ne convient pas. Rédige une réponse réellement différente, avec une autre formulation et un angle naturel. Ne copie pas la proposition précédente : "+String(item.ai_draft||"").slice(0,180):"",
         "RÈGLE ABSOLUE DE LONGUEUR : la réponse finale doit contenir 150 caractères maximum, espaces, emojis et ponctuation compris. Vise 120 à 140 caractères pour garder une marge. Compte les caractères avant de répondre. Si nécessaire, reformule et raccourcis jusqu’à respecter strictement la limite. Ne dépasse jamais 150 caractères, même d’un seul caractère.",
         "RÈGLES DE CONTENU : réponds dans la langue du commentaire si elle est identifiable, sinon en français. Sois bref, naturel, poli et adapté à la communauté de cet artiste. Pour les questions commerciales, titres, liens, dates ou disponibilités, utilise uniquement les faits confirmés du contexte de l’artiste. N’invente aucun prix, URL, date ni disponibilité. Ne demande jamais de coordonnées, de photos, d’adresse, de lieu de rencontre ou de conversation privée. Ne divulgue aucune information personnelle.",
         child?"PROTECTION PARENTALE : NURIA DOLL est une artiste mineure. Aucun échange privé, aucune rencontre, aucun renseignement personnel, scolaire, familial ou de localisation. En cas de sujet sensible ou de doute, signale qu'une vérification parentale est nécessaire.":"En cas de message sensible, harcèlement, menace ou demande inappropriée, ne réponds pas au fond et signale qu'une vérification du gestionnaire est nécessaire.",
@@ -281,9 +286,9 @@
       if(!draft||draft.length>150)throw new Error("Impossible de produire une réponse TikTok de 150 caractères maximum. Réessaie.");
       await api("/api/community/inbox",ctx,"PATCH",{artist_id:ctx.artistId,id:item.id,ai_draft:draft,workflow_status:"drafted"});
       await loadInbox();
-      setStatus(child?"Brouillon préparé. Validation parentale obligatoire avant toute publication.":"Brouillon préparé et enregistré. Il n’a pas été publié.");
+      setStatus(regenerate?"Nouvelle proposition générée et enregistrée.":(child?"Brouillon préparé. Validation parentale obligatoire avant toute publication.":"Brouillon préparé et enregistré. Il n’a pas été publié."));
     }catch(error){setStatus(error.message,true);}
-    finally{busy=false;}
+    finally{busy=false;if(trigger?.isConnected){trigger.disabled=false;trigger.textContent=originalTriggerText;}}
   }
   function mount(){
     $("#communitySyncTikTok")?.addEventListener("click",syncTikTok);
