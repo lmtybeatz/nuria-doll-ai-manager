@@ -7,12 +7,14 @@ export async function onRequestPost({request,env}){
   const ctx=await getTikTokContext(request,env,body.artist_id),token=ctx.token.access_token,action=body.action;
   if(action==="capabilities"){const enabled=env.TIKTOK_CONTENT_POSTING_ENABLED==="true",scopes=ctx.scopes||[];return reply({enabled,scopes,direct_posting:enabled&&scopes.includes("video.publish"),draft_upload:enabled&&scopes.includes("video.upload")});}
   if(action==="creator_info"){
+   if(env.TIKTOK_CONTENT_POSTING_ENABLED!=="true"||!ctx.scopes.includes("video.publish"))return reply({error:"La permission video.publish n’est pas activée pour ce compte."},403);
    const data=await tiktokApi("/v2/post/publish/creator_info/query/",token,{});
    return reply({creator:data,scopes:ctx.scopes});
   }
   if(action==="init_video"||action==="init_draft"){
    if(!body.title||typeof body.title!=="string"||body.title.length>2200)return reply({error:"Ajoute une légende de 2 200 caractères maximum."},400);
-   const draft=action==="init_draft",size=Number(body.video_size);
+   const draft=action==="init_draft",size=Number(body.video_size),requiredScope=draft?"video.upload":"video.publish";
+   if(env.TIKTOK_CONTENT_POSTING_ENABLED!=="true"||!ctx.scopes.includes(requiredScope))return reply({error:"Permission TikTok manquante : "+requiredScope+"."},403);
    if(!Number.isSafeInteger(size)||size<1||size>4*1024*1024*1024)return reply({error:"Taille de vidéo invalide (maximum 4 Go)."},400);
    const chunkSize=Math.min(size,10*1024*1024),total=Math.ceil(size/chunkSize),privacy=String(body.privacy_level||"");
    if(!draft&&!privacy)return reply({error:"Choisis une visibilité avant la publication."},400);
@@ -25,6 +27,7 @@ export async function onRequestPost({request,env}){
    return reply({publish_id:data.publish_id,upload_url:data.upload_url,chunk_size:chunkSize,total_chunks:total,draft});
   }
   if(action==="init_photo"){
+   const requiredScope=body.draft?"video.upload":"video.publish";if(env.TIKTOK_CONTENT_POSTING_ENABLED!=="true"||!ctx.scopes.includes(requiredScope))return reply({error:"Permission TikTok manquante : "+requiredScope+"."},403);
    const images=Array.isArray(body.photo_images)?body.photo_images.filter(x=>typeof x==="string"&&/^https:\/\//i.test(x)):[];if(!images.length||images.length>35)return reply({error:"Fournis entre 1 et 35 URL d’images HTTPS hébergées sur un domaine vérifié par TikTok."},400);
    if(!body.draft&&!body.privacy_level)return reply({error:"Choisis une visibilité avant la publication photo."},400);
    if(!body.draft&&body.commercial_disclosure&&!body.brand_organic_toggle&&!body.brand_content_toggle)return reply({error:"Indique le type de contenu commercial."},400);
