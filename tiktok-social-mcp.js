@@ -35,6 +35,7 @@
     $("#ttMcpTool").addEventListener("change",renderToolForm);
     $("#ttMcpRun").addEventListener("click",runTool);
     document.querySelectorAll('[data-social-platform="tiktok"]').forEach(button=>button.addEventListener("click",()=>setTimeout(refreshStatus,220)));
+    window.addEventListener("aimm:tiktok-videos-updated",()=>renderVideoOptions());
     refreshStatus();
   }
   async function context(){const ctx=await window.AIMusicManagerTikTokContext?.get?.();if(!ctx?.artistId||!ctx?.accessToken)throw new Error("Connecte-toi et sélectionne un artiste.");return ctx;}
@@ -51,6 +52,64 @@
   async function refreshStatus(){
     try{const data=await request("status");status("Gestion de communauté connectée. Autorisations : "+String(data.scopes||"").split(" ").filter(Boolean).join(", "));$("#ttMcpConnect").classList.add("hidden");$("#ttMcpLoadTools").classList.remove("hidden");await loadTools();}
     catch(e){status(e.message,true);$("#ttMcpConnect").classList.remove("hidden");$("#ttMcpLoadTools").classList.add("hidden");$("#ttMcpWorkbench").classList.add("hidden");}
+  }
+  async function renderVideoOptions(){
+    const select=$("#ttMcpVideo");if(!select)return;
+    try{
+      const ctx=await context(),videos=Array.isArray(ctx.videos)?ctx.videos.filter(v=>v.id):[];
+      const previous=select.value;
+      select.replaceChildren(new Option(videos.length?"Choisir une vidéo…":"Aucune vidéo chargée",""));
+      videos.forEach(video=>{
+        const count=video.comment_count==null?"commentaires non renseignés":video.comment_count+" commentaire(s)";
+        select.add(new Option(String(video.title||"Vidéo TikTok").slice(0,85)+" · "+count,String(video.id)));
+      });
+      if(videos.some(v=>String(v.id)===previous))select.value=previous;
+      else if(videos.length)select.value=String(videos[0].id);
+      $("#ttMcpLoadComments").disabled=!videos.length;
+      $("#ttMcpCommentsStatus").textContent=videos.length
+        ?videos.length+" vidéo(s) disponible(s). Sélectionne une vidéo puis affiche ses commentaires."
+        :"Les vidéos TikTok sont encore en cours de chargement. Actualise les statistiques du compte puis réessaie.";
+    }catch(error){$("#ttMcpCommentsStatus").textContent=error.message;}
+  }
+  async function loadComments(){
+    if(busy)return;
+    const videoId=$("#ttMcpVideo")?.value,tool=tools.find(t=>t.name==="account_user_comment_list_get");
+    const output=$("#ttMcpComments"),statusNode=$("#ttMcpCommentsStatus"),button=$("#ttMcpLoadComments");
+    if(!tool){statusNode.textContent="L’outil officiel de lecture des commentaires n’est pas disponible.";return;}
+    if(!videoId){statusNode.textContent="Sélectionne d’abord une vidéo TikTok.";return;}
+    busy=true;button.disabled=true;button.textContent="Chargement des commentaires…";output.replaceChildren();
+    try{
+      const result=await request("tools/call",{name:tool.name,arguments:{video_id:videoId,include_replies:true,max_count:20,status:"PUBLIC",sort_field:"create_time",sort_order:"desc",cursor:0}});
+      const parsed=parseToolText(result),data=parsed?.data?.data||parsed?.data||parsed;
+      const comments=Array.isArray(data?.comments)?data.comments:[];
+      renderCommentCards(output,comments);
+      const count=comments.length;
+      statusNode.textContent=count
+        ?count+" commentaire(s) récupéré(s) pour cette vidéo."
+        :"Aucun commentaire public n’a été retourné pour cette vidéo.";
+      if(data?.has_more)statusNode.textContent+=" D’autres commentaires sont disponibles dans la pagination avancée.";
+    }catch(error){statusNode.textContent="Lecture des commentaires impossible : "+error.message;}
+    finally{busy=false;button.disabled=false;button.textContent="Actualiser les commentaires";}
+  }
+  function formatCommentDate(value){
+    const number=Number(value),date=Number.isFinite(number)&&number>0?new Date(number*1000):new Date(value);
+    return Number.isNaN(date.getTime())?"Date non disponible":date.toLocaleString("fr-FR",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"});
+  }
+  function renderCommentCards(output,comments){
+    output.replaceChildren();
+    if(!comments.length){const empty=document.createElement("p");empty.className="tt-mcp-empty";empty.textContent="Aucun commentaire public retourné pour cette vidéo.";output.append(empty);return;}
+    comments.forEach(comment=>{
+      const card=document.createElement("article");card.className="tt-mcp-comment";
+      const header=document.createElement("div");header.className="tt-mcp-comment-head";
+      const author=document.createElement("strong");author.textContent=comment.display_name||comment.username?"@"+(comment.username||comment.display_name):"Utilisateur TikTok";
+      const date=document.createElement("small");date.textContent=formatCommentDate(comment.create_time);
+      header.append(author,date);
+      const body=document.createElement("p");body.textContent=comment.text||comment.comment_text||"(Commentaire sans texte)";
+      const meta=document.createElement("small");meta.textContent=(comment.likes??comment.like_count??0)+" j’aime · "+(comment.replies??comment.reply_count??0)+" réponse(s) · "+(comment.status||"visibilité inconnue");
+      const draftButton=document.createElement("button");draftButton.type="button";draftButton.className="btn secondary tt-mcp-draft-button";draftButton.textContent="Préparer une réponse avec l’IA";
+      draftButton.addEventListener("click",()=>prepareAiReply(comment,card,draftButton));
+      card.append(header,body,meta,draftButton);output.append(card);
+    });
   }
   async function loadTools(){
     const button=$("#ttMcpLoadTools");if(button){button.disabled=true;button.textContent="Chargement…";}
@@ -87,9 +146,17 @@
     if(!Object.keys(props).length){const note=document.createElement("p");note.textContent="Cette action ne demande aucun paramètre.";fields.append(note);}
   }
   function parseToolText(result){
-    const texts=(result?.content||[]).filter(x=>x.type==="text").map(x=>x.text||"");
-    for(const text of texts){try{return JSON.parse(text);}catch{}}
-    return result;
+    let value=result;
+    for(let depth=0;depth<5;depth++){
+      if(value?.structuredContent&&typeof value.structuredContent==="object"){value=value.structuredContent;continue;}
+      if(Array.isArray(value?.content)){
+        const text=value.content.find(item=>item?.type==="text"&&typeof item.text==="string")?.text;
+        if(text){try{value=JSON.parse(text);continue;}catch{}}
+      }
+      if(value?.result&&typeof value.result==="object"){value=value.result;continue;}
+      break;
+    }
+    return value;
   }
   async function prepareAiReply(comment,card,button){
     const commentText=String(comment?.text||comment?.comment_text||"").trim().slice(0,1200);
@@ -122,21 +189,10 @@
   }
   function renderOutput(result){
     const output=$("#ttMcpOutput");output.replaceChildren();
-    const parsed=parseToolText(result),data=parsed?.data||parsed;
+    const parsed=parseToolText(result),data=parsed?.data?.data||parsed?.data||parsed;
     const comments=data?.comments||data?.comment_list||data?.items;
-    if(Array.isArray(comments)&&comments.length){
-      const heading=document.createElement("strong");heading.textContent=comments.length+" commentaires";output.append(heading);
-      comments.forEach(comment=>{
-        const card=document.createElement("article");card.className="tt-mcp-comment";
-        const author=document.createElement("strong");author.textContent=comment.display_name||comment.username||"Utilisateur TikTok";
-        const body=document.createElement("p");body.textContent=comment.text||comment.comment_text||"";
-        const meta=document.createElement("small");meta.textContent=(comment.likes??comment.like_count??0)+" j’aime · "+(comment.replies??comment.reply_count??0)+" réponses · "+(comment.status||"");
-        const draftButton=document.createElement("button");draftButton.type="button";draftButton.className="btn secondary tt-mcp-draft-button";draftButton.textContent="Préparer une réponse avec l’IA";
-        draftButton.addEventListener("click",()=>prepareAiReply(comment,card,draftButton));
-        card.append(author,body,meta,draftButton);output.append(card);
-      });
-    }
-    const pre=document.createElement("pre");pre.textContent=JSON.stringify(parsed,null,2);pre.className="tt-mcp-json";output.append(pre);
+    if(Array.isArray(comments)){const heading=document.createElement("strong");heading.textContent=comments.length+" commentaires";output.append(heading);renderCommentCards(output,comments);}
+    else{const pre=document.createElement("pre");pre.textContent=JSON.stringify(parsed,null,2);pre.className="tt-mcp-json";output.append(pre);}
   }
   async function runTool(){
     if(busy)return;const tool=tools.find(t=>t.name===$("#ttMcpTool").value);if(!tool)return;
