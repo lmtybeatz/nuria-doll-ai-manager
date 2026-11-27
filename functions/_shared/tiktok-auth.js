@@ -12,13 +12,20 @@ export async function getTikTokContext(request,env,artistId){
  const ar=await fetch(base+"/rest/v1/ai_artists?id=eq."+encodeURIComponent(artistId)+"&owner_id=eq."+encodeURIComponent(user.id)+"&status=eq.active&select=id",{headers:h});if(!ar.ok||!(await ar.json()).length)throw Object.assign(new Error("Espace artiste non autorisé."),{status:404});
  const cr=await fetch(base+"/rest/v1/ai_social_connections?owner_id=eq."+encodeURIComponent(user.id)+"&artist_id=eq."+encodeURIComponent(artistId)+"&provider=eq.tiktok&select=token_ciphertext,scopes",{headers:h});if(!cr.ok)throw Object.assign(new Error("Connexion TikTok introuvable."),{status:404});const row=(await cr.json())[0];if(!row?.token_ciphertext)throw Object.assign(new Error("Connecte d’abord un compte TikTok."),{status:404});
  const token=await decrypt(row.token_ciphertext,env.META_TOKEN_ENCRYPTION_KEY);
+ let scopes=Array.isArray(row.scopes)?row.scopes:[];
  if(Date.now()>Number(token.expires_at||0)-300000){
   if(Date.now()>Number(token.refresh_expires_at||0))throw Object.assign(new Error("Autorisation TikTok expirée. Reconnecte le compte."),{status:401});
   const form=new URLSearchParams({client_key:env.TIKTOK_CLIENT_KEY,client_secret:env.TIKTOK_CLIENT_SECRET,grant_type:"refresh_token",refresh_token:token.refresh_token});
-  const rr=await fetch("https://open.tiktokapis.com/v2/oauth/token/",{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body:form});const rd=await rr.json();if(!rr.ok||rd.error||!rd.access_token)throw Object.assign(new Error("Renouvellement du jeton TikTok impossible."),{status:401});
-  token.access_token=rd.access_token;token.refresh_token=rd.refresh_token||token.refresh_token;token.expires_at=Date.now()+Number(rd.expires_in||86400)*1000;token.refresh_expires_at=Date.now()+Number(rd.refresh_expires_in||31536000)*1000;
-  await fetch(base+"/rest/v1/ai_social_connections?owner_id=eq."+encodeURIComponent(user.id)+"&artist_id=eq."+encodeURIComponent(artistId)+"&provider=eq.tiktok",{method:"PATCH",headers:{...h,"content-type":"application/json"},body:JSON.stringify({token_ciphertext:await encrypt(token,env.META_TOKEN_ENCRYPTION_KEY),updated_at:new Date().toISOString()})});
+  const rr=await fetch("https://open.tiktokapis.com/v2/oauth/token/",{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body:form});
+  const envelope=await rr.json().catch(()=>({})),rd=envelope.data||envelope,topError=envelope.error,nestedError=rd.error;
+  const topCode=typeof topError==="object"?topError?.code:topError,nestedCode=typeof nestedError==="object"?nestedError?.code:nestedError,failed=code=>!!code&&code!=="ok";
+  if(!rr.ok||failed(topCode)||failed(nestedCode)||!rd.access_token)throw Object.assign(new Error("Renouvellement du jeton TikTok impossible."),{status:401});
+  token.access_token=rd.access_token;token.refresh_token=rd.refresh_token||token.refresh_token;token.scope=rd.scope||token.scope||"";
+  token.expires_at=Date.now()+Number(rd.expires_in||7200)*1000;token.refresh_expires_at=Date.now()+Number(rd.refresh_expires_in||15552000)*1000;
+  if(token.scope)scopes=String(token.scope).split(",").filter(Boolean);
+  const saved=await fetch(base+"/rest/v1/ai_social_connections?owner_id=eq."+encodeURIComponent(user.id)+"&artist_id=eq."+encodeURIComponent(artistId)+"&provider=eq.tiktok",{method:"PATCH",headers:{...h,"content-type":"application/json"},body:JSON.stringify({token_ciphertext:await encrypt(token,env.META_TOKEN_ENCRYPTION_KEY),scopes,updated_at:new Date().toISOString()})});
+  if(!saved.ok)throw Object.assign(new Error("Impossible d’enregistrer le renouvellement du compte TikTok."),{status:502});
  }
- return {user,artistId,token,scopes:(row.scopes||[]),base,headers:h};
+ return {user,artistId,token,scopes,base,headers:h};
 }
 export async function tiktokApi(path,token,body,fields=""){const url="https://open.tiktokapis.com"+path+(fields?"?fields="+encodeURIComponent(fields):"");const r=await fetch(url,{method:"POST",headers:{authorization:"Bearer "+token,"content-type":"application/json; charset=UTF-8"},body:JSON.stringify(body||{})});const d=await r.json().catch(()=>({}));if(!r.ok||d.error&&d.error.code!=="ok")throw Object.assign(new Error(d.error?.message||d.error?.code||"Erreur API TikTok."),{status:r.status||502,details:d.error||null});return d.data||{};}
