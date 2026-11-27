@@ -329,13 +329,13 @@
     if(window.AIMM_LAST_TOAST&&Date.now()-window.AIMM_LAST_TOAST.at<600000)showAppNotice(window.AIMM_LAST_TOAST);
     $("#communitySyncTikTok")?.addEventListener("click",syncTikTok);
     window.addEventListener("aimm:community-sync-request",event=>void syncTikTok(event.detail?.button||null));
-    $("#communityRefresh")?.addEventListener("click",loadInbox);
+    $("#communityRefresh")?.addEventListener("click",()=>void loadInbox().then(autoGenerateMissingDrafts));
     $("#communityPlatformFilter")?.addEventListener("change",render);
     $("#communityStatusFilter")?.addEventListener("change",render);
     $("#communitySearch")?.addEventListener("input",render);
     window.addEventListener("aimm:view-changed",event=>{if(event.detail?.view==="community")void loadInbox().then(autoGenerateMissingDrafts);});
     window.addEventListener("aimm:artist-changed",()=>{if($("#view-community")?.classList.contains("active-view"))void loadInbox().then(autoGenerateMissingDrafts);});
-    if($("#view-community")?.classList.contains("active-view"))void loadInbox();
+    if($("#view-community")?.classList.contains("active-view"))void loadInbox().then(autoGenerateMissingDrafts);
   }
   document.addEventListener("DOMContentLoaded",mount);
 })();
