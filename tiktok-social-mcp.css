@@ -20,3 +20,9 @@
 .tt-mcp-json{white-space:pre-wrap;overflow-wrap:anywhere;max-height:260px;overflow:auto;padding:11px;border-radius:8px;background:#282332;color:#f8f4fc;font-size:9px}
 .tt-mcp-footnote{font-size:9px;color:var(--muted);line-height:1.55;margin:12px 0 0}
 @media(max-width:680px){.tt-mcp-head{align-items:flex-start;flex-direction:column}.tt-mcp-fields{grid-template-columns:1fr}.tt-mcp-actions{flex-direction:column}.tt-mcp-actions .btn{width:100%}}
+
+.tt-mcp-draft-button,.tt-mcp-copy-draft{margin-top:9px;min-height:36px;font-size:10px}
+.tt-mcp-ai-draft{display:grid;gap:8px;margin-top:10px;padding:10px;border:1px solid #ded4ea;border-radius:9px;background:#fff}
+.tt-mcp-ai-draft strong{font-size:10px;color:var(--ink)}
+.tt-mcp-draft-text{width:100%;min-height:72px;resize:vertical;border:1px solid #e7e1ec;border-radius:8px;padding:10px;color:var(--ink);background:#fff;font:inherit;font-size:11px;line-height:1.5}
+.tt-mcp-ai-draft small{font-size:9px;color:var(--muted);line-height:1.45}
