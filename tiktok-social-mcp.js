@@ -161,7 +161,7 @@
     return value;
   }
   async function prepareAiReply(comment,card,button){
-    const commentText=String(comment?.text||comment?.comment_text||"").trim().slice(0,1200);
+    const commentText=String(comment?.text||comment?.comment_text||"").trim();
     if(!commentText){status("Ce commentaire ne contient aucun texte exploitable pour préparer une réponse.",true);return;}
     button.disabled=true;button.textContent="Préparation du brouillon…";
     let panel=card.querySelector(".tt-mcp-ai-draft");
@@ -180,12 +180,17 @@
       const payload=await response.json().catch(()=>({}));
       if(!response.ok||!payload.answer)throw new Error(payload.error||"L’assistant IA n’a pas pu préparer le brouillon.");
       panel.replaceChildren();
-      const label=document.createElement("strong");label.textContent="Brouillon IA — validation parentale obligatoire";
-      const textarea=document.createElement("textarea");textarea.className="tt-mcp-draft-text";textarea.rows=3;textarea.value=String(payload.answer).trim();textarea.setAttribute("aria-label","Brouillon de réponse TikTok à relire et modifier");
-      const note=document.createElement("small");note.textContent="Brouillon modifiable uniquement. Aucun envoi ni publication n’a été effectué.";
+      const details=document.createElement("details");details.className="tt-mcp-draft-details";details.open=true;
+      const summary=document.createElement("summary");summary.textContent="Brouillon IA — validation parentale obligatoire";
+      const content=document.createElement("div");content.className="tt-mcp-draft-content";
+      const textarea=document.createElement("textarea");textarea.className="tt-mcp-draft-text";textarea.rows=3;textarea.maxLength=150;textarea.value=String(payload.answer).trim().slice(0,150);textarea.setAttribute("aria-label","Brouillon de réponse TikTok à relire et modifier");textarea.placeholder="Réponse (150 caractères maximum)";
+      const counter=document.createElement("small");counter.className="tt-mcp-draft-counter";const updateCounter=()=>{counter.textContent=textarea.value.length+"/150 caractères";counter.classList.toggle("is-limit",textarea.value.length>=150);};textarea.addEventListener("input",updateCounter);updateCounter();
+      const note=document.createElement("small");note.textContent="Réponse modifiable. La limite TikTok de 150 caractères est appliquée au brouillon. Aucune publication n’a été effectuée.";
+      const actions=document.createElement("div");actions.className="tt-mcp-draft-actions";
+      const regenerate=document.createElement("button");regenerate.type="button";regenerate.className="btn secondary tt-mcp-regenerate-draft";regenerate.textContent="Régénérer la réponse";regenerate.addEventListener("click",()=>prepareAiReply(comment,card,button));
       const copy=document.createElement("button");copy.type="button";copy.className="btn secondary tt-mcp-copy-draft";copy.textContent="Copier le brouillon";
       copy.addEventListener("click",async()=>{try{await navigator.clipboard.writeText(textarea.value);copy.textContent="Copié";}catch{textarea.focus();textarea.select();copy.textContent="Texte sélectionné · copie avec Ctrl+C";}});
-      panel.append(label,textarea,note,copy);
+      actions.append(regenerate,copy);content.append(textarea,counter,note,actions);details.append(summary,content);panel.append(details);
     }catch(error){panel.textContent="Préparation impossible : "+error.message;}
     finally{button.disabled=false;button.textContent="Préparer une réponse avec l’IA";}
   }
