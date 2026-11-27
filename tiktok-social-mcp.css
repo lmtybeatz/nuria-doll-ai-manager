@@ -43,3 +43,7 @@
 .tt-mcp-advanced{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
 .tt-mcp-advanced summary{cursor:pointer;color:var(--muted);font-size:10px;font-weight:700;padding:4px 0}
 .tt-mcp-advanced[open] summary{margin-bottom:10px;color:var(--ink)}
+
+#ttMcpInboxSyncStatus{font-size:10px;line-height:1.5;margin:4px 0 0;overflow-wrap:anywhere}
+#ttMcpInboxSyncStatus.is-error{color:#a33}
+#ttMcpSyncInbox{white-space:normal}

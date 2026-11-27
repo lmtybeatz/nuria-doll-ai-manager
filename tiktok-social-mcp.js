@@ -12,8 +12,9 @@
       <div id="ttMcpQuickComments" class="tt-mcp-quick hidden">
         <div class="tt-mcp-quick-heading"><div><h5>Commentaires des vidéos</h5><p>Choisis une vidéo déjà chargée dans le tableau TikTok. Les commentaires s’afficheront directement ici.</p></div></div>
         <label class="tt-mcp-video-picker">Vidéo<select id="ttMcpVideo"><option value="">Chargement des vidéos…</option></select></label>
-        <div class="tt-mcp-actions"><button id="ttMcpLoadComments" type="button" class="btn primary">Afficher les commentaires</button></div>
+        <div class="tt-mcp-actions"><button id="ttMcpLoadComments" type="button" class="btn primary">Afficher les commentaires</button><button id="ttMcpSyncInbox" type="button" class="btn secondary">Synchroniser TikTok</button></div>
         <p id="ttMcpCommentsStatus" class="muted" role="status"></p>
+        <p id="ttMcpInboxSyncStatus" class="muted" role="status"></p>
         <div id="ttMcpComments" class="tt-mcp-comments" aria-live="polite"></div>
       </div>
       <details id="ttMcpAdvanced" class="tt-mcp-advanced">
@@ -32,6 +33,7 @@
     $("#ttMcpConnect").addEventListener("click",connect);
     $("#ttMcpLoadTools").addEventListener("click",loadTools);
     $("#ttMcpLoadComments").addEventListener("click",loadComments);
+    $("#ttMcpSyncInbox").addEventListener("click",()=>window.dispatchEvent(new CustomEvent("aimm:community-sync-request",{detail:{button:$("#ttMcpSyncInbox")}})));
     $("#ttMcpTool").addEventListener("change",renderToolForm);
     $("#ttMcpRun").addEventListener("click",runTool);
     document.querySelectorAll('[data-social-platform="tiktok"]').forEach(button=>button.addEventListener("click",()=>setTimeout(refreshStatus,220)));

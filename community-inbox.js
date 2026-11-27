@@ -78,7 +78,9 @@
     });
   }
   function setStatus(message,bad=false){
-    const node=$("#communityStatus");if(node){node.textContent=message;node.classList.toggle("is-error",bad);}
+    [$("#communityStatus"),$("#ttMcpInboxSyncStatus")].forEach(node=>{
+      if(node){node.textContent=message;node.classList.toggle("is-error",bad);}
+    });
   }
   async function loadInbox(){
     const label=$("#communityArtistLabel");if(!label)return;
@@ -146,9 +148,10 @@
     };
   }
   const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
-  async function syncTikTok(){
+  async function syncTikTok(triggerButton=null){
     if(busy)return;busy=true;
-    const button=$("#communitySyncTikTok"),refresh=$("#communityRefresh");
+    const button=triggerButton||$("#communitySyncTikTok"),refresh=$("#communityRefresh");
+    const originalButtonText=button?.textContent||"Synchroniser TikTok";
     if(button){button.disabled=true;button.textContent="Synchronisation…";}
     if(refresh)refresh.disabled=true;
     try{
@@ -183,7 +186,7 @@
         setStatus(errors.length?"Aucun commentaire récupéré. "+errors.slice(0,2).join(" · "):"Aucun commentaire public trouvé dans les vidéos consultées.");
       }
     }catch(error){setStatus(error.message,true);}
-    finally{busy=false;if(button){button.disabled=false;button.textContent="Synchroniser TikTok";}if(refresh)refresh.disabled=false;}
+    finally{busy=false;if(button){button.disabled=false;button.textContent=originalButtonText;}if(refresh)refresh.disabled=false;}
   }
   async function prepareDraft(item,card){
     if(busy)return;busy=true;
@@ -210,6 +213,7 @@
   }
   function mount(){
     $("#communitySyncTikTok")?.addEventListener("click",syncTikTok);
+    window.addEventListener("aimm:community-sync-request",event=>void syncTikTok(event.detail?.button||null));
     $("#communityRefresh")?.addEventListener("click",loadInbox);
     $("#communityPlatformFilter")?.addEventListener("change",render);
     $("#communityStatusFilter")?.addEventListener("change",render);
