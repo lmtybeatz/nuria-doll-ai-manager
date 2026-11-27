@@ -75,12 +75,13 @@
     saveWorkspaceState({view,artistId:activeArtistId||null});
     document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active-view',v.id===`view-${view}`));
     $$('.nav-item[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===view));
-    const names={overview:"Vue d'ensemble",brand:'Identité artistique',strategy:'Stratégie marketing',library:'Bibliothèque média',agent:'Configuration IA',connections:'Réseaux sociaux',artists:'Gérer les artistes'};
+    const names={overview:"Vue d'ensemble",brand:'Identité artistique',strategy:'Stratégie marketing',library:'Bibliothèque média',agent:'Configuration IA',connections:'Réseaux sociaux',community:'Communauté',artists:'Gérer les artistes'};
     $('#pageTitle').textContent=names[view]; $('#crumb').textContent=view==='overview'?'CENTRE DE COMMANDE':activeArtistName().toUpperCase()+' · '+names[view].toUpperCase();
     $('#backToDashboard').classList.toggle('hidden',view==='overview');
     if(window.innerWidth<=760) $('#sidebar').classList.remove('open');
     // Charger YouTube uniquement à l'ouverture de la rubrique Réseaux sociaux.
     if(view==='connections'&&user&&supabase){void youtubeStatus();void metaStatus();void loadTikTokStatus();}
+    window.dispatchEvent(new CustomEvent('aimm:view-changed',{detail:{view}}));
   }
   function authMode(){ $('#authTitle').textContent=signupMode?'Créer ton compte':'Connexion'; $('#authSubtitle').textContent=signupMode?'Crée ton accès privé de gestionnaire.':'Connecte-toi à ton espace de gestion privé.'; $('#authSubmit').innerHTML=signupMode?'Créer mon compte <span>→</span>':'Se connecter <span>→</span>'; $('#authSwitchText').textContent=signupMode?'Tu as déjà un compte ?':'Pas encore de compte ?'; $('#authSwitch').textContent=signupMode?'Se connecter':'Créer un compte'; $('#authPassword').autocomplete=signupMode?'new-password':'current-password'; }
   async function init(){
@@ -112,7 +113,7 @@
     await loadArtists();
     renderAssistantConversation(activeArtistId);
     const savedView=readWorkspaceState().view;
-    const validViews=['overview','brand','strategy','library','agent','connections','artists'];
+    const validViews=['overview','brand','strategy','library','agent','connections','community','artists'];
     // Restaurer la rubrique pendant que l'application est encore masquée.
     // L'utilisateur ne voit donc jamais brièvement la vue d'ensemble par défaut.
     nav((tiktokOAuthResult||tiktokMcpOAuthResult)?'connections':(validViews.includes(savedView)?savedView:'overview'));
@@ -228,6 +229,7 @@
     if(assistantRecorder?.state==='recording')assistantRecorder.stop();
     clearAssistantAttachments();
     activeArtistId=e.target.value;
+    window.dispatchEvent(new CustomEvent('aimm:artist-changed',{detail:{artistId:activeArtistId}}));
     saveWorkspaceState({artistId:activeArtistId});
     clearAssistantResult();
     resetCampaignForm();

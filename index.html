@@ -6,7 +6,7 @@
   <title>AI MUSIC MANAGER</title><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/assets/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/assets/icon.svg"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="tiktok-publishing.css"><link rel="stylesheet" href="tiktok-social-mcp.css"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" onerror="this.onerror=null;document.write('<script src=&quot;https://unpkg.com/@supabase/supabase-js@2&quot;><\\/script>')"></script>
-  <script src="config.js"></script><script defer src="app.js"></script><script defer src="tiktok-publishing.js"></script><script defer src="tiktok-social-mcp.js"></script><script defer src="pwa.js"></script>
+  <script src="config.js"></script><script defer src="app.js"></script><script defer src="tiktok-publishing.js"></script><script defer src="tiktok-social-mcp.js"></script><script defer src="community-inbox.js"></script><script defer src="pwa.js"></script>
 </head>
 <body>
   <div id="setupNotice" class="setup-notice hidden"></div>
@@ -26,6 +26,7 @@
         <button class="nav-item" data-view="library"><span>▧</span> Bibliothèque média</button>
         <button class="nav-item" data-view="agent"><span>✧</span> Configuration IA</button>
         <button class="nav-item" data-view="connections"><span>◎</span> Réseaux sociaux</button>
+        <button class="nav-item" data-view="community"><span>◉</span> Communauté</button>
       </nav>
       <div class="sidebar-bottom"><div class="privacy-card"><span class="privacy-icon">♢</span><strong>Espace privé</strong><p>Les médias sont stockés dans un espace protégé.</p></div><button class="nav-item" id="signOut"><span>↪</span> Déconnexion</button><div class="user-chip"><div class="avatar">G</div><div><strong id="userRoleLabel">Gestionnaire</strong><small id="userEmail">Compte connecté</small></div></div></div>
     </aside>
@@ -175,6 +176,35 @@
           </section>
         </section>
         <div class="notice-card"><strong>Statistiques fiables et accès contrôlés</strong><p>Les chiffres affichés proviennent des API officielles lorsqu’elles sont autorisées. Les statistiques Meta détaillées nécessitent des permissions d’insights supplémentaires. TikTok est connecté via l’API officielle lorsqu’un artiste autorise l’accès. Les données affichées dépendent des autorisations accordées par TikTok. Les données restent isolées par artiste.</p></div>
+      </section>
+      <section id="view-community" class="view">
+        <div class="intro-row community-intro">
+          <div><p class="eyebrow">GESTION DE COMMUNAUTÉ</p><h2>Boîte de réception</h2><p class="muted">Centralise les commentaires des artistes et prépare les réponses avec l’IA, sans publication automatique.</p></div>
+          <div class="community-toolbar-actions"><button type="button" class="btn secondary" id="communityRefresh">Actualiser</button><button type="button" class="btn primary" id="communitySyncTikTok">Synchroniser TikTok</button></div>
+        </div>
+        <div class="community-platform-strip">
+          <div class="community-platform active"><strong>TikTok</strong><span>Collecte disponible</span></div>
+          <div class="community-platform"><strong>Instagram</strong><span>Étape suivante</span></div>
+          <div class="community-platform"><strong>Facebook</strong><span>Étape suivante</span></div>
+          <div class="community-platform"><strong>YouTube</strong><span>Autorisation à compléter</span></div>
+        </div>
+        <div class="community-summary-grid">
+          <div class="community-summary-card"><small>Commentaires synchronisés</small><strong id="communityTotal">0</strong></div>
+          <div class="community-summary-card"><small>À traiter</small><strong id="communityPending">0</strong></div>
+          <div class="community-summary-card"><small>Brouillons IA</small><strong id="communityDrafts">0</strong></div>
+          <div class="community-summary-card"><small>Réponses publiées</small><strong id="communityReplied">0</strong></div>
+        </div>
+        <section class="panel community-inbox-panel">
+          <div class="panel-head community-inbox-head"><div><p class="eyebrow">ARTISTE ACTIF</p><h3>Commentaires reçus</h3><p class="muted">Les données affichées restent séparées pour chaque artiste.</p></div><span class="tag" id="communityArtistLabel">Chargement…</span></div>
+          <div class="community-filters">
+            <label>Réseau<select id="communityPlatformFilter"><option value="all">Tous les réseaux</option><option value="tiktok">TikTok</option><option value="instagram" disabled>Instagram · bientôt</option><option value="facebook" disabled>Facebook · bientôt</option><option value="youtube" disabled>YouTube · bientôt</option></select></label>
+            <label>État<select id="communityStatusFilter"><option value="all">Tous les états</option><option value="new">À traiter</option><option value="read">Lus</option><option value="drafted">Brouillon IA</option><option value="ignored">Ignorés</option></select></label>
+            <label class="community-search-label">Rechercher<input id="communitySearch" type="search" placeholder="Nom ou contenu du commentaire…"></label>
+          </div>
+          <p id="communityStatus" class="community-status" role="status">Chargement de la boîte de réception…</p>
+          <div id="communityList" class="community-list"><div class="empty-state">Chargement des commentaires…</div></div>
+        </section>
+        <div class="notice-card community-safety-note"><strong>Réponses sous contrôle</strong><p>L’IA prépare uniquement des brouillons dans cette première étape. Aucune réponse n’est publiée depuis cette boîte de réception. Pour NURIA DOLL, chaque réponse doit rester soumise à la validation parentale avant toute publication.</p></div>
       </section>
       <section id="view-artists" class="view">
         <div class="intro-row"><div><p class="eyebrow">PORTFOLIO DU GESTIONNAIRE</p><h2>Gérer les artistes</h2><p class="muted">Retrouve ici tous les profils créés dans ton espace de gestion.</p></div><button type="button" class="btn primary" id="managementAddArtist">＋ Ajouter un artiste</button></div>

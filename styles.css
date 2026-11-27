@@ -1021,3 +1021,58 @@ body.tiktok-preview-open{overflow:hidden}
   .tiktok-video-controls>button,
   #tiktokVideoPagination .btn{width:100%}
 }
+
+
+/* AI Community Manager — boîte de réception multi-artistes */
+.community-intro{align-items:center;gap:18px}
+.community-toolbar-actions{display:flex;flex-wrap:wrap;gap:8px}
+.community-toolbar-actions .btn{margin:0}
+.community-platform-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:18px 0}
+.community-platform{display:grid;gap:5px;padding:13px;border:1px solid var(--border);border-radius:12px;background:#fff;min-width:0}
+.community-platform strong{font-size:12px;color:var(--ink)}
+.community-platform span{font-size:9px;color:var(--muted);line-height:1.4}
+.community-platform.active{border-color:#cbb8dc;background:#fbf8fd}
+.community-platform.active span{color:#5f4773}
+.community-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:16px}
+.community-summary-card{display:grid;gap:6px;padding:13px;border:1px solid var(--border);border-radius:12px;background:#fff}
+.community-summary-card small{font-size:9px;color:var(--muted)}
+.community-summary-card strong{font:800 22px Manrope,sans-serif;color:var(--ink)}
+.community-inbox-panel{padding:18px}
+.community-inbox-head{align-items:flex-start}
+.community-inbox-head h3{margin:0 0 5px}
+.community-inbox-head .muted{margin:0;font-size:10px}
+.community-filters{display:grid;grid-template-columns:minmax(140px,.8fr) minmax(140px,.8fr) minmax(220px,1.4fr);gap:10px;margin:14px 0}
+.community-filters label{display:grid;gap:6px;color:var(--muted);font-size:10px;font-weight:700}
+.community-filters select,.community-filters input{width:100%;min-width:0;min-height:40px;padding:9px 11px;border:1px solid var(--border);border-radius:9px;background:#fff;color:var(--ink);font:inherit;font-size:11px}
+.community-status{min-height:18px;margin:10px 0;color:var(--muted);font-size:10px;line-height:1.5}
+.community-list{display:grid;gap:10px}
+.community-comment{display:grid;gap:10px;padding:14px;border:1px solid var(--border);border-radius:12px;background:#fff;min-width:0}
+.community-comment-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.community-comment-author{display:grid;gap:4px;min-width:0}
+.community-comment-author strong{font-size:11px;overflow-wrap:anywhere}
+.community-comment-author small,.community-comment-meta{font-size:9px;color:var(--muted)}
+.community-comment-body{margin:0;color:var(--ink);font-size:12px;line-height:1.65;white-space:pre-wrap;overflow-wrap:anywhere}
+.community-comment-media{font-size:10px;color:#64477c;font-weight:700;text-decoration:none}
+.community-comment-actions{display:flex;flex-wrap:wrap;gap:8px}
+.community-comment-actions .btn{margin:0;padding:7px 10px;font-size:10px}
+.community-draft-box{display:grid;gap:8px;padding:11px;border:1px solid #e4d8ed;border-radius:10px;background:#fcf9fe}
+.community-draft-box strong{font-size:10px;color:#5b4370}
+.community-draft-box textarea{width:100%;min-height:82px;resize:vertical;border:1px solid var(--border);border-radius:8px;padding:10px;background:#fff;color:var(--ink);font:inherit;font-size:11px;line-height:1.5}
+.community-draft-note{font-size:9px;color:var(--muted);line-height:1.45}
+.community-safety-note{margin-top:16px}
+@media(max-width:760px){
+ .community-intro{align-items:stretch;flex-direction:column}
+ .community-toolbar-actions{display:grid;grid-template-columns:1fr 1fr}
+ .community-toolbar-actions .btn{width:100%}
+ .community-platform-strip{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ .community-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .community-filters{grid-template-columns:1fr 1fr}
+ .community-search-label{grid-column:1/-1}
+ .community-inbox-panel{padding:13px}
+}
+@media(max-width:420px){
+ .community-toolbar-actions{grid-template-columns:1fr}
+ .community-comment-head{flex-direction:column}
+ .community-comment-actions{display:grid;grid-template-columns:1fr}
+ .community-comment-actions .btn{width:100%}
+}
