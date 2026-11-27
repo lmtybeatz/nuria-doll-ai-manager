@@ -58,3 +58,17 @@ Le module ne simule pas l'accès aux commentaires. La Research API TikTok expose
 - `POST /api/tiktok/upload` : transfert sécurisé des blocs vidéo vers l'URL temporaire fournie par TikTok.
 
 Le serveur vérifie la session Supabase, l'appartenance de l'artiste au propriétaire et la connexion TikTok avant chaque opération. Les jetons sont renouvelés côté serveur et ne sont jamais envoyés au navigateur.
+
+
+## Activation des permissions de publication
+
+La fonction `/api/tiktok/publish` expose une action `capabilities` qui vérifie les scopes réellement accordés à l'artiste. Le bouton de publication est désactivé si le produit n'est pas activé côté serveur ou si le scope requis manque.
+
+Après avoir ajouté **Content Posting API** au produit TikTok Developers et obtenu les permissions `video.publish` et `video.upload` :
+
+1. Définir `TIKTOK_CONTENT_POSTING_ENABLED=true` dans les variables Cloudflare Pages (Production).
+2. Redéployer l'application.
+3. Reconnecter le compte TikTok de chaque artiste afin d'obtenir les nouveaux scopes.
+4. Vérifier que `creator_info` renvoie les niveaux de visibilité disponibles avant une publication directe.
+
+Le mode brouillon requiert `video.upload`. La publication directe requiert `video.publish` et les paramètres retournés par `creator_info`. Les publications publiques restent soumises à l'audit TikTok et à ses règles d'éligibilité d'application.
