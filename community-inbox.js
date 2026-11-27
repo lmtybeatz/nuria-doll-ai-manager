@@ -48,7 +48,8 @@
       const head=document.createElement("div");head.className="community-comment-head";
       const authorWrap=document.createElement("div");authorWrap.className="community-comment-author";
       const author=document.createElement("strong");author.textContent=item.author_name?(/^[\w.]+$/.test(item.author_name)?"@"+item.author_name:item.author_name):"Utilisateur";
-      const providerNames={tiktok:"TikTok",instagram:"Instagram",facebook:"Facebook",youtube:"YouTube"};\n      const meta=document.createElement("small");meta.textContent=(providerNames[item.provider]||"Réseau")+" · "+formatDate(item.comment_created_at);
+      const providerNames={tiktok:"TikTok",instagram:"Instagram",facebook:"Facebook",youtube:"YouTube"};
+      const meta=document.createElement("small");meta.textContent=(providerNames[item.provider]||"Réseau")+" · "+formatDate(item.comment_created_at);
       authorWrap.append(author,meta);
       const badge=document.createElement("span");badge.className="tag "+(item.workflow_status==="ignored"?"amber":item.workflow_status==="replied"?"green":"");badge.textContent=labelStatus(item.workflow_status);
       head.append(authorWrap,badge);
@@ -362,7 +363,8 @@
   function mount(){
     window.addEventListener("aimm:app-notice",event=>showAppNotice(event.detail));
     if(window.AIMM_LAST_TOAST&&Date.now()-window.AIMM_LAST_TOAST.at<600000)showAppNotice(window.AIMM_LAST_TOAST);
-    $("#communitySyncTikTok")?.addEventListener("click",syncTikTok);\n    $("#communitySyncMeta")?.addEventListener("click",event=>void syncExternal("meta",event.currentTarget));\n    $("#communitySyncYouTube")?.addEventListener("click",event=>void syncExternal("youtube",event.currentTarget));
+    $("#communitySyncTikTok")?.addEventListener("click",syncTikTok);
+    $("#communitySyncMeta")?.addEventListener("click",event=>void syncExternal("meta",event.currentTarget));\n    $("#communitySyncYouTube")?.addEventListener("click",event=>void syncExternal("youtube",event.currentTarget));
     window.addEventListener("aimm:community-sync-request",event=>void syncTikTok(event.detail?.button||null));
     $("#communityRefresh")?.addEventListener("click",()=>void loadInbox().then(autoGenerateMissingDrafts));
     $("#communityPlatformFilter")?.addEventListener("change",render);
