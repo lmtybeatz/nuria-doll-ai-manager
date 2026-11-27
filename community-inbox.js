@@ -176,6 +176,7 @@
   const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
   async function syncTikTok(triggerButton=null){
     if(busy)return;busy=true;
+    let shouldGenerateDrafts=false;
     const button=triggerButton||$("#communitySyncTikTok"),refresh=$("#communityRefresh");
     const originalButtonText=button?.textContent||"Synchroniser TikTok";
     if(button){button.disabled=true;button.textContent="Synchronisation…";}
@@ -206,7 +207,7 @@
         const unique=[...new Map(gathered.map(item=>[item.external_comment_id,item])).values()];
         const saved=await api("/api/community/inbox",ctx,"POST",{artist_id:ctx.artistId,messages:unique});
         await loadInbox();
-        await autoGenerateMissingDrafts();
+        shouldGenerateDrafts=true;
         setStatus(saved.stored+" commentaire(s) TikTok synchronisé(s). Jusqu’à 20 commentaires ont été demandés par vidéo sur les 10 dernières vidéos."+(errors.length?" Certaines vidéos n’ont pas pu être lues ("+errors.length+").":""));
       }else{
         await loadInbox();
@@ -214,6 +215,7 @@
       }
     }catch(error){setStatus(error.message,true);}
     finally{busy=false;if(button){button.disabled=false;button.textContent=originalButtonText;}if(refresh)refresh.disabled=false;}
+    if(shouldGenerateDrafts)await autoGenerateMissingDrafts();
   }
   let replyToolPromise=null,replyToolArtistId=null;
   async function discoverReplyTool(){
@@ -364,7 +366,8 @@
     window.addEventListener("aimm:app-notice",event=>showAppNotice(event.detail));
     if(window.AIMM_LAST_TOAST&&Date.now()-window.AIMM_LAST_TOAST.at<600000)showAppNotice(window.AIMM_LAST_TOAST);
     $("#communitySyncTikTok")?.addEventListener("click",syncTikTok);
-    $("#communitySyncMeta")?.addEventListener("click",event=>void syncExternal("meta",event.currentTarget));\n    $("#communitySyncYouTube")?.addEventListener("click",event=>void syncExternal("youtube",event.currentTarget));
+    $("#communitySyncMeta")?.addEventListener("click",event=>void syncExternal("meta",event.currentTarget));
+    $("#communitySyncYouTube")?.addEventListener("click",event=>void syncExternal("youtube",event.currentTarget));
     window.addEventListener("aimm:community-sync-request",event=>void syncTikTok(event.detail?.button||null));
     $("#communityRefresh")?.addEventListener("click",()=>void loadInbox().then(autoGenerateMissingDrafts));
     $("#communityPlatformFilter")?.addEventListener("change",render);
