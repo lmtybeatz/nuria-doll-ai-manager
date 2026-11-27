@@ -302,6 +302,7 @@
     const pending=messages.filter(item=>!item.ai_draft&&!item.published_reply&&!["replied","ignored"].includes(item.workflow_status));
     if(!pending.length)return;
     autoQueueRunning=true;
+    const queueArtistId=loadedArtistId;
     const filter=$("#communityStatusFilter"),previousFilter=filter?.value||"all";
     if(filter)filter.value="all";
     render();
@@ -309,7 +310,7 @@
     try{
       setStatus("Préparation automatique des réponses IA · 0/"+pending.length+"…");
       for(const item of pending){
-        if(loadedArtistId!==item.artist_id&&item.artist_id)break;
+        if(loadedArtistId!==queueArtistId)break;
         const card=[...($("#communityList")?.querySelectorAll(".community-comment")||[])].find(node=>node.dataset.commentId===String(item.id));
         if(!card){failed++;continue;}
         await prepareDraft(item,card,false,true);
