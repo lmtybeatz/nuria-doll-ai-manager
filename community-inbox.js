@@ -47,8 +47,8 @@
       const card=document.createElement("article");card.className="community-comment";card.dataset.commentId=String(item.id);
       const head=document.createElement("div");head.className="community-comment-head";
       const authorWrap=document.createElement("div");authorWrap.className="community-comment-author";
-      const author=document.createElement("strong");author.textContent=item.author_name?(/^[\w.]+$/.test(item.author_name)?"@"+item.author_name:item.author_name):"Utilisateur TikTok";
-      const meta=document.createElement("small");meta.textContent="TikTok · "+formatDate(item.comment_created_at);
+      const author=document.createElement("strong");author.textContent=item.author_name?(/^[\w.]+$/.test(item.author_name)?"@"+item.author_name:item.author_name):"Utilisateur";
+      const providerNames={tiktok:"TikTok",instagram:"Instagram",facebook:"Facebook",youtube:"YouTube"};\n      const meta=document.createElement("small");meta.textContent=(providerNames[item.provider]||"Réseau")+" · "+formatDate(item.comment_created_at);
       authorWrap.append(author,meta);
       const badge=document.createElement("span");badge.className="tag "+(item.workflow_status==="ignored"?"amber":item.workflow_status==="replied"?"green":"");badge.textContent=labelStatus(item.workflow_status);
       head.append(authorWrap,badge);
@@ -74,15 +74,19 @@
         draftBox.append(title,textarea,note,save);
         if(item.workflow_status!=="replied")draftBox.append(makeButton("Régénérer la proposition IA",()=>prepareDraft(item,card,true),"secondary"));
         if(item.workflow_status!=="replied"){
-          const publish=makeButton("Publier la réponse sur TikTok",()=>publishCommentReply(item,textarea,publish),"primary");
-          publish.dataset.commentReply="true";publish.disabled=true;publish.textContent="Vérification de l’autorisation TikTok…";
-          draftBox.append(publish);
-          discoverReplyTool().then(tool=>{
-            if(!publish.isConnected)return;
-            publish.disabled=!tool;
-            publish.textContent=tool?"Publier la réponse sur TikTok":"Réponse directe non disponible pour ce compte";
-            publish.title=tool?"La réponse sera publiée uniquement après confirmation.":"TikTok n’a pas exposé l’outil officiel de réponse pour ce compte.";
-          }).catch(()=>{if(publish.isConnected){publish.disabled=true;publish.textContent="Outil de réponse indisponible";}});
+          if(item.provider==="tiktok"){
+            const publish=makeButton("Publier la réponse sur TikTok",()=>publishCommentReply(item,textarea,publish),"primary");
+            publish.dataset.commentReply="true";publish.disabled=true;publish.textContent="Vérification de l’autorisation TikTok…";
+            draftBox.append(publish);
+            discoverReplyTool().then(tool=>{
+              if(!publish.isConnected)return;
+              publish.disabled=!tool;
+              publish.textContent=tool?"Publier la réponse sur TikTok":"Réponse directe non disponible pour ce compte";
+              publish.title=tool?"La réponse sera publiée uniquement après confirmation.":"TikTok n’a pas exposé l’outil officiel de réponse pour ce compte.";
+            }).catch(()=>{if(publish.isConnected){publish.disabled=true;publish.textContent="Outil de réponse indisponible";}});
+          }else{
+            const notePublish=document.createElement("small");notePublish.className="community-draft-note";notePublish.textContent="Brouillon prêt à valider. La publication directe de ce réseau sera activée dans une prochaine étape.";draftBox.append(notePublish);
+          }
         }
         card.append(draftBox);
       }
@@ -331,10 +335,34 @@
       setStatus(completed+" réponse(s) IA préparée(s) automatiquement"+(failed?" · "+failed+" commentaire(s) à réessayer":"")+". Aucune réponse n’a été publiée.");
     }
   }
+  async function syncExternal(provider,button){
+    if(busy)return;busy=true;
+    const refresh=$("#communityRefresh"),original=button?.textContent||"Synchroniser";
+    if(button){button.disabled=true;button.textContent="Synchronisation…";}
+    if(refresh)refresh.disabled=true;
+    let result=null,error=null;
+    try{
+      const ctx=await context();
+      setStatus(provider==="meta"?"Récupération des commentaires Facebook et Instagram…":"Récupération des commentaires YouTube…");
+      result=await api("/api/community/sync-"+provider,ctx,"POST",{artist_id:ctx.artistId});
+      setStatus((result.stored||0)+" commentaire(s) "+(provider==="meta"?"Facebook / Instagram":"YouTube")+" synchronisé(s).");
+      if(result.warnings?.length)showAppNotice({message:result.warnings.slice(0,3).join(" · "),bad:true});
+    }catch(e){error=e;setStatus(e.message||"Synchronisation impossible.",true);}
+    finally{
+      busy=false;
+      if(button){button.disabled=false;button.textContent=original;}
+      if(refresh)refresh.disabled=false;
+    }
+    if(result){
+      await loadInbox();
+      await autoGenerateMissingDrafts();
+    }
+    return result;
+  }
   function mount(){
     window.addEventListener("aimm:app-notice",event=>showAppNotice(event.detail));
     if(window.AIMM_LAST_TOAST&&Date.now()-window.AIMM_LAST_TOAST.at<600000)showAppNotice(window.AIMM_LAST_TOAST);
-    $("#communitySyncTikTok")?.addEventListener("click",syncTikTok);
+    $("#communitySyncTikTok")?.addEventListener("click",syncTikTok);\n    $("#communitySyncMeta")?.addEventListener("click",event=>void syncExternal("meta",event.currentTarget));\n    $("#communitySyncYouTube")?.addEventListener("click",event=>void syncExternal("youtube",event.currentTarget));
     window.addEventListener("aimm:community-sync-request",event=>void syncTikTok(event.detail?.button||null));
     $("#communityRefresh")?.addEventListener("click",()=>void loadInbox().then(autoGenerateMissingDrafts));
     $("#communityPlatformFilter")?.addEventListener("change",render);
