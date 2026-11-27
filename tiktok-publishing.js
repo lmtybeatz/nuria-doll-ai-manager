@@ -12,9 +12,9 @@
     section.innerHTML=`
       <div class="tiktok-publisher-heading">
         <div><h4>Studio de publication TikTok</h4><p>Prépare tes contenus, vérifie leur aperçu et choisis les paramètres avant chaque envoi.</p><p class="tt-creator-account" id="ttCreatorAccount">Compte TikTok connecté : informations à actualiser.</p></div>
-        <div class="tiktok-publisher-heading-actions"><button type="button" class="btn secondary" id="ttCreatorRefresh">Actualiser les paramètres TikTok</button><button type="button" class="btn secondary tt-studio-toggle" id="ttStudioToggle" aria-expanded="true" aria-controls="ttStudioContent"><span aria-hidden="true" class="tt-studio-toggle-icon">⌃</span><span id="ttStudioToggleLabel">Replier le studio</span></button></div>
+        <div class="tiktok-publisher-heading-actions"><button type="button" class="btn secondary" id="ttCreatorRefresh">Actualiser les paramètres TikTok</button><button type="button" class="btn secondary tt-studio-toggle is-collapsed" id="ttStudioToggle" aria-expanded="false" aria-controls="ttStudioContent"><span aria-hidden="true" class="tt-studio-toggle-icon">⌃</span><span id="ttStudioToggleLabel">Déplier le studio</span></button></div>
       </div>
-      <div id="ttStudioContent" class="tt-studio-content">
+      <div id="ttStudioContent" class="tt-studio-content" hidden>
       <p id="ttPublishCapability" class="youtube-channel-sync" role="status">Les informations du créateur doivent être chargées avant une publication directe.</p>
       <div class="tiktok-publisher-grid">
         <form id="ttVideoForm" class="tiktok-publish-form">
