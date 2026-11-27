@@ -77,6 +77,35 @@
     for(const text of texts){try{return JSON.parse(text);}catch{}}
     return result;
   }
+  async function prepareAiReply(comment,card,button){
+    const commentText=String(comment?.text||comment?.comment_text||"").trim().slice(0,1200);
+    if(!commentText){status("Ce commentaire ne contient aucun texte exploitable pour préparer une réponse.",true);return;}
+    button.disabled=true;button.textContent="Préparation du brouillon…";
+    let panel=card.querySelector(".tt-mcp-ai-draft");
+    if(!panel){panel=document.createElement("div");panel.className="tt-mcp-ai-draft";card.append(panel);}
+    panel.textContent="L’IA prépare une proposition. Aucune publication ne sera effectuée.";
+    try{
+      const ctx=await context();
+      const task=[
+        "Prépare un brouillon de réponse publique TikTok à ce commentaire, pour l’artiste "+String(ctx.artistName||"artiste actif")+".",
+        "COMMENTAIRE PUBLIC : "+commentText,
+        "RÈGLES : réponds en français, avec une phrase très courte, naturelle, chaleureuse et adaptée à une audience familiale. Si le commentaire se limite à un emoji ou à un compliment, remercie simplement la personne. N’invente aucun fait sur l’artiste ou son actualité. N’invite jamais à une conversation privée, à une rencontre, à envoyer des photos, coordonnées ou informations personnelles. Ne mentionne ni école, domicile, horaires, localisation ou habitudes. Ne réponds pas à une demande sensible, une sollicitation privée, une insulte ou un message ambigu : indique alors qu’une vérification parentale est nécessaire.",
+        "IMPORTANT : produis uniquement un brouillon. Ne publie, n’envoie et ne modifie absolument rien sur TikTok. Le parent/gestionnaire doit relire et décider lui-même.",
+        "FORMAT : une seule proposition, une phrase maximum, sans guillemets ni explication."
+      ].join("\n\n");
+      const response=await fetch("/api/assistant",{method:"POST",headers:{"content-type":"application/json",authorization:"Bearer "+ctx.accessToken},body:JSON.stringify({artist_id:ctx.artistId,task})});
+      const payload=await response.json().catch(()=>({}));
+      if(!response.ok||!payload.answer)throw new Error(payload.error||"L’assistant IA n’a pas pu préparer le brouillon.");
+      panel.replaceChildren();
+      const label=document.createElement("strong");label.textContent="Brouillon IA — validation parentale obligatoire";
+      const textarea=document.createElement("textarea");textarea.className="tt-mcp-draft-text";textarea.rows=3;textarea.value=String(payload.answer).trim();textarea.setAttribute("aria-label","Brouillon de réponse TikTok à relire et modifier");
+      const note=document.createElement("small");note.textContent="Brouillon modifiable uniquement. Aucun envoi ni publication n’a été effectué.";
+      const copy=document.createElement("button");copy.type="button";copy.className="btn secondary tt-mcp-copy-draft";copy.textContent="Copier le brouillon";
+      copy.addEventListener("click",async()=>{try{await navigator.clipboard.writeText(textarea.value);copy.textContent="Copié";}catch{textarea.focus();textarea.select();copy.textContent="Texte sélectionné · copie avec Ctrl+C";}});
+      panel.append(label,textarea,note,copy);
+    }catch(error){panel.textContent="Préparation impossible : "+error.message;}
+    finally{button.disabled=false;button.textContent="Préparer une réponse avec l’IA";}
+  }
   function renderOutput(result){
     const output=$("#ttMcpOutput");output.replaceChildren();
     const parsed=parseToolText(result),data=parsed?.data||parsed;
@@ -85,10 +114,12 @@
       const heading=document.createElement("strong");heading.textContent=comments.length+" commentaires";output.append(heading);
       comments.forEach(comment=>{
         const card=document.createElement("article");card.className="tt-mcp-comment";
-        const author=document.createElement("strong");author.textContent=comment.display_name||comment.username||comment.unique_identifier||"Utilisateur TikTok";
+        const author=document.createElement("strong");author.textContent=comment.display_name||comment.username||"Utilisateur TikTok";
         const body=document.createElement("p");body.textContent=comment.text||comment.comment_text||"";
         const meta=document.createElement("small");meta.textContent=(comment.likes??comment.like_count??0)+" j’aime · "+(comment.replies??comment.reply_count??0)+" réponses · "+(comment.status||"");
-        card.append(author,body,meta);output.append(card);
+        const draftButton=document.createElement("button");draftButton.type="button";draftButton.className="btn secondary tt-mcp-draft-button";draftButton.textContent="Préparer une réponse avec l’IA";
+        draftButton.addEventListener("click",()=>prepareAiReply(comment,card,draftButton));
+        card.append(author,body,meta,draftButton);output.append(card);
       });
     }
     const pre=document.createElement("pre");pre.textContent=JSON.stringify(parsed,null,2);pre.className="tt-mcp-json";output.append(pre);
