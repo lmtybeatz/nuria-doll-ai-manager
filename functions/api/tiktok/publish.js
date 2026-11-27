@@ -13,7 +13,7 @@ export async function onRequestPost({request,env}){
    if(!body.title||typeof body.title!=="string"||body.title.length>2200)return reply({error:"Ajoute une légende de 2 200 caractères maximum."},400);
    const draft=action==="init_draft",size=Number(body.video_size);
    if(!Number.isSafeInteger(size)||size<1||size>4*1024*1024*1024)return reply({error:"Taille de vidéo invalide (maximum 4 Go)."},400);
-   const chunkSize=Math.min(size,10*1024*1024),total=Math.ceil(size/chunkSize),privacy=String(body.privacy_level||"SELF_ONLY");
+   const chunkSize=Math.min(size,10*1024*1024),total=Math.ceil(size/chunkSize),privacy=String(body.privacy_level||"");
    if(!draft&&!privacy)return reply({error:"Choisis une visibilité avant la publication."},400);\n   if(!draft&&body.commercial_disclosure&&!body.brand_organic_toggle&&!body.brand_content_toggle)return reply({error:"Indique le type de contenu commercial."},400);\n   const postInfo={title:body.title,privacy_level:privacy,disable_comment:!!body.disable_comment,disable_duet:!!body.disable_duet,disable_stitch:!!body.disable_stitch,brand_organic_toggle:!!body.brand_organic_toggle,brand_content_toggle:!!body.brand_content_toggle,is_aigc:!!body.is_aigc};
    const path=draft?"/v2/post/publish/inbox/video/init/":"/v2/post/publish/video/init/";
    const requestBody=draft?{source_info:{source:"FILE_UPLOAD",video_size:size,chunk_size:chunkSize,total_chunk_count:total}}:{post_info:postInfo,source_info:{source:"FILE_UPLOAD",video_size:size,chunk_size:chunkSize,total_chunk_count:total}};
