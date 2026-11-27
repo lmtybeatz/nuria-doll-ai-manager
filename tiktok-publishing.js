@@ -84,7 +84,7 @@
     $("#ttVideoFile")?.addEventListener("change",previewVideo);
     $("#ttPhotoUrls")?.addEventListener("input",previewPhotos);
     syncDisclosure("Video");syncDisclosure("Photo");
-    $("#artistSwitcher")?.addEventListener("change",()=>{creatorInfo=null;creatorInfoArtistId=null;publishCapabilities=null;publishCapabilitiesArtistId=null;fillPrivacy(null);$("#ttCreatorAccount").textContent="Compte TikTok cible : actualise les paramètres de l’artiste actif.";$("#ttPublishCapability").textContent="Les paramètres de l’artiste actif doivent être rechargés avant une publication directe.";});
+    $("#artistSwitcher")?.addEventListener("change",()=>{creatorInfo=null;creatorInfoArtistId=null;publishCapabilities=null;publishCapabilitiesArtistId=null;$("#ttPublishVideo").disabled=true;$("#ttPublishPhoto").disabled=true;fillPrivacy(null);$("#ttCreatorAccount").textContent="Compte TikTok cible : actualise les paramètres de l’artiste actif.";$("#ttPublishCapability").textContent="Les paramètres de l’artiste actif doivent être rechargés avant une publication directe.";});
   }
 
   async function context(){
@@ -125,7 +125,7 @@
     const select=$("#"+selectId);if(!select)return;
     const directOption=Array.from(select.options).find(o=>o.value==="direct"),draftOption=Array.from(select.options).find(o=>o.value==="draft");
     if(directOption)directOption.disabled=!direct;if(draftOption)draftOption.disabled=!upload;
-    if(!direct&&upload)select.value="draft";else if(direct)select.value="direct";
+    if(!direct&&upload)select.value="draft";else if(direct)select.value="direct";\n    if(selectId==="ttVideoMode")$("#ttPublishVideo").textContent=select.value==="draft"?"Envoyer le brouillon":"Publier la vidéo";\n    if(selectId==="ttPhotoMode")$("#ttPublishPhoto").textContent=select.value==="draft"?"Envoyer les photos en brouillon":"Publier les photos";
   }
   async function loadCapabilities(ctxOverride=null){
     const ctx=ctxOverride||await context(),result=await api("capabilities",{},ctx),current=await context();
