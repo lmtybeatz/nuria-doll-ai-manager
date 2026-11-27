@@ -135,7 +135,7 @@
       const file=$("#ttVideoFile");if(file)file.dataset.maxDuration=String(max||0);
       return creatorInfo;
     }catch(error){
-      creatorInfo=null;
+      creatorInfo=null;creatorInfoArtistId=null;fillPrivacy(null);
       if(status)status.textContent="Paramètres de publication directe indisponibles : "+error.message+". Le mode brouillon peut rester disponible si video.upload est autorisé.";
       throw error;
     }
