@@ -1763,8 +1763,16 @@
       [tag,detail].forEach(el=>{if(el){el.textContent=connected?'Connecté':'À connecter';el.className='tag '+(connected?'green':'amber');}});
       box.textContent=connected?'Connexion officielle active pour « '+activeArtistName()+' ». Les données du compte sont accessibles.':'Aucun compte TikTok connecté pour cet artiste.';
       if(button)button.textContent=connected?'Reconnecter ce compte TikTok':'Connecter un compte TikTok';
+      const disconnectButton=$('#disconnectTikTok');if(disconnectButton)disconnectButton.classList.toggle('hidden',!connected);
       if(connected){const recStatus=$('#tiktokRecommendationStatus'),recButton=$('#generateTikTokRecommendations');if(recStatus)recStatus.textContent='Compte connecté. Chargement des statistiques avant analyse IA…';if(recButton)recButton.disabled=true;$('#tiktokAccountPanel')?.classList.remove('hidden');updateTikTokProfile(account);void loadTikTokAnalytics(artistId);}
-      else{$('#tiktokAccountPanel')?.classList.add('hidden');updateTikTokProfile({});}
+      else{
+        $('#tiktokAccountPanel')?.classList.add('hidden');updateTikTokProfile({});
+        latestTikTokAnalytics=null;latestTikTokAnalyticsArtistId=null;
+        $('#ttFollowers').textContent='—';$('#ttLikes').textContent='—';$('#ttVideos').textContent='—';$('#ttFollowing').textContent='—';
+        $('#tiktokVideoList')?.replaceChildren(Object.assign(document.createElement('p'),{className:'muted',textContent:'Connecte un compte pour afficher les vidéos.'}));
+        $('#tiktokRecommendationResult')?.classList.add('hidden');
+        const recButton=$('#generateTikTokRecommendations');if(recButton)recButton.disabled=true;
+      }
     }catch(e){if(artistId===activeArtistId)box.textContent='Statut TikTok indisponible : '+e.message;}
   }
   async function loadTikTokAnalytics(artistId,options={}){
@@ -1984,6 +1992,23 @@
       const d=await r.json();if(!r.ok||!d.authorization_url)throw new Error([d.error||'Connexion TikTok impossible.',d.missing?.length?'Variables manquantes : '+d.missing.join(', '):''].filter(Boolean).join(' — '));
       window.location.assign(d.authorization_url);
     }catch(e){toast(e.message,true);}
+  });
+  $('#disconnectTikTok')?.addEventListener('click',async()=>{
+    const artistId=activeArtistId;if(!artistId)return;
+    if(!window.confirm('Déconnecter TikTok pour « '+activeArtistName()+' » ? Cette action révoque l’autorisation si TikTok l’accepte et retire les identifiants de cet artiste uniquement.'))return;
+    const button=$('#disconnectTikTok');if(button){button.disabled=true;button.textContent='Déconnexion…';}
+    try{
+      const {data:{session}}=await supabase.auth.getSession();if(!session?.access_token)throw new Error('Session expirée. Reconnecte-toi.');
+      const response=await fetch('/api/tiktok/disconnect',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+session.access_token},body:JSON.stringify({artist_id:artistId})});
+      const payload=await response.json().catch(()=>({}));
+      if(!response.ok||!payload.disconnected)throw new Error(payload.error||'Déconnexion TikTok impossible.');
+      if(artistId!==activeArtistId)return;
+      latestTikTokAnalytics=null;latestTikTokAnalyticsArtistId=null;
+      await loadTikTokStatus();
+      if(payload.revoked===false)toast('Compte retiré de cet artiste. TikTok n’a pas confirmé la révocation distante : '+(payload.warning||'vérifie les applications autorisées dans TikTok.'),true);
+      else toast('TikTok déconnecté pour '+activeArtistName()+'. Tu peux maintenant reconnecter le compte.');
+    }catch(error){toast(error.message||'Déconnexion TikTok impossible.',true);}
+    finally{if(button){button.disabled=false;button.textContent='Déconnecter ce compte TikTok';}}
   });
   $('#refreshTikTokInsights')?.addEventListener('click',()=>loadTikTokAnalytics(activeArtistId));
   $('#refreshTikTokVideoPreviews')?.addEventListener('click',refreshTikTokVideoPreviews);
