@@ -559,6 +559,7 @@
       identity.append(title,meta);
       const toggle=document.createElement("button");toggle.type="button";toggle.className="btn secondary";toggle.textContent="Ouvrir le dossier";
       const content=document.createElement("div");content.className="artist-research-report hidden";
+      if(row.notes){const note=document.createElement("p");note.className="research-disclaimer";note.textContent=row.notes;content.append(note);}
       const context=row.queries&&row.queries.identity_context?row.queries.identity_context:null;
       if(context){
         const identityCard=document.createElement("section");identityCard.className="research-context-card";
@@ -678,7 +679,6 @@
         last_verified_at:now,updated_at:now
       },{onConflict:"owner_id,artist_id,fact_key"});
       if(error)throw error;
-      $("#knowledgeForm")?.reset();
       $("#artistKnowledgeForm")?.reset();
       await loadArtistKnowledge();
       toast("Fait confirmé ajouté à la mémoire de "+activeArtistName()+".");
