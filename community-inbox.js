@@ -97,6 +97,11 @@
       if(node){node.textContent=message;node.classList.toggle("is-error",bad);}
     });
   }
+  function showAppNotice(notice){
+    const node=$("#communityAppNotice");if(!node||!notice?.message)return;
+    node.textContent=(notice.bad?"⚠ ":"ℹ ")+notice.message;
+    node.classList.remove("hidden");node.classList.toggle("is-error",!!notice.bad);
+  }
   async function loadInbox(){
     const label=$("#communityArtistLabel");if(!label)return;
     try{
@@ -291,6 +296,8 @@
     finally{busy=false;if(trigger?.isConnected){trigger.disabled=false;trigger.textContent=originalTriggerText;}}
   }
   function mount(){
+    window.addEventListener("aimm:app-notice",event=>showAppNotice(event.detail));
+    if(window.AIMM_LAST_TOAST&&Date.now()-window.AIMM_LAST_TOAST.at<600000)showAppNotice(window.AIMM_LAST_TOAST);
     $("#communitySyncTikTok")?.addEventListener("click",syncTikTok);
     window.addEventListener("aimm:community-sync-request",event=>void syncTikTok(event.detail?.button||null));
     $("#communityRefresh")?.addEventListener("click",loadInbox);
