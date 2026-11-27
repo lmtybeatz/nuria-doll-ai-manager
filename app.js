@@ -110,15 +110,16 @@
     const shell=$('#appShell');
     $('#userEmail').textContent=user.email||'Compte connecté';
     updateAccountMenuIdentity();
-    await loadArtists();
+    const createdFirstArtist=await loadArtists();
     renderAssistantConversation(activeArtistId);
     const savedView=readWorkspaceState().view;
     const validViews=['overview','brand','strategy','library','agent','connections','community','artists'];
     // Restaurer la rubrique pendant que l'application est encore masquée.
     // L'utilisateur ne voit donc jamais brièvement la vue d'ensemble par défaut.
-    nav((tiktokOAuthResult||tiktokMcpOAuthResult)?'connections':(validViews.includes(savedView)?savedView:'overview'));
+    nav((tiktokOAuthResult||tiktokMcpOAuthResult)?'connections':(createdFirstArtist?'brand':(validViews.includes(savedView)?savedView:'overview')));
     show(shell);
     await reloadArtistWorkspace();
+    if(createdFirstArtist)toast('Bienvenue sur AI Music Manager. Ton premier espace artiste est prêt : complète son identité pour commencer.');
     if(tiktokOAuthResult==='connected')toast('Compte TikTok connecté à '+activeArtistName()+'.');
     else if(tiktokOAuthResult==='error')toast('Connexion TikTok non aboutie. Motif : '+(tiktokOAuthReason||'erreur inconnue')+'.',true);
     if(tiktokMcpOAuthResult==='connected')toast('Gestion des commentaires TikTok connectée pour '+activeArtistName()+'.');
@@ -145,6 +146,7 @@
     }
     saveWorkspaceState({artistId:activeArtistId});
     renderArtistSwitcher();
+    return !!createdFirstArtist;
   }
   function activeArtistName(){return artists.find(a=>a.id===activeArtistId)?.artist_name||'artiste sélectionné';}
   function updateAccountMenuIdentity(){
