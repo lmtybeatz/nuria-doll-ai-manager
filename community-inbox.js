@@ -2,6 +2,7 @@
   const $=selector=>document.querySelector(selector);
   const escapeText=value=>String(value??"");
   let messages=[],loadedArtistId=null,busy=false;
+  const commentLocks=new Set();
 
   async function context(){
     const ctx=await window.AIMusicManagerTikTokContext?.get?.();
@@ -239,18 +240,21 @@
     return args;
   }
   async function publishCommentReply(item,textarea,button){
-    if(busy||item.workflow_status==="replied")return;
+    const lockKey=String(item.id);
+    if(commentLocks.has(lockKey)||item.workflow_status==="replied")return;
     const reply=String(textarea?.value||"").trim();
     if(!reply){setStatus("Le texte de la réponse est vide.",true);return;}
     if(reply.length>150){setStatus("La réponse dépasse 150 caractères. Raccourcis-la avant publication.",true);return;}
-    const child=String((await context()).artistName||"").trim().toUpperCase()==="NURIA DOLL";
+    let ctx;
+    try{ctx=await context();}catch(error){setStatus(error.message||"Connexion TikTok indisponible.",true);return;}
+    const child=String(ctx.artistName||"").trim().toUpperCase()==="NURIA DOLL";
     const confirmation=child
       ?"Validation parentale obligatoire : publier cette réponse publique sur TikTok ?\n\n"+reply+"\n\nConfirmer uniquement si tu es le parent ou le gestionnaire autorisé."
       :"Publier cette réponse publique sur TikTok ?\n\n"+reply;
     if(!window.confirm(confirmation))return;
-    busy=true;button.disabled=true;button.textContent="Publication en cours…";
+    commentLocks.add(lockKey);button.disabled=true;button.textContent="Publication en cours…";
     try{
-      const ctx=await context(),tool=await discoverReplyTool();
+      const tool=await discoverReplyTool();
       if(!tool)throw new Error("TikTok n’a pas exposé d’outil officiel de réponse pour ce compte.");
       const args=replyArguments(tool,item,reply);
       if(!args)throw new Error("Le schéma de l’outil TikTok a changé ou exige des paramètres non reconnus. Aucune publication effectuée.");
@@ -263,12 +267,13 @@
       await loadInbox();
       setStatus("Réponse publiée sur TikTok et enregistrée dans la boîte de réception.");
     }catch(error){setStatus(error.message||"Publication impossible.",true);}
-    finally{busy=false;if(button.isConnected){button.disabled=false;button.textContent="Publier la réponse sur TikTok";}}
+    finally{commentLocks.delete(lockKey);if(button.isConnected){button.disabled=false;button.textContent="Publier la réponse sur TikTok";}}
   }
   async function prepareDraft(item,card,regenerate=false,silent=false){
-    if(busy)return;
+    const lockKey=String(item.id);
+    if(commentLocks.has(lockKey))return;
     if(regenerate&&!silent&&!window.confirm("Générer une nouvelle proposition ? L’ancien brouillon sera remplacé uniquement si la nouvelle réponse est bien générée."))return;
-    busy=true;
+    commentLocks.add(lockKey);
     const trigger=[...card.querySelectorAll("button")].find(button=>button.textContent.includes(regenerate?"Régénérer":"Préparer"));
     const originalTriggerText=trigger?.textContent||"";
     if(trigger){trigger.disabled=true;trigger.textContent=regenerate?"Régénération…":"Préparation du brouillon…";}
@@ -291,10 +296,10 @@
       if(draft.length>150){draft=draft.slice(0,150);const lastSpace=draft.lastIndexOf(" ");if(lastSpace>100)draft=draft.slice(0,lastSpace);draft=draft.replace(/[\\s,;:–—-]+$/g,"").trim();}
       if(!draft||draft.length>150)throw new Error("Impossible de produire une réponse TikTok de 150 caractères maximum. Réessaie.");
       await api("/api/community/inbox",ctx,"PATCH",{artist_id:ctx.artistId,id:item.id,ai_draft:draft,workflow_status:"drafted"});
-      await loadInbox();
+      if(!silent)await loadInbox();
       setStatus(regenerate?"Nouvelle proposition générée et enregistrée.":(child?"Brouillon préparé. Validation parentale obligatoire avant toute publication.":"Brouillon préparé et enregistré. Il n’a pas été publié."));
     }catch(error){setStatus(error.message,true);}
-    finally{busy=false;if(trigger?.isConnected){trigger.disabled=false;trigger.textContent=originalTriggerText;}}
+    finally{commentLocks.delete(lockKey);if(trigger?.isConnected){trigger.disabled=false;trigger.textContent=originalTriggerText;}}
   }
   let autoQueueRunning=false;
   async function autoGenerateMissingDrafts(){
@@ -320,7 +325,7 @@
       }
     }finally{
       if(filter)filter.value=previousFilter;
-      render();
+      updateStats();render();
       autoQueueRunning=false;
       setStatus(completed+" réponse(s) IA préparée(s) automatiquement"+(failed?" · "+failed+" commentaire(s) à réessayer":"")+". Aucune réponse n’a été publiée.");
     }
