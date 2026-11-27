@@ -1670,13 +1670,31 @@
       ?Number(((likes.value+comments.value+shares.value)/views.value*100).toFixed(2)):null;
     const dated=parsed.filter(video=>video._date).sort((a,b)=>a._date-b._date);
     const asIso=date=>date?date.toISOString():null;
+    const recentVideoFacts=inWindow.map(video=>{
+      const videoViews=Number.isFinite(Number(video.view_count))?Number(video.view_count):null;
+      const components=[video.like_count,video.comment_count,video.share_count];
+      const complete=components.every(value=>value!==null&&value!==undefined&&value!==''&&Number.isFinite(Number(value)));
+      const totalInteractions=complete?components.reduce((sum,value)=>sum+Number(value),0):null;
+      return {
+        title:video.title||video.video_description||'Sans titre',
+        views:video.view_count??null,likes:video.like_count??null,comments:video.comment_count??null,shares:video.share_count??null,
+        engagement_rate_percent:videoViews>0&&totalInteractions!==null?Number((totalInteractions/videoViews*100).toFixed(2)):null,
+        created_at:asIso(video._date)
+      };
+    });
+    const rankedByViews=recentVideoFacts.filter(video=>Number.isFinite(Number(video.views))).sort((a,b)=>Number(b.views)-Number(a.views));
+    const averageViews=recentVideoFacts.length&&rankedByViews.length===recentVideoFacts.length
+      ?Number((rankedByViews.reduce((total,video)=>total+Number(video.views),0)/rankedByViews.length).toFixed(1)):null;
     return {
       window_days:28,window_start:asIso(start),window_end:asIso(end),
+      measurement_note:"Les compteurs par vidéo sont des valeurs cumulées au moment de la synchronisation. La fenêtre de 28 jours classe les publications selon leur date de publication ; elle ne mesure pas les vues ou interactions obtenues exclusivement pendant ces 28 jours.",
       account:{followers:data.follower_count??null,following:data.following_count??null,lifetime_likes:data.likes_count??null,lifetime_video_count:data.video_count??null},
       videos_in_window:inWindow.length,returned_videos:videos.length,undated_videos:parsed.length-dated.length,
       observed_sample_start:asIso(dated[0]?._date),observed_sample_end:asIso(dated.at(-1)?._date),
-      views,likes,comments,shares,like_rate_percent:likeRate,engagement_rate_percent:engagementRate,
-      videos:inWindow.map(video=>({title:video.title||video.video_description||'Sans titre',views:video.view_count??null,likes:video.like_count??null,comments:video.comment_count??null,shares:video.share_count??null,created_at:asIso(video._date)})),
+      views,likes,comments,shares,average_views_per_recent_video:averageViews,
+      like_rate_percent:likeRate,engagement_rate_percent:engagementRate,
+      top_videos_by_views:rankedByViews.slice(0,3),
+      videos:recentVideoFacts,
       warnings:Array.isArray(data.warnings)?data.warnings:[]
     };
   }
@@ -1700,20 +1718,21 @@
     const facts=[
       ['Vidéos reçues',String(summary.returned_videos)],
       ['Période de l’échantillon',sampleRange],
-      ['Vidéos sur 28 jours',String(summary.videos_in_window)],
-      ['Vues sur 28 jours',formatTikTokFact(summary.views)],
-      ['J’aime sur 28 jours',formatTikTokFact(summary.likes)],
-      ['Taux j’aime / vues',summary.like_rate_percent===null?'Non calculable':summary.like_rate_percent.toLocaleString('fr-FR')+' %'],
-      ['Commentaires',formatTikTokFact(summary.comments)],
-      ['Partages',formatTikTokFact(summary.shares)],
-      ['Engagement complet',summary.engagement_rate_percent===null?'Non calculable':summary.engagement_rate_percent.toLocaleString('fr-FR')+' %']
+      ['Publications des 28 derniers jours',String(summary.videos_in_window)],
+      ['Vues cumulées des vidéos récentes',formatTikTokFact(summary.views)],
+      ['J’aime cumulés des vidéos récentes',formatTikTokFact(summary.likes)],
+      ['Taux j’aime / vues (vidéos récentes)',summary.like_rate_percent===null?'Non calculable':summary.like_rate_percent.toLocaleString('fr-FR')+' %'],
+      ['Commentaires cumulés des vidéos récentes',formatTikTokFact(summary.comments)],
+      ['Partages cumulés des vidéos récentes',formatTikTokFact(summary.shares)],
+      ['Engagement cumulé / vues',summary.engagement_rate_percent===null?'Non calculable':summary.engagement_rate_percent.toLocaleString('fr-FR')+' %'],
+      ['Vues moyennes par publication récente',summary.average_views_per_recent_video===null?'Non calculable':summary.average_views_per_recent_video.toLocaleString('fr-FR')]
     ];
     facts.forEach(([label,value])=>{
       const card=document.createElement('div'),strong=document.createElement('strong'),small=document.createElement('small');
       strong.textContent=value;small.textContent=label;card.append(strong,small);root.append(card);
     });
     const note=document.createElement('p');
-    note.textContent='Lecture des chiffres : l’échantillon correspond aux vidéos renvoyées par TikTok, tandis que les totaux et taux de performance portent uniquement sur les vidéos datées dans les 28 jours précédant la synchronisation. Ces deux périmètres ne doivent pas être confondus.';
+    note.textContent='Lecture des chiffres : la fenêtre de 28 jours classe les vidéos selon leur date de publication. Les vues, J’aime, commentaires et partages affichés sont les compteurs cumulés de ces vidéos au moment de la synchronisation ; ils ne représentent pas uniquement les interactions obtenues pendant ces 28 jours.';
     root.append(note);
     const missing=[];
     if(summary.views.value===null)missing.push('vues');
@@ -1735,7 +1754,7 @@
       const {data:sessionData,error}=await supabase.auth.getSession();if(error||!sessionData?.session?.access_token)throw new Error('Session expirée.');
       const summary=summarizeTikTokVideos(data);
       const task='Tu es un analyste marketing musical senior spécialisé TikTok. Prépare un rapport utile, précis et directement exploitable pour '+activeArtistName()+'.\n\n'+
-        'RÈGLES DE FIABILITÉ OBLIGATOIRES : utilise uniquement les données fournies. Les compteurs du compte sont des valeurs globales à la date de synchronisation, pas des résultats sur 28 jours. Le nombre de vidéos récupérées dans la fenêtre n’est pas le nombre total de vidéos du compte. Les vidéos sans date valide sont exclues du calcul de période. N’additionne jamais des métriques partielles pour les présenter comme un total complet : indique la couverture disponible. Ne calcule un taux que si tous ses composants sont présents. N’invente ni commentaires, ni partages, ni évolution, ni démographie, ni heures optimales, ni causalité. Si l’échantillon est faible, dis-le. Ne prétends pas que TikTok favorise mécaniquement une fréquence de publication.\n'+
+        'RÈGLES DE FIABILITÉ OBLIGATOIRES : utilise uniquement les données fournies. Les compteurs du compte sont des valeurs globales à la date de synchronisation. Les compteurs de chaque vidéo sont eux aussi cumulatifs au moment de la synchronisation : la fenêtre de 28 jours filtre les dates de publication, elle ne mesure pas les interactions acquises exclusivement pendant cette période. Le nombre de vidéos récupérées dans la fenêtre n’est pas le nombre total de vidéos du compte. Les vidéos sans date valide sont exclues du calcul de période. N’additionne jamais des métriques partielles pour les présenter comme un total complet : indique la couverture disponible. Ne calcule un taux que si tous ses composants sont présents. N’invente ni commentaires, ni partages, ni évolution, ni démographie, ni heures optimales, ni causalité. Si l’échantillon est faible, dis-le. Ne prétends pas que TikTok favorise mécaniquement une fréquence de publication.\n'+
         'ANALYSE : commence par une synthèse de 3 lignes, puis les faits mesurés, les limites/données manquantes, 3 priorités argumentées, 5 idées de vidéos avec accroche et format, un calendrier souple sur 7 jours et les indicateurs à suivre. Les recommandations doivent être proportionnées à la taille réelle de l’audience et aux performances observées. Ne fixe pas de quotas de publication arbitraires ; propose un rythme testable et soutenable. Les heures de publication sont à tester, jamais à présenter comme optimales sans données.\n'+
         'DISTINCTION DES PÉRIMÈTRES : indique explicitement le nombre de vidéos reçues par l’API et leur plage de dates observée, puis sépare les vidéos réellement incluses dans la fenêtre de 28 jours. N’utilise jamais les vues/j’aime de l’échantillon complet comme s’ils correspondaient aux 28 jours. Si les dates observées couvrent une période plus longue ou plus courte que 28 jours, signale-le.\n'+
         (isNuriaDollArtist(activeArtistName())?'SÉCURITÉ ENFANT RENFORCÉE : NURIA DOLL est une artiste enfant. Les idées sont des propositions destinées au parent/gestionnaire et nécessitent sa validation. Ne propose ni live, ni défi participatif, ni concours, ni collecte de contenus/photos/coordonnées d’enfants, ni conversation privée avec des mineurs, ni rencontre avec des abonnés. N’expose jamais école, domicile, habitudes, trajets, localisation en temps réel ou informations personnelles. Les commentaires sont modérés par le parent. Les CTA doivent inviter à apprécier la musique sans solliciter de contact privé.':'GESTION : aucune publication, programmation ou prise de contact automatique. Toutes les propositions restent des brouillons à valider par le gestionnaire.')+'\n'+
