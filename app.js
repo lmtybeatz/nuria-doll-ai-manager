@@ -1752,6 +1752,7 @@
   }
   async function loadTikTokStatus(){
     const artistId=activeArtistId,box=$('#tiktokStatus'),button=$('#connectTikTok');if(!artistId||!box)return;
+    $('#disconnectTikTok')?.classList.add('hidden');
     box.textContent='Vérification de la connexion TikTok…';
     try{
       const {data:{session}}=await supabase.auth.getSession();if(!session?.access_token)throw new Error('Session expirée.');
