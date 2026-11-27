@@ -21,3 +21,20 @@
 .tt-disclosure-notice{margin:0;padding:8px 10px;border-radius:7px;background:#f1eaf7;color:#604279;font-size:10px;line-height:1.5;font-weight:700}
 .tt-disclosure-options label.is-disabled{opacity:.45}
 .tiktok-publish-form select:disabled{background:#f4f1f6;color:#9a91a1;cursor:not-allowed}
+
+
+/* Studio de publication TikTok — panneau repliable */
+.tiktok-publisher-heading{align-items:center}
+.tiktok-publisher-heading-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:8px}
+.tiktok-publisher-heading-actions .btn{margin:0;white-space:nowrap}
+.tt-studio-toggle{display:inline-flex;align-items:center;justify-content:center;gap:7px}
+.tt-studio-toggle-icon{display:inline-block;font-size:15px;line-height:1;transition:transform .2s ease}
+.tt-studio-toggle.is-collapsed .tt-studio-toggle-icon{transform:rotate(180deg)}
+.tt-studio-content[hidden]{display:none!important}
+.tt-studio-content{margin-top:2px}
+@media(max-width:680px){
+ .tiktok-publisher-heading{align-items:stretch}
+ .tiktok-publisher-heading-actions{width:100%;display:grid;grid-template-columns:1fr}
+ .tiktok-publisher-heading-actions .btn{width:100%}
+}
+@media(prefers-reduced-motion:reduce){.tt-studio-toggle-icon{transition:none}}
