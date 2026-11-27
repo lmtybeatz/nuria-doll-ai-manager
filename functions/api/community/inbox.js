@@ -98,9 +98,13 @@ async function handlePatch({request,env}){
       patch.workflow_status=body.workflow_status;
     }
     if(body.ai_draft!==undefined){
-      if(typeof body.ai_draft!=="string"||body.ai_draft.trim().length>150)return json({error:"Un brouillon de réponse TikTok ne peut pas dépasser 150 caractères, espaces compris."},400);
-      patch.ai_draft=body.ai_draft.trim();
-      if(!patch.workflow_status)patch.workflow_status="drafted";
+      if(body.ai_draft===null){
+        patch.ai_draft=null;
+      }else{
+        if(typeof body.ai_draft!=="string"||body.ai_draft.trim().length>150)return json({error:"Un brouillon de réponse TikTok ne peut pas dépasser 150 caractères, espaces compris."},400);
+        patch.ai_draft=body.ai_draft.trim();
+        if(!patch.workflow_status)patch.workflow_status="drafted";
+      }
     }
     if(body.published_reply!==undefined){
       if(typeof body.published_reply!=="string"||!body.published_reply.trim()||body.published_reply.length>150)return json({error:"La réponse publiée est invalide ou dépasse 150 caractères."},400);
