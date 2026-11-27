@@ -130,13 +130,14 @@
     const {data,error}=await supabase.from('ai_artists').select('id,artist_name,is_default,status,created_at').eq('status','active').order('is_default',{ascending:false}).order('artist_name');
     if(error)throw new Error('Chargement des espaces artistes impossible : '+error.message);
     artists=data||[];
+    let createdFirstArtist=false;
     if(!artists.length){
       const {data:created,error:createError}=await supabase.from('ai_artists').insert({owner_id:user.id,artist_name:'Mon premier artiste',status:'active',is_default:true}).select('id,artist_name,is_default,status,created_at').single();
       if(createError){
         const retry=await supabase.from('ai_artists').select('id,artist_name,is_default,status,created_at').eq('status','active').order('created_at');
         if(retry.error||!retry.data?.length)throw new Error('Initialisation de ton espace artiste impossible : '+createError.message);
         artists=retry.data;
-      }else artists=[created];
+      }else {artists=[created];createdFirstArtist=true;}
     }
     const savedState=readWorkspaceState();
     if(oauthArtistId&&artists.some(a=>a.id===oauthArtistId))activeArtistId=oauthArtistId;
