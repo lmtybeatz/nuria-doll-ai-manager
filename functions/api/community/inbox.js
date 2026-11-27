@@ -102,6 +102,16 @@ async function handlePatch({request,env}){
       patch.ai_draft=body.ai_draft;
       if(!patch.workflow_status)patch.workflow_status="drafted";
     }
+    if(body.published_reply!==undefined){
+      if(typeof body.published_reply!=="string"||!body.published_reply.trim()||body.published_reply.length>150)return json({error:"La réponse publiée est invalide ou dépasse 150 caractères."},400);
+      patch.published_reply=body.published_reply.trim();
+      patch.replied_at=new Date().toISOString();
+      patch.workflow_status="replied";
+    }
+    if(body.platform_reply_id!==undefined){
+      if(typeof body.platform_reply_id!=="string"||body.platform_reply_id.length>180)return json({error:"Identifiant de réponse invalide."},400);
+      patch.platform_reply_id=body.platform_reply_id||null;
+    }
     if(Object.keys(patch).length===1)return json({error:"Aucune modification reçue."},400);
     const endpoint=ctx.base+"/rest/v1/ai_community_messages?id=eq."+encodeURIComponent(id)+"&owner_id=eq."+encodeURIComponent(ctx.user.id)+"&artist_id=eq."+encodeURIComponent(ctx.artistId);
     const response=await fetch(endpoint,{method:"PATCH",headers:{...ctx.admin,"content-type":"application/json",prefer:"return=representation"},body:JSON.stringify(patch)});
