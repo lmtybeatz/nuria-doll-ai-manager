@@ -43,7 +43,7 @@
   const tiktokMcpOAuthReason=oauthParams.get('reason');
   const recommendationBusy=new Set();
   let campaigns = [], editingCampaignId = null;
-  const toast = (msg, bad=false) => { const el=$('#toast'); el.textContent=msg; el.className='toast show'+(bad?' error':''); setTimeout(()=>el.className='toast',3600); };
+  const toast = (msg, bad=false) => { const el=$('#toast'); el.textContent=msg; el.className='toast show'+(bad?' error':''); window.AIMM_LAST_TOAST={message:String(msg||''),bad:!!bad,at:Date.now()}; window.dispatchEvent(new CustomEvent('aimm:app-notice',{detail:window.AIMM_LAST_TOAST})); setTimeout(()=>el.className='toast',3600); };
   window.AIMusicManagerTikTokContext = { get: async () => { const result = await supabase?.auth?.getSession?.(); const videos=latestTikTokAnalyticsArtistId===activeArtistId&&Array.isArray(latestTikTokAnalytics?.videos)?latestTikTokAnalytics.videos.map(video=>({id:String(video.id||video.video_id||''),title:String(video.title||video.video_description||'Vidéo TikTok'),comment_count:video.comment_count??null,share_url:video.share_url||''})).filter(video=>video.id):[]; return { artistId: activeArtistId, artistName: activeArtistName(), accessToken: result?.data?.session?.access_token || null, videos }; } };
   const show = (el) => el.classList.remove('hidden'); const hide = (el) => el.classList.add('hidden');
   function clearAssistantResult(){
