@@ -3,7 +3,7 @@
   const esc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
   const MUSIC_URL="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en";
   const BRAND_URL="https://www.tiktok.com/legal/page/global/bc-policy/en";
-  let creatorInfo=null,busy=false,videoPreviewUrl=null;
+  let creatorInfo=null,creatorInfoArtistId=null,busy=false,videoPreviewUrl=null;
 
   function mount(){
     const root=$("#socialTiktokDetail");if(!root||$("#tiktokPublisher"))return;
@@ -84,6 +84,7 @@
     $("#ttVideoFile")?.addEventListener("change",previewVideo);
     $("#ttPhotoUrls")?.addEventListener("input",previewPhotos);
     syncDisclosure("Video");syncDisclosure("Photo");
+    $("#artistSwitcher")?.addEventListener("change",()=>{creatorInfo=null;creatorInfoArtistId=null;fillPrivacy(null);$("#ttCreatorAccount").textContent="Compte TikTok cible : actualise les paramètres de l’artiste actif.";$("#ttPublishCapability").textContent="Les paramètres de l’artiste actif doivent être rechargés avant une publication directe.";});
   }
 
   async function context(){
@@ -91,8 +92,8 @@
     if(!value?.artistId||!value?.accessToken)throw new Error("Connecte-toi et sélectionne un artiste actif.");
     return value;
   }
-  async function api(action,extra={}){
-    const ctx=await context();
+  async function api(action,extra={},ctxOverride=null){
+    const ctx=ctxOverride||await context();
     const response=await fetch("/api/tiktok/publish",{method:"POST",headers:{"content-type":"application/json",authorization:"Bearer "+ctx.accessToken},body:JSON.stringify({artist_id:ctx.artistId,action,...extra})});
     const data=await response.json().catch(()=>({}));
     if(!response.ok)throw new Error(data.error||"Opération TikTok impossible.");
@@ -120,10 +121,13 @@
     const account=$("#ttCreatorAccount");
     if(account)account.textContent="Compte TikTok cible : "+(info.creator_nickname||"Créateur")+(info.creator_username?" (@"+info.creator_username+")":"");
   }
-  async function loadCreatorInfo(){
+  async function loadCreatorInfo(ctxOverride=null){
+    const ctx=ctxOverride||await context();
     const status=$("#ttPublishCapability");if(status)status.textContent="Lecture des paramètres et autorisations du compte TikTok…";
     try{
-      const result=await api("creator_info");creatorInfo=result.creator||{};
+      const result=await api("creator_info",{},ctx);
+      const current=await context();if(current.artistId!==ctx.artistId)return null;
+      creatorInfo=result.creator||{};creatorInfoArtistId=ctx.artistId;
       fillPrivacy(creatorInfo.privacy_level_options);
       applyCreatorSettings(creatorInfo);
       const max=creatorInfo.max_video_post_duration_sec;
@@ -193,11 +197,11 @@
       if(resultNode)resultNode.textContent="Transfert sécurisé vers TikTok : "+Math.round((index+1)/totalChunks*100)+" %";
     }
   }
-  async function waitForStatus(publishId,resultNode){
+  async function waitForStatus(publishId,resultNode,ctx){
     let last=null;
     for(let attempt=0;attempt<30;attempt++){
       await new Promise(resolve=>setTimeout(resolve,2500));
-      const result=await api("status",{publish_id:publishId});last=result;
+      const result=await api("status",{publish_id:publishId},ctx);last=result;
       if(resultNode)resultNode.textContent="Traitement TikTok : "+result.status;
       if(["PUBLISH_COMPLETE","SEND_TO_USER_INBOX","FAILED"].includes(result.status))return result;
     }
@@ -215,15 +219,15 @@
     try{
       setBusy(true,button,draft?"Préparation du brouillon…":"Préparation de la publication…");
       let info=creatorInfo;
-      if(!draft){info=info||await loadCreatorInfo();if(!info?.privacy_level_options?.length)throw new Error("Les paramètres de visibilité du créateur ne sont pas disponibles.");}
+      if(!draft){info=info&&creatorInfoArtistId===ctx.artistId?info:await loadCreatorInfo(ctx);if(!info?.privacy_level_options?.length)throw new Error("Les paramètres de visibilité du créateur ne sont pas disponibles pour cet artiste.");}
       const disclosure=validateConsent("Video",!draft);
       const max=Number(info?.max_video_post_duration_sec||0);
       if(!["video/mp4","video/quicktime","video/webm"].includes(file.type))throw new Error("Format non pris en charge. Utilise MP4, MOV ou WebM.");
       if(file.size>4*1024*1024*1024)throw new Error("La vidéo dépasse la limite de taille prise en charge (4 Go).");
       const duration=await readVideoDuration(file);if(max&&duration>max)throw new Error("Cette vidéo dure "+Math.ceil(duration)+" s, au-delà de la limite de ce compte ("+max+" s).");
-      const init=await api(draft?"init_draft":"init_video",{title:caption,video_size:file.size,privacy_level:$("#ttVideoPrivacy").value,disable_comment:!$("#ttAllowComments").checked,disable_duet:!$("#ttAllowDuet").checked,disable_stitch:!$("#ttAllowStitch").checked,...disclosure});
+      const init=await api(draft?"init_draft":"init_video",{title:caption,video_size:file.size,privacy_level:$("#ttVideoPrivacy").value,disable_comment:!$("#ttAllowComments").checked,disable_duet:!$("#ttAllowDuet").checked,disable_stitch:!$("#ttAllowStitch").checked,...disclosure},ctx);
       await uploadVideo(file,init.upload_url,init.chunk_size,ctx.artistId,ctx.accessToken,resultNode);
-      const final=await waitForStatus(init.publish_id,resultNode);
+      const final=await waitForStatus(init.publish_id,resultNode,ctx);
       if(final.status==="PUBLISH_COMPLETE")resultNode.textContent="Publication terminée avec succès. Identifiant TikTok : "+(final.post_ids?.[0]||init.publish_id);
       else if(final.status==="SEND_TO_USER_INBOX")resultNode.textContent="Brouillon envoyé. Ouvre TikTok pour le modifier et le publier.";
       else if(final.status==="FAILED")resultNode.textContent="TikTok a refusé la publication : "+(final.fail_reason||"motif non communiqué")+".";
@@ -236,16 +240,17 @@
     const button=$("#ttPublishPhoto"),resultNode=$("#ttPhotoResult");
     try{
       setBusy(true,button,"Envoi en cours…");
+      const ctx=await context();
       const urls=$("#ttPhotoUrls").value.split(/\n+/).map(v=>v.trim()).filter(Boolean),title=$("#ttPhotoTitle").value.trim(),description=$("#ttPhotoCaption").value.trim(),draft=$("#ttPhotoMode").value==="draft";
       if(!urls.length)throw new Error("Ajoute au moins une URL d’image.");
       if(urls.length>35)throw new Error("TikTok accepte au maximum 35 photos par publication.");
       if(title.length>90)throw new Error("Le titre photo ne peut pas dépasser 90 caractères.");
       if(description.length>4000)throw new Error("La description photo ne peut pas dépasser 4 000 caractères.");
       let info=creatorInfo;
-      if(!draft){info=info||await loadCreatorInfo();if(!info?.privacy_level_options?.length)throw new Error("Les paramètres de visibilité du créateur ne sont pas disponibles.");}
+      if(!draft){info=info&&creatorInfoArtistId===ctx.artistId?info:await loadCreatorInfo(ctx);if(!info?.privacy_level_options?.length)throw new Error("Les paramètres de visibilité du créateur ne sont pas disponibles pour cet artiste.");}
       const disclosure=validateConsent("Photo",!draft);
-      const result=await api("init_photo",{photo_images:urls,title,description,privacy_level:$("#ttPhotoPrivacy").value,draft,disable_comment:!$("#ttPhotoAllowComments").checked,...disclosure});
-      const status=await waitForStatus(result.publish_id,resultNode);
+      const result=await api("init_photo",{photo_images:urls,title,description,privacy_level:$("#ttPhotoPrivacy").value,draft,disable_comment:!$("#ttPhotoAllowComments").checked,...disclosure},ctx);
+      const status=await waitForStatus(result.publish_id,resultNode,ctx);
       if(status.status==="PUBLISH_COMPLETE")resultNode.textContent="Publication photo terminée. Identifiant : "+(status.post_ids?.[0]||result.publish_id);
       else if(status.status==="SEND_TO_USER_INBOX")resultNode.textContent="Photos envoyées dans les brouillons TikTok.";
       else if(status.status==="FAILED")resultNode.textContent="Échec TikTok : "+(status.fail_reason||"motif non communiqué")+".";
