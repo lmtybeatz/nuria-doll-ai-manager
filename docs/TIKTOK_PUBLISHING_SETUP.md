@@ -14,6 +14,18 @@ Dans TikTok for Developers, ouvrir l'application utilisée par AI Music Manager 
 
 L'application doit être approuvée pour les scopes et chaque artiste doit ensuite les autoriser dans son propre compte TikTok.
 
+## Afficher le nom d’utilisateur TikTok
+
+Le nom d’utilisateur (`username`) et le lien de profil détaillé nécessitent le scope officiel `user.info.profile`. Pour préserver les connexions déjà établies, ce scope reste optionnel dans le code.
+
+1. Dans TikTok for Developers, ajouter et obtenir l’accès au scope `user.info.profile` pour Login Kit.
+2. Dans les variables Cloudflare Pages (Production), définir `TIKTOK_PROFILE_SCOPE_ENABLED=true`.
+3. Redéployer l’application.
+4. Dans AI Music Manager, cliquer sur « Reconnecter ce compte TikTok » et accepter la permission supplémentaire.
+5. Actualiser les statistiques. Le profil demandera alors `username` et `profile_deep_link` uniquement si le scope est effectivement accordé.
+
+Tant que le scope n’est pas autorisé, les statistiques du compte et la liste des vidéos continuent de fonctionner avec les permissions existantes ; le nom d’utilisateur reste simplement indisponible.
+
 ## 2. Activer les nouveaux scopes sans casser les connexions existantes
 
 Le code garde volontairement les anciens scopes par défaut.
