@@ -101,7 +101,7 @@
     comments.forEach(comment=>{
       const card=document.createElement("article");card.className="tt-mcp-comment";
       const header=document.createElement("div");header.className="tt-mcp-comment-head";
-      const author=document.createElement("strong");author.textContent=comment.display_name||comment.username?"@"+(comment.username||comment.display_name):"Utilisateur TikTok";
+      const author=document.createElement("strong");author.textContent=comment.username?"@"+comment.username:(comment.display_name||"Utilisateur TikTok");
       const date=document.createElement("small");date.textContent=formatCommentDate(comment.create_time);
       header.append(author,date);
       const body=document.createElement("p");body.textContent=comment.text||comment.comment_text||"(Commentaire sans texte)";
