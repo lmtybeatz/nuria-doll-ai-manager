@@ -1,68 +1,66 @@
-# NURIA DOLL AI MANAGER — Phase 1
+# AI MUSIC MANAGER
 
-Application web indépendante pour préparer la gestion marketing de NURIA DOLL. Cette première version comprend l'interface, l'authentification Supabase, le profil artistique, la bibliothèque média privée et les préférences de l'agent.
+Plateforme professionnelle multi-comptes destinée aux artistes, producteurs et managers. Chaque utilisateur possède son propre espace, peut y gérer plusieurs artistes et connecter séparément les comptes sociaux de chacun.
 
 ## Déploiement
 
 Le projet est relié à Cloudflare Pages via la branche `main`. Les modifications validées sur cette branche doivent déclencher un nouveau déploiement automatique.
 
-## Séparation impérative
+## Architecture et séparation des données
 
-- Créer un **nouveau projet Supabase** réservé à AI MANAGER.
-- Ne pas exécuter `supabase/schema.sql` dans le projet Supabase du site public NURIA DOLL.
-- Déployer ce dossier dans un projet Cloudflare Pages distinct.
-- Aucun changement n'est apporté au site public existant.
+- Le projet Supabase `nuria-doll-ai-manager` est dédié à AI Music Manager.
+- Le site public NURIA DOLL conserve son propre projet Supabase et son propre déploiement.
+- Chaque profil artiste est rattaché à son propriétaire via `owner_id`.
+- Les connexions sociales sont isolées par propriétaire, artiste et plateforme.
+- Les jetons sociaux sont chiffrés côté serveur ; aucune clé privée ne doit être placée dans le navigateur ou dans GitHub.
+- Les politiques RLS doivent rester activées sur toutes les tables exposées.
 
-## 1. Créer Supabase
+## Configuration Supabase
 
-1. Créer un nouveau projet dans Supabase.
-2. Ouvrir SQL Editor et exécuter le contenu de `supabase/schema.sql`.
-3. Dans Authentication → URL Configuration, définir l'URL de déploiement Cloudflare Pages comme Site URL et ajouter les URL locales/de production nécessaires aux Redirect URLs.
-4. Créer ton compte parent/gestionnaire. Pour un usage strictement personnel, désactiver ensuite les inscriptions publiques dans les paramètres Authentication de Supabase ; conserve uniquement ton compte autorisé.
-5. Copier l'URL du projet et sa clé publique (publishable/anon) depuis les paramètres API.
-6. Remplacer les deux valeurs de `config.js`.
+1. Utiliser le projet Supabase dédié à AI Music Manager.
+2. Pour une nouvelle installation uniquement, exécuter le schéma et les migrations documentés dans le dossier `supabase/`.
+3. Dans Authentication → URL Configuration, définir l'URL Cloudflare Pages comme Site URL et ajouter les URL de redirection locales et de production.
+4. Autoriser l'inscription des nouveaux utilisateurs pour le modèle de plateforme. Configurer la confirmation d'e-mail et les protections anti-abus avant ouverture publique.
+5. Copier l'URL du projet et sa clé publique (publishable/anon) dans `config.js`.
+6. Conserver les clés secrètes et jetons fournisseurs exclusivement dans les secrets Cloudflare.
 
 Ne jamais utiliser la clé `service_role` ou une clé secrète dans `config.js`, le navigateur ou GitHub.
 
-## 2. Tester en local
+## Onboarding
 
-Un serveur statique suffit. Par exemple, avec Python installé :
+- À la première connexion, un espace artiste initial est créé automatiquement si le compte n'en possède aucun.
+- L'utilisateur peut ensuite ajouter et gérer plusieurs artistes.
+- Les données, médias et connexions sociales d'un compte ne doivent jamais être accessibles à un autre compte.
+- Les connexions TikTok, Instagram/Facebook et YouTube sont réalisées séparément pour chaque artiste.
+
+## Tester en local
+
+Un serveur statique suffit. Par exemple :
 
 ```bash
 python -m http.server 8080
 ```
 
-Puis ouvrir `http://localhost:8080`. Ajouter cette URL aux Redirect URLs Supabase. L'inscription peut demander une confirmation d'e-mail selon la configuration Supabase.
+Ajouter `http://localhost:8080` aux Redirect URLs Supabase.
 
-## 3. Déployer sur Cloudflare Pages
+## Déploiement Cloudflare Pages
 
-1. Créer un nouveau projet Pages, distinct du projet du site NURIA DOLL.
-2. Déployer le contenu de ce dossier comme site statique (pas de commande de build, répertoire de sortie `.`).
-3. Vérifier `/api/health` : la réponse doit indiquer `status: ok` et `automations_enabled: false`.
-4. Configurer les URL Supabase pour le domaine Pages définitif.
+1. Conserver le projet Pages AI Music Manager, distinct du site public NURIA DOLL.
+2. Déployer le contenu du dépôt depuis la branche `main` (répertoire de sortie `.`).
+3. Vérifier `/api/health`.
+4. Configurer les variables et secrets Cloudflare requis par les modules activés.
+5. Tester l'inscription, la création d'artiste, l'isolation entre deux comptes et les connexions sociales avant ouverture publique.
 
-## 4. Ce qui fonctionne dans cette phase
+## Conformité TikTok
 
-- Inscription / connexion par e-mail et mot de passe.
-- Lecture et enregistrement du profil artistique.
-- Enregistrement des préférences IA (sans lancer d'API payante).
-- Téléversement et suppression de fichiers dans un bucket privé.
-- Tableau de bord initial et état des modules sociaux.
-- Protection des tables et fichiers par RLS et politiques Storage.
+Le module Content Posting API doit respecter les règles de TikTok : affichage du créateur connecté, récupération des options de confidentialité depuis l'API, consentement explicite, aperçu du média, choix manuel des paramètres et suivi du statut. Tant que l'application n'a pas passé l'audit TikTok, les publications Direct Post restent soumises aux restrictions du client non audité. La plateforme ne doit pas être présentée comme un simple outil privé pour les comptes d'une seule équipe.
 
-## 5. Ce qui n'est volontairement pas activé
+Documentation officielle :
+- https://developers.tiktok.com/docs/en/content-posting-api-get-started
+- https://developers.tiktok.com/docs/en/content-sharing-guidelines
 
-- Aucun appel OpenAI.
-- Aucune génération d'image ou de vidéo.
-- Aucune connexion OAuth aux réseaux sociaux.
-- Aucune publication, réponse automatique ou campagne publicitaire.
-- Aucune automatisation planifiée.
+## Limites et contrôles
 
-Ces fonctions seront ajoutées après configuration des comptes, validation des autorisations et mise en place des plafonds de dépense côté serveur.
-
-## Limites de cette version
-
-- La limite de téléversement de l'interface est de 100 Mo par fichier ; le bucket est configuré à 100 MiB.
-- L'interface utilise la bibliothèque Supabase JS depuis un CDN et Google Fonts. Une connexion Internet est nécessaire.
-- Les identifiants publics Supabase sont destinés au navigateur ; la sécurité repose sur RLS. Les clés privées et jetons de réseaux devront être conservés côté serveur dans les secrets Cloudflare.
-- Le formulaire de budget est une préférence de configuration et ne bloque pas à lui seul la facturation fournisseur.
+- La bibliothèque média applique actuellement une limite d'interface de 100 Mo par fichier ; vérifier les limites du bucket avant de l'augmenter.
+- Le formulaire de budget est une préférence et ne constitue pas, à lui seul, un plafond de facturation fournisseur.
+- Toute publication ou réponse sociale doit rester soumise aux autorisations accordées par chaque réseau et au consentement du compte connecté.
