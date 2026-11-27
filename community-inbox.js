@@ -65,9 +65,11 @@
       if(item.ai_draft){
         const draftBox=document.createElement("div");draftBox.className="community-draft-box";
         const title=document.createElement("strong");title.textContent="Brouillon de réponse IA";
-        const textarea=document.createElement("textarea");textarea.value=item.ai_draft;textarea.setAttribute("aria-label","Modifier le brouillon de réponse");
-        const note=document.createElement("small");note.className="community-draft-note";note.textContent=item.workflow_status==="replied"?"Réponse publiée sur TikTok.": "Brouillon non publié. Relis-le avant toute utilisation.";
-        const save=makeButton("Enregistrer le brouillon",async()=>{save.disabled=true;try{const ctx=await context();await api("/api/community/inbox",ctx,"PATCH",{artist_id:ctx.artistId,id:item.id,ai_draft:textarea.value});await loadInbox();}catch(e){setStatus(e.message,true);}finally{save.disabled=false;}});
+        const textarea=document.createElement("textarea");textarea.value=item.ai_draft;textarea.maxLength=150;textarea.setAttribute("aria-label","Modifier le brouillon de réponse (150 caractères maximum)");
+        const note=document.createElement("small");note.className="community-draft-note";
+        const updateDraftCounter=()=>{note.textContent=(item.workflow_status==="replied"?"Réponse publiée sur TikTok. ":"Brouillon non publié. ")+textarea.value.length+"/150 caractères.";note.classList.toggle("is-error",textarea.value.length>150);};
+        updateDraftCounter();textarea.addEventListener("input",updateDraftCounter);
+        const save=makeButton("Enregistrer le brouillon",async()=>{if(textarea.value.trim().length>150){setStatus("Une réponse TikTok ne peut pas dépasser 150 caractères.",true);return;}save.disabled=true;try{const ctx=await context();await api("/api/community/inbox",ctx,"PATCH",{artist_id:ctx.artistId,id:item.id,ai_draft:textarea.value});await loadInbox();}catch(e){setStatus(e.message,true);}finally{save.disabled=false;}});
         draftBox.append(title,textarea,note,save);
         if(item.workflow_status!=="replied"){
           const publish=makeButton("Publier la réponse sur TikTok",()=>publishCommentReply(item,textarea,publish),"primary");
@@ -266,14 +268,18 @@
       const task=[
         "Prépare un brouillon de réponse publique au commentaire suivant pour l’artiste "+String(ctx.artistName||"artiste actif")+".",
         "COMMENTAIRE : "+String(item.message_text||"").slice(0,1200),
-        "RÈGLES : réponds dans la langue du commentaire si elle est identifiable, sinon en français. Sois bref, naturel, poli et adapté à la communauté de cet artiste. Pour les questions commerciales, titres, liens, dates ou disponibilités, utilise uniquement les faits confirmés du contexte de l’artiste. N’invente aucun prix, URL, date ni disponibilité. Ne demande jamais de coordonnées, de photos, d’adresse, de lieu de rencontre ou de conversation privée. Ne divulgue aucune information personnelle.",
+        "RÈGLE ABSOLUE DE LONGUEUR : la réponse finale doit contenir 150 caractères maximum, espaces, emojis et ponctuation compris. Vise 120 à 140 caractères pour garder une marge. Compte les caractères avant de répondre. Si nécessaire, reformule et raccourcis jusqu’à respecter strictement la limite. Ne dépasse jamais 150 caractères, même d’un seul caractère.",
+        "RÈGLES DE CONTENU : réponds dans la langue du commentaire si elle est identifiable, sinon en français. Sois bref, naturel, poli et adapté à la communauté de cet artiste. Pour les questions commerciales, titres, liens, dates ou disponibilités, utilise uniquement les faits confirmés du contexte de l’artiste. N’invente aucun prix, URL, date ni disponibilité. Ne demande jamais de coordonnées, de photos, d’adresse, de lieu de rencontre ou de conversation privée. Ne divulgue aucune information personnelle.",
         child?"PROTECTION PARENTALE : NURIA DOLL est une artiste mineure. Aucun échange privé, aucune rencontre, aucun renseignement personnel, scolaire, familial ou de localisation. En cas de sujet sensible ou de doute, signale qu'une vérification parentale est nécessaire.":"En cas de message sensible, harcèlement, menace ou demande inappropriée, ne réponds pas au fond et signale qu'une vérification du gestionnaire est nécessaire.",
         "Retourne uniquement un brouillon court, sans guillemets et sans prétendre qu'il a été envoyé."
       ].join("\n\n");
       const response=await fetch("/api/assistant",{method:"POST",headers:{"content-type":"application/json",authorization:"Bearer "+ctx.accessToken},body:JSON.stringify({artist_id:ctx.artistId,task})});
       const payload=await response.json().catch(()=>({}));
       if(!response.ok||!payload.answer)throw new Error(payload.error||"L’IA n’a pas pu préparer le brouillon.");
-      await api("/api/community/inbox",ctx,"PATCH",{artist_id:ctx.artistId,id:item.id,ai_draft:String(payload.answer).trim(),workflow_status:"drafted"});
+      let draft=String(payload.answer).trim().replace(/^["'“”]+|["'“”]+$/g,"").replace(/\\s+/g," ");
+      if(draft.length>150){draft=draft.slice(0,150);const lastSpace=draft.lastIndexOf(" ");if(lastSpace>100)draft=draft.slice(0,lastSpace);draft=draft.replace(/[\\s,;:–—-]+$/g,"").trim();}
+      if(!draft||draft.length>150)throw new Error("Impossible de produire une réponse TikTok de 150 caractères maximum. Réessaie.");
+      await api("/api/community/inbox",ctx,"PATCH",{artist_id:ctx.artistId,id:item.id,ai_draft:draft,workflow_status:"drafted"});
       await loadInbox();
       setStatus(child?"Brouillon préparé. Validation parentale obligatoire avant toute publication.":"Brouillon préparé et enregistré. Il n’a pas été publié.");
     }catch(error){setStatus(error.message,true);}
