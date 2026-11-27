@@ -289,6 +289,6 @@
   }
   document.addEventListener("DOMContentLoaded",()=>{
     mount();
-    document.querySelectorAll('[data-social-platform="tiktok"]').forEach(button=>button.addEventListener("click",()=>setTimeout(()=>{if($("#socialTiktokDetail")&&!$("#socialTiktokDetail").classList.contains("hidden"))loadCapabilities().catch(()=>{});},150)));
+    document.querySelectorAll('[data-social-platform="tiktok"]').forEach(button=>button.addEventListener("click",()=>setTimeout(()=>{if($("#socialTiktokDetail")&&!$("#socialTiktokDetail").classList.contains("hidden"))refreshPublishingSettings().catch(()=>{});},150)));
   });
 })();
