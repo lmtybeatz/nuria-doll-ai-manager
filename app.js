@@ -1591,7 +1591,7 @@
     const safe=safeTikTokUrl(value);if(!safe)return null;
     try{
       const url=new URL(safe);
-      return /^\\/(?:static\\/profile-video|player\\/v1)(?:\\/|$)/.test(url.pathname)?url.href:null;
+      return /^\/(?:static\/profile-video|player\/v1)(?:\/|$)/.test(url.pathname)?url.href:null;
     }catch{return null;}
   }
   function updateTikTokProfile(account={}){
@@ -1693,7 +1693,7 @@
       const mergedVideos=append?[...(existing?.videos||[]),...incoming]:incoming;
       latestTikTokAnalytics={...a,videos:mergedVideos,warnings:d.warnings||[],synced_at:d.synced_at,cursor:d.cursor??null,has_more:!!d.has_more};
       latestTikTokAnalyticsArtistId=artistId;
-      const refreshPreviewsButton=$('#refreshTikTokVideoPreviews');if(refreshPreviewsButton)refreshPreviewsButton.disabled=!mergedVideos.some(video=>/^\\d{5,32}$/.test(String(video.id||'')));
+      const refreshPreviewsButton=$('#refreshTikTokVideoPreviews');if(refreshPreviewsButton)refreshPreviewsButton.disabled=!mergedVideos.some(video=>/^\d{5,32}$/.test(String(video.id||'')));
       window.dispatchEvent(new CustomEvent('aimm:tiktok-videos-updated',{detail:{artistId}}));
       if(status)status.textContent=(append?'Vidéos supplémentaires chargées · ':'Données actualisées ')+(append?mergedVideos.length+' vidéos au total':new Date(d.synced_at).toLocaleString('fr-FR'))+(d.warnings?.length?' · '+d.warnings.join(' · '):'');
       const recStatus=$('#tiktokRecommendationStatus'),recButton=$('#generateTikTokRecommendations');
@@ -1709,7 +1709,7 @@
   async function refreshTikTokVideoPreviews(){
     const artistId=activeArtistId,button=$('#refreshTikTokVideoPreviews'),status=$('#tiktokInsightsStatus'),list=$('#tiktokVideoList');
     if(!artistId||latestTikTokAnalyticsArtistId!==artistId||!Array.isArray(latestTikTokAnalytics?.videos))return;
-    const ids=[...new Set(latestTikTokAnalytics.videos.map(video=>String(video.id||"")).filter(id=>/^\\d{5,32}$/.test(id)))];
+    const ids=[...new Set(latestTikTokAnalytics.videos.map(video=>String(video.id||"")).filter(id=>/^\d{5,32}$/.test(id)))];
     if(!ids.length){if(status)status.textContent="Aucune vidéo disponible pour actualiser les aperçus.";return;}
     if(button){button.disabled=true;button.textContent="Actualisation…";}
     let refreshedCount=0;
