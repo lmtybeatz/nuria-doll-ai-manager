@@ -1693,24 +1693,39 @@
     if(actions.childElementCount)info.append(actions);
     card.append(poster,info);return card;
   }
+  function getTikTokFirstRowCount(list,cards){
+    if(!list||!cards.length)return 0;
+    const template=window.getComputedStyle(list).gridTemplateColumns||'';
+    const columns=template.trim()&&template.trim()!=='none'?template.trim().split(/\\s+/).length:1;
+    return Math.min(cards.length,Math.max(1,columns));
+  }
   function updateTikTokVideoVisibility(){
     const list=$('#tiktokVideoList');
     const cards=list?[...list.querySelectorAll('.tiktok-video-card')]:[];
-    cards.forEach((card,index)=>{card.hidden=!tiktokVideoListExpanded&&index>=3;});
+    const firstRowCount=getTikTokFirstRowCount(list,cards);
+    const hiddenCount=Math.max(0,cards.length-firstRowCount);
+    cards.forEach((card,index)=>{card.hidden=!tiktokVideoListExpanded&&index>=firstRowCount;});
     const toggle=$('#tiktokShowMoreVideos');
     if(toggle){
-      const hiddenCount=Math.max(0,cards.length-3);
       toggle.classList.toggle('hidden',hiddenCount===0);
       toggle.textContent=tiktokVideoListExpanded?'Voir moins':`Voir plus (${hiddenCount})`;
       toggle.setAttribute('aria-expanded',String(tiktokVideoListExpanded));
     }
     const pagination=$('#tiktokVideoPagination');
-    if(pagination)pagination.classList.toggle('hidden',cards.length>3&&!tiktokVideoListExpanded);
+    if(pagination)pagination.classList.toggle('hidden',hiddenCount>0&&!tiktokVideoListExpanded);
   }
   $('#tiktokShowMoreVideos')?.addEventListener('click',()=>{
     tiktokVideoListExpanded=!tiktokVideoListExpanded;
     updateTikTokVideoVisibility();
   });
+  let tiktokVisibilityResizeFrame=0;
+  window.addEventListener('resize',()=>{
+    if(tiktokVisibilityResizeFrame)return;
+    tiktokVisibilityResizeFrame=window.requestAnimationFrame(()=>{
+      tiktokVisibilityResizeFrame=0;
+      updateTikTokVideoVisibility();
+    });
+  },{passive:true});
   async function loadTikTokStatus(){
     const artistId=activeArtistId,box=$('#tiktokStatus'),button=$('#connectTikTok');if(!artistId||!box)return;
     box.textContent='Vérification de la connexion TikTok…';
