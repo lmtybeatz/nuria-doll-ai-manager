@@ -95,8 +95,8 @@
   }
   async function runTool(){
     if(busy)return;const tool=tools.find(t=>t.name===$("#ttMcpTool").value);if(!tool)return;
-    const writes=/reply|create|delete|hide|unhide|like|unlike|pin|update/i.test(tool.name);
-    if(writes&&!window.confirm("Cette action peut modifier un commentaire ou publier une réponse sur TikTok. Confirmer l’exécution ?"))return;
+    const requiresConfirmation=tool.annotations?.readOnlyHint!==true;
+    if(requiresConfirmation&&!window.confirm("TikTok ne déclare pas explicitement cet outil comme une action en lecture seule. Il peut modifier, publier ou gérer des données du compte. Confirmer son exécution ?"))return;
     const args={};
     for(const input of $("#ttMcpFields").querySelectorAll("[data-prop]")){
       const key=input.dataset.prop,type=input.dataset.type;
