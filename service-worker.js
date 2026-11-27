@@ -1,10 +1,14 @@
-const CACHE_NAME = 'ai-music-manager-shell-v13';
+const CACHE_NAME = 'ai-music-manager-shell-v14';
 const APP_SHELL = [
   '/',
   '/index.html',
   '/styles.css',
   '/config.js',
   '/app.js',
+  '/tiktok-publishing.css',
+  '/tiktok-publishing.js',
+  '/tiktok-social-mcp.css',
+  '/tiktok-social-mcp.js',
   '/pwa.js',
   '/manifest.webmanifest',
   '/assets/icon.svg'
@@ -35,17 +39,28 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET' || url.origin !== self.location.origin) return;
   if (url.pathname.startsWith('/api/')) return;
 
-  if (request.mode === 'navigate') {
+  // Toujours privilégier la version publiée des fichiers qui pilotent l'interface.
+  // Le cache ne sert que de secours en cas d'indisponibilité réseau.
+  const isAppShell = request.mode === 'navigate' ||
+    ['/index.html', '/styles.css', '/config.js', '/app.js',
+      '/tiktok-publishing.css', '/tiktok-publishing.js',
+      '/tiktok-social-mcp.css', '/tiktok-social-mcp.js', '/pwa.js']
+      .includes(url.pathname);
+
+  if (isAppShell) {
     event.respondWith(
       fetch(request)
         .then((response) => {
           if (response && response.ok) {
             const copy = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put('/index.html', copy));
+            const cacheKey = request.mode === 'navigate' ? '/index.html' : request;
+            caches.open(CACHE_NAME).then((cache) => cache.put(cacheKey, copy));
           }
           return response;
         })
-        .catch(async () => (await caches.match('/index.html')) || Response.error())
+        .catch(async () => (await caches.match(request)) ||
+          (request.mode === 'navigate' ? await caches.match('/index.html') : null) ||
+          Response.error())
     );
     return;
   }
