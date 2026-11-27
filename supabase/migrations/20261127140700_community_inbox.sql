@@ -42,10 +42,38 @@ create index if not exists ai_community_messages_provider_idx
   on public.ai_community_messages(owner_id, artist_id, provider, comment_created_at desc);
 
 alter table public.ai_community_messages enable row level security;
-drop policy if exists "Owner manages own artist community inbox" on public.ai_community_messages;
-create policy "Owner manages own artist community inbox"
-  on public.ai_community_messages
-  for all to authenticated
+
+-- Revoke default Data API grants first, then grant only signed-in manager operations.
+revoke all on table public.ai_community_messages from anon, authenticated;
+grant select, insert, update, delete on table public.ai_community_messages to authenticated;
+
+drop policy if exists "Owner reads own artist community messages" on public.ai_community_messages;
+create policy "Owner reads own artist community messages"
+  on public.ai_community_messages for select to authenticated
+  using (
+    owner_id = (select auth.uid())
+    and exists (
+      select 1 from public.ai_artists a
+      where a.id = ai_community_messages.artist_id
+        and a.owner_id = (select auth.uid())
+    )
+  );
+
+drop policy if exists "Owner inserts own artist community messages" on public.ai_community_messages;
+create policy "Owner inserts own artist community messages"
+  on public.ai_community_messages for insert to authenticated
+  with check (
+    owner_id = (select auth.uid())
+    and exists (
+      select 1 from public.ai_artists a
+      where a.id = ai_community_messages.artist_id
+        and a.owner_id = (select auth.uid())
+    )
+  );
+
+drop policy if exists "Owner updates own artist community messages" on public.ai_community_messages;
+create policy "Owner updates own artist community messages"
+  on public.ai_community_messages for update to authenticated
   using (
     owner_id = (select auth.uid())
     and exists (
@@ -63,7 +91,16 @@ create policy "Owner manages own artist community inbox"
     )
   );
 
-revoke all on public.ai_community_messages from anon;
-grant select, insert, update, delete on public.ai_community_messages to authenticated;
+drop policy if exists "Owner deletes own artist community messages" on public.ai_community_messages;
+create policy "Owner deletes own artist community messages"
+  on public.ai_community_messages for delete to authenticated
+  using (
+    owner_id = (select auth.uid())
+    and exists (
+      select 1 from public.ai_artists a
+      where a.id = ai_community_messages.artist_id
+        and a.owner_id = (select auth.uid())
+    )
+  );
 
 commit;
