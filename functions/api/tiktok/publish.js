@@ -5,6 +5,7 @@ export async function onRequestPost({request,env}){
  let body={};try{body=await request.json();}catch{return reply({error:"Requête JSON invalide."},400);}
  try{
   const ctx=await getTikTokContext(request,env,body.artist_id),token=ctx.token.access_token,action=body.action;
+  if(action==="capabilities"){const enabled=env.TIKTOK_CONTENT_POSTING_ENABLED==="true",scopes=ctx.scopes||[];return reply({enabled,scopes,direct_posting:enabled&&scopes.includes("video.publish"),draft_upload:enabled&&scopes.includes("video.upload")});}
   if(action==="creator_info"){
    const data=await tiktokApi("/v2/post/publish/creator_info/query/",token,{});
    return reply({creator:data,scopes:ctx.scopes});
