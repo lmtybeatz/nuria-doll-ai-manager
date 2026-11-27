@@ -1,43 +1,89 @@
 (() => {
   const $ = (selector, root=document) => root.querySelector(selector);
   const esc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
-  let creatorInfo = null, busy = false;
+  const MUSIC_URL="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en";
+  const BRAND_URL="https://www.tiktok.com/legal/page/global/bc-policy/en";
+  let creatorInfo=null,busy=false,videoPreviewUrl=null;
+
   function mount(){
-    const root=$("#socialTiktokDetail"); if(!root || $("#tiktokPublisher")) return;
+    const root=$("#socialTiktokDetail");if(!root||$("#tiktokPublisher"))return;
     const section=document.createElement("section");
-    section.id="tiktokPublisher"; section.className="social-insights-panel tiktok-publisher";
+    section.id="tiktokPublisher";section.className="social-insights-panel tiktok-publisher";
     section.innerHTML=`
-      <div class="tiktok-publisher-heading"><div><h4>Studio de publication TikTok</h4><p>Prépare et publie depuis AI Music Manager, ou envoie un brouillon dans TikTok.</p></div><button type="button" class="btn secondary" id="ttCreatorRefresh">Charger les options TikTok</button></div>
-      <p id="ttPublishCapability" class="youtube-channel-sync" role="status">Les options du compte seront chargées avant toute publication.</p>
+      <div class="tiktok-publisher-heading">
+        <div><h4>Studio de publication TikTok</h4><p>Prépare tes contenus, vérifie leur aperçu et choisis les paramètres avant chaque envoi.</p><p class="tt-creator-account" id="ttCreatorAccount">Compte TikTok connecté : informations à actualiser.</p></div>
+        <button type="button" class="btn secondary" id="ttCreatorRefresh">Actualiser les paramètres TikTok</button>
+      </div>
+      <p id="ttPublishCapability" class="youtube-channel-sync" role="status">Les informations du créateur doivent être chargées avant une publication directe.</p>
       <div class="tiktok-publisher-grid">
         <form id="ttVideoForm" class="tiktok-publish-form">
           <h5><span>01</span> Publier une vidéo</h5>
           <label>Fichier vidéo<input id="ttVideoFile" type="file" accept="video/mp4,video/quicktime,video/webm" required></label>
+          <div id="ttVideoPreview" class="tt-media-preview hidden"><video id="ttVideoPreviewPlayer" controls playsinline></video></div>
           <label>Légende et hashtags<textarea id="ttVideoCaption" maxlength="2200" rows="3" placeholder="Présente ton contenu… #TikTok" required></textarea><small>2 200 caractères maximum.</small></label>
           <label>Mode de publication<select id="ttVideoMode"><option value="direct">Publication directe</option><option value="draft">Envoyer en brouillon dans TikTok</option></select></label>
-          <label>Visibilité<select id="ttVideoPrivacy"><option value="SELF_ONLY">Chargement des options…</option></select></label>
-          <div class="tiktok-publish-toggles"><label><input id="ttAllowComments" type="checkbox" checked> Autoriser les commentaires</label><label><input id="ttAllowDuet" type="checkbox" checked> Autoriser les Duos</label><label><input id="ttAllowStitch" type="checkbox" checked> Autoriser les Collages</label></div>
+          <label>Visibilité<select id="ttVideoPrivacy" disabled><option value="" selected disabled>Choisir la visibilité</option></select></label>
+          <div class="tiktok-publish-toggles">
+            <label><input id="ttAllowComments" type="checkbox"> Autoriser les commentaires</label>
+            <label><input id="ttAllowDuet" type="checkbox"> Autoriser les Duos</label>
+            <label><input id="ttAllowStitch" type="checkbox"> Autoriser les Collages</label>
+          </div>
+          <div class="tt-disclosure">
+            <label class="tt-disclosure-toggle"><input id="ttVideoCommercialToggle" type="checkbox"> Ce contenu fait la promotion d’une marque, d’un produit ou d’un service</label>
+            <div id="ttVideoCommercialOptions" class="tt-disclosure-options hidden">
+              <label><input id="ttVideoYourBrand" type="checkbox"> Ma marque / mon activité</label>
+              <label><input id="ttVideoBranded" type="checkbox"> Contenu de marque / partenariat rémunéré</label>
+              <small>Choisis au moins une option si le contenu est commercial.</small>
+            </div>
+            <label class="tt-aigc"><input id="ttVideoAigc" type="checkbox"> Ce contenu est généré par l’intelligence artificielle</label>
+            <p id="ttVideoDeclaration" class="tt-declaration"></p>
+            <label class="tt-consent"><input id="ttVideoConsent" type="checkbox" required> Je confirme et j’autorise l’envoi de ce contenu à TikTok.</label>
+          </div>
           <button class="btn primary" id="ttPublishVideo" type="submit">Publier la vidéo</button>
           <p id="ttVideoResult" class="tiktok-publish-result" role="status"></p>
         </form>
         <form id="ttPhotoForm" class="tiktok-publish-form">
           <h5><span>02</span> Publier des photos</h5>
-          <label>URL des images HTTPS<textarea id="ttPhotoUrls" rows="3" placeholder="https://ton-domaine-verifie.com/photo-1.jpg&#10;https://ton-domaine-verifie.com/photo-2.jpg" required></textarea><small>Une URL par ligne. Le domaine doit être vérifié dans TikTok Developers.</small></label>
-          <label>Légende<textarea id="ttPhotoCaption" maxlength="2200" rows="3" placeholder="Légende de la publication…"></textarea></label>
-          <label>Visibilité<select id="ttPhotoPrivacy"><option value="SELF_ONLY">Chargement des options…</option></select></label>
-          <label><input id="ttPhotoDraft" type="checkbox"> Envoyer comme brouillon</label>
+          <label>URL des images HTTPS<textarea id="ttPhotoUrls" rows="3" placeholder="https://ton-domaine-verifie.com/photo-1.jpg&#10;https://ton-domaine-verifie.com/photo-2.jpg" required></textarea><small>Une URL par ligne. Le domaine doit être vérifié dans TikTok Developers. Maximum 35 images.</small></label>
+          <div id="ttPhotoPreview" class="tt-photo-preview hidden"></div>
+          <label>Titre de la publication<input id="ttPhotoTitle" type="text" maxlength="90" placeholder="Titre (90 caractères maximum)"></label>
+          <label>Description et hashtags<textarea id="ttPhotoCaption" maxlength="4000" rows="3" placeholder="Description de la publication…"></textarea><small>4 000 caractères maximum.</small></label>
+          <label>Mode de publication<select id="ttPhotoMode"><option value="direct">Publication directe</option><option value="draft">Envoyer en brouillon dans TikTok</option></select></label>
+          <label>Visibilité<select id="ttPhotoPrivacy" disabled><option value="" selected disabled>Choisir la visibilité</option></select></label>
+          <div class="tiktok-publish-toggles"><label><input id="ttPhotoAllowComments" type="checkbox"> Autoriser les commentaires</label></div>
+          <div class="tt-disclosure">
+            <label class="tt-disclosure-toggle"><input id="ttPhotoCommercialToggle" type="checkbox"> Ce contenu fait la promotion d’une marque, d’un produit ou d’un service</label>
+            <div id="ttPhotoCommercialOptions" class="tt-disclosure-options hidden">
+              <label><input id="ttPhotoYourBrand" type="checkbox"> Ma marque / mon activité</label>
+              <label><input id="ttPhotoBranded" type="checkbox"> Contenu de marque / partenariat rémunéré</label>
+              <small>Choisis au moins une option si le contenu est commercial.</small>
+            </div>
+            <label class="tt-aigc"><input id="ttPhotoAigc" type="checkbox"> Ces photos sont générées par l’intelligence artificielle</label>
+            <p id="ttPhotoDeclaration" class="tt-declaration"></p>
+            <label class="tt-consent"><input id="ttPhotoConsent" type="checkbox" required> Je confirme et j’autorise l’envoi de ces photos à TikTok.</label>
+          </div>
           <button class="btn secondary" id="ttPublishPhoto" type="submit">Envoyer les photos</button>
           <p id="ttPhotoResult" class="tiktok-publish-result" role="status"></p>
         </form>
       </div>
-      <div class="tiktok-publish-footnote">Chaque envoi exige une action explicite du gestionnaire. Les vidéos envoyées en brouillon doivent être finalisées dans TikTok. Tant que l’application n’a pas passé l’audit TikTok, les publications directes peuvent être limitées à « Moi uniquement ».</div>`;
+      <div class="tiktok-publish-footnote">L’envoi ne démarre qu’après ton accord explicite. TikTok peut prendre quelques minutes pour traiter le contenu. Les brouillons doivent être finalisés dans l’application TikTok. Les publications publiques restent soumises à l’audit et aux autorisations TikTok.</div>`;
     const rec=$("#socialTiktokDetail .tiktok-recommendations");
     root.insertBefore(section,rec||null);
     $("#ttCreatorRefresh")?.addEventListener("click",()=>loadCreatorInfo().catch(()=>{}));
     $("#ttVideoForm")?.addEventListener("submit",publishVideo);
     $("#ttPhotoForm")?.addEventListener("submit",publishPhotos);
     $("#ttVideoMode")?.addEventListener("change",()=>{const draft=$("#ttVideoMode").value==="draft";$("#ttPublishVideo").textContent=draft?"Envoyer le brouillon":"Publier la vidéo";});
+    $("#ttPhotoMode")?.addEventListener("change",()=>{const draft=$("#ttPhotoMode").value==="draft";$("#ttPublishPhoto").textContent=draft?"Envoyer les photos en brouillon":"Publier les photos";});
+    ["Video","Photo"].forEach(kind=>{
+      $("#tt"+kind+"CommercialToggle")?.addEventListener("change",()=>syncDisclosure(kind));
+      $("#tt"+kind+"Branded")?.addEventListener("change",()=>syncDisclosure(kind));
+      $("#tt"+kind+"Privacy")?.addEventListener("change",()=>syncDisclosure(kind));
+    });
+    $("#ttVideoFile")?.addEventListener("change",previewVideo);
+    $("#ttPhotoUrls")?.addEventListener("input",previewPhotos);
+    syncDisclosure("Video");syncDisclosure("Photo");
   }
+
   async function context(){
     const value=await window.AIMusicManagerTikTokContext?.get?.();
     if(!value?.artistId||!value?.accessToken)throw new Error("Connecte-toi et sélectionne un artiste actif.");
@@ -51,20 +97,83 @@
     return data;
   }
   function fillPrivacy(options){
-    const selects=[$("#ttVideoPrivacy"),$("#ttPhotoPrivacy")].filter(Boolean);
-    const labels={PUBLIC_TO_EVERYONE:"Tout le monde",MUTUAL_FOLLOW_FRIENDS:"Amis",FOLLOWER_OF_CREATOR:"Abonnés",SELF_ONLY:"Moi uniquement"};
-    selects.forEach(select=>{select.replaceChildren();(options?.length?options:["SELF_ONLY"]).forEach(value=>{const option=document.createElement("option");option.value=value;option.textContent=labels[value]||value;select.append(option);});});
+    [$("#ttVideoPrivacy"),$("#ttPhotoPrivacy")].filter(Boolean).forEach(select=>{
+      select.replaceChildren();
+      const placeholder=document.createElement("option");placeholder.value="";placeholder.textContent="Choisir la visibilité";placeholder.disabled=true;placeholder.selected=true;select.append(placeholder);
+      (options||[]).forEach(value=>{const option=document.createElement("option");option.value=value;option.textContent=({PUBLIC_TO_EVERYONE:"Tout le monde",MUTUAL_FOLLOW_FRIENDS:"Amis",FOLLOWER_OF_CREATOR:"Abonnés",SELF_ONLY:"Moi uniquement"}[value]||value);select.append(option);});
+      select.value="";select.disabled=!options?.length;
+    });
+    syncDisclosure("Video");syncDisclosure("Photo");
+  }
+  function applyInteraction(id,disabled){
+    const input=$("#"+id);if(!input)return;
+    input.checked=false;input.disabled=!!disabled;
+    input.closest("label")?.classList.toggle("is-disabled",!!disabled);
+  }
+  function applyCreatorSettings(info){
+    applyInteraction("ttAllowComments",!!info.comment_disabled);
+    applyInteraction("ttAllowDuet",!!info.duet_disabled);
+    applyInteraction("ttAllowStitch",!!info.stitch_disabled);
+    applyInteraction("ttPhotoAllowComments",!!info.comment_disabled);
+    const account=$("#ttCreatorAccount");
+    if(account)account.textContent="Compte TikTok cible : "+(info.creator_nickname||"Créateur")+(info.creator_username?" (@"+info.creator_username+")":"");
   }
   async function loadCreatorInfo(){
-    const status=$("#ttPublishCapability");if(status)status.textContent="Lecture des autorisations de publication TikTok…";
+    const status=$("#ttPublishCapability");if(status)status.textContent="Lecture des paramètres et autorisations du compte TikTok…";
     try{
       const result=await api("creator_info");creatorInfo=result.creator||{};
       fillPrivacy(creatorInfo.privacy_level_options);
+      applyCreatorSettings(creatorInfo);
       const max=creatorInfo.max_video_post_duration_sec;
-      if(status)status.textContent="Compte prêt : @"+(creatorInfo.creator_username||creatorInfo.creator_nickname||"TikTok")+". Visibilités autorisées chargées."+(max?" Durée vidéo maximale : "+max+" secondes.":"");
+      if(status)status.textContent="Paramètres du compte chargés. Choisis manuellement la visibilité et les interactions pour chaque publication."+(max?" Durée vidéo maximale : "+max+" secondes.":"");
       const file=$("#ttVideoFile");if(file)file.dataset.maxDuration=String(max||0);
       return creatorInfo;
-    }catch(error){if(status)status.textContent="Options de publication indisponibles : "+error.message+" Vérifie que Content Posting API et video.publish sont activés et approuvés.";throw error;}
+    }catch(error){
+      creatorInfo=null;
+      if(status)status.textContent="Paramètres de publication directe indisponibles : "+error.message+". Le mode brouillon peut rester disponible si video.upload est autorisé.";
+      throw error;
+    }
+  }
+  function syncDisclosure(kind){
+    const prefix="tt"+kind;
+    const toggle=$("#"+prefix+"CommercialToggle"),options=$("#"+prefix+"CommercialOptions"),yourBrand=$("#"+prefix+"YourBrand"),branded=$("#"+prefix+"Branded"),privacy=$("#tt"+kind+"Privacy"),declaration=$("#"+prefix+"Declaration");
+    const enabled=!!toggle?.checked;
+    options?.classList.toggle("hidden",!enabled);
+    if(branded&&privacy){
+      const selfOption=Array.from(privacy.options).find(o=>o.value==="SELF_ONLY");
+      if(privacy.value==="SELF_ONLY"&&branded.checked)branded.checked=false;
+      branded.disabled=!enabled||privacy.value==="SELF_ONLY";
+      if(selfOption)selfOption.disabled=enabled&&branded.checked;
+    }
+    const brandedSelected=enabled&&!!branded?.checked;
+    if(declaration){
+      declaration.innerHTML=brandedSelected
+        ?'By posting, you agree to TikTok\'s <a href="'+BRAND_URL+'" target="_blank" rel="noopener noreferrer">Branded Content Policy</a> and <a href="'+MUSIC_URL+'" target="_blank" rel="noopener noreferrer">Music Usage Confirmation</a>.'
+        :'By posting, you agree to TikTok\'s <a href="'+MUSIC_URL+'" target="_blank" rel="noopener noreferrer">Music Usage Confirmation</a>.';
+    }
+    if(yourBrand?.closest("label"))yourBrand.closest("label").classList.toggle("is-disabled",!enabled);
+    if(branded?.closest("label"))branded.closest("label").classList.toggle("is-disabled",!enabled||branded.disabled);
+  }
+  function validateConsent(kind,direct){
+    const prefix="tt"+kind,consent=$("#"+prefix+"Consent"),commercial=$("#"+prefix+"CommercialToggle")?.checked,yourBrand=$("#"+prefix+"YourBrand")?.checked,branded=$("#"+prefix+"Branded")?.checked,privacy=$("#tt"+kind+"Privacy")?.value;
+    if(!consent?.checked)throw new Error("Confirme la déclaration TikTok avant l’envoi.");
+    if(direct&&!privacy)throw new Error("Choisis manuellement la visibilité de la publication.");
+    if(direct&&commercial&&!yourBrand&&!branded)throw new Error("Indique si le contenu promeut ta marque, une autre marque, ou les deux.");
+    if(direct&&branded&&privacy==="SELF_ONLY")throw new Error("Un contenu de marque ne peut pas être publié en visibilité privée.");
+    return {brand_organic_toggle:!!(direct&&commercial&&yourBrand),brand_content_toggle:!!(direct&&commercial&&branded),is_aigc:!!$("#"+prefix+"Aigc")?.checked};
+  }
+  function previewVideo(){
+    const file=$("#ttVideoFile")?.files?.[0],wrap=$("#ttVideoPreview"),player=$("#ttVideoPreviewPlayer");if(!wrap||!player)return;
+    if(videoPreviewUrl)URL.revokeObjectURL(videoPreviewUrl);
+    if(!file){wrap.classList.add("hidden");player.removeAttribute("src");return;}
+    videoPreviewUrl=URL.createObjectURL(file);player.src=videoPreviewUrl;wrap.classList.remove("hidden");
+  }
+  function previewPhotos(){
+    const wrap=$("#ttPhotoPreview");if(!wrap)return;
+    const urls=$("#ttPhotoUrls").value.split(/\n+/).map(v=>v.trim()).filter(v=>/^https:\/\//i.test(v)).slice(0,35);
+    wrap.replaceChildren();
+    urls.forEach(url=>{const img=document.createElement("img");img.src=url;img.alt="Aperçu de la photo";img.loading="lazy";wrap.append(img);});
+    wrap.classList.toggle("hidden",!urls.length);
   }
   function setBusy(value,button,label){
     busy=value;if(button){button.disabled=value;button.dataset.originalLabel ||= button.textContent;button.textContent=value?label:button.dataset.originalLabel;}
@@ -89,22 +198,26 @@
     }
     return last||{status:"PROCESSING_UPLOAD"};
   }
-  async function readVideoDuration(file){return new Promise((resolve,reject)=>{const video=document.createElement("video"),url=URL.createObjectURL(file);video.preload="metadata";video.onloadedmetadata=()=>{const duration=video.duration;URL.revokeObjectURL(url);resolve(duration);};video.onerror=()=>{URL.revokeObjectURL(url);reject(new Error("Impossible de lire la durée de cette vidéo."));};video.src=url;});}
+  async function readVideoDuration(file){
+    return new Promise((resolve,reject)=>{const video=document.createElement("video"),url=URL.createObjectURL(file);video.preload="metadata";video.onloadedmetadata=()=>{const duration=video.duration;URL.revokeObjectURL(url);resolve(duration);};video.onerror=()=>{URL.revokeObjectURL(url);reject(new Error("Impossible de lire la durée de cette vidéo."));};video.src=url;});
+  }
   async function publishVideo(event){
     event.preventDefault();if(busy)return;
     const button=$("#ttPublishVideo"),resultNode=$("#ttVideoResult"),file=$("#ttVideoFile")?.files?.[0],caption=$("#ttVideoCaption")?.value.trim();
     if(!file||!caption){if(resultNode)resultNode.textContent="Choisis une vidéo et sa légende.";return;}
     const ctx=await context().catch(e=>{if(resultNode)resultNode.textContent=e.message;return null;});if(!ctx)return;
-    const mode=$("#ttVideoMode").value,draft=mode==="draft";
+    const draft=$("#ttVideoMode").value==="draft";
     try{
       setBusy(true,button,draft?"Préparation du brouillon…":"Préparation de la publication…");
-      const info=creatorInfo||await loadCreatorInfo(),max=Number(info.max_video_post_duration_sec||0);
+      const disclosure=validateConsent("Video",!draft);
+      let info=creatorInfo;
+      if(!draft){info=info||await loadCreatorInfo();if(!info?.privacy_level_options?.length)throw new Error("Les paramètres de visibilité du créateur ne sont pas disponibles.");}
+      const max=Number(info?.max_video_post_duration_sec||0);
       if(!["video/mp4","video/quicktime","video/webm"].includes(file.type))throw new Error("Format non pris en charge. Utilise MP4, MOV ou WebM.");
       if(file.size>4*1024*1024*1024)throw new Error("La vidéo dépasse la limite de taille prise en charge (4 Go).");
       const duration=await readVideoDuration(file);if(max&&duration>max)throw new Error("Cette vidéo dure "+Math.ceil(duration)+" s, au-delà de la limite de ce compte ("+max+" s).");
-      const chunkSize=10*1024*1024,totalChunks=Math.ceil(file.size/chunkSize);
-      const init=await api(draft?"init_draft":"init_video",{title:caption,video_size:file.size,privacy_level:draft?"SELF_ONLY":$("#ttVideoPrivacy").value,disable_comment:!$("#ttAllowComments").checked,disable_duet:!$("#ttAllowDuet").checked,disable_stitch:!$("#ttAllowStitch").checked});
-      await uploadVideo(file,init.upload_url,init.chunk_size||chunkSize,ctx.artistId,ctx.accessToken,resultNode);
+      const init=await api(draft?"init_draft":"init_video",{title:caption,video_size:file.size,privacy_level:$("#ttVideoPrivacy").value,disable_comment:!$("#ttAllowComments").checked,disable_duet:!$("#ttAllowDuet").checked,disable_stitch:!$("#ttAllowStitch").checked,...disclosure});
+      await uploadVideo(file,init.upload_url,init.chunk_size,ctx.artistId,ctx.accessToken,resultNode);
       const final=await waitForStatus(init.publish_id,resultNode);
       if(final.status==="PUBLISH_COMPLETE")resultNode.textContent="Publication terminée avec succès. Identifiant TikTok : "+(final.post_ids?.[0]||init.publish_id);
       else if(final.status==="SEND_TO_USER_INBOX")resultNode.textContent="Brouillon envoyé. Ouvre TikTok pour le modifier et le publier.";
@@ -118,9 +231,15 @@
     const button=$("#ttPublishPhoto"),resultNode=$("#ttPhotoResult");
     try{
       setBusy(true,button,"Envoi en cours…");
-      const urls=$("#ttPhotoUrls").value.split(/\n+/).map(v=>v.trim()).filter(Boolean),caption=$("#ttPhotoCaption").value.trim();
+      const urls=$("#ttPhotoUrls").value.split(/\n+/).map(v=>v.trim()).filter(Boolean),title=$("#ttPhotoTitle").value.trim(),description=$("#ttPhotoCaption").value.trim(),draft=$("#ttPhotoMode").value==="draft";
       if(!urls.length)throw new Error("Ajoute au moins une URL d’image.");
-      const result=await api("init_photo",{photo_images:urls,title:caption,description:caption,privacy_level:$("#ttPhotoPrivacy").value,draft:$("#ttPhotoDraft").checked});
+      if(urls.length>35)throw new Error("TikTok accepte au maximum 35 photos par publication.");
+      if(title.length>90)throw new Error("Le titre photo ne peut pas dépasser 90 caractères.");
+      if(description.length>4000)throw new Error("La description photo ne peut pas dépasser 4 000 caractères.");
+      const disclosure=validateConsent("Photo",!draft);
+      let info=creatorInfo;
+      if(!draft){info=info||await loadCreatorInfo();if(!info?.privacy_level_options?.length)throw new Error("Les paramètres de visibilité du créateur ne sont pas disponibles.");}
+      const result=await api("init_photo",{photo_images:urls,title,description,privacy_level:$("#ttPhotoPrivacy").value,draft,disable_comment:!$("#ttPhotoAllowComments").checked,...disclosure});
       const status=await waitForStatus(result.publish_id,resultNode);
       if(status.status==="PUBLISH_COMPLETE")resultNode.textContent="Publication photo terminée. Identifiant : "+(status.post_ids?.[0]||result.publish_id);
       else if(status.status==="SEND_TO_USER_INBOX")resultNode.textContent="Photos envoyées dans les brouillons TikTok.";
