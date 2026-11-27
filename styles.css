@@ -1001,3 +1001,23 @@ body.tiktok-preview-open{overflow:hidden}
   .tiktok-video-card,.tiktok-video-poster>img{transition:none}
   .tiktok-video-card:hover{transform:none}
 }
+
+
+/* Contrôles compacts de la galerie TikTok */
+.tiktok-video-card[hidden]{display:none!important}
+.tiktok-video-controls{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex-wrap:wrap;
+  gap:10px;
+  margin-top:14px;
+}
+.tiktok-video-controls>button{min-width:150px;margin:0}
+#tiktokVideoPagination{display:flex;justify-content:center;width:100%}
+#tiktokVideoPagination .btn{margin:0}
+@media(max-width:560px){
+  .tiktok-video-controls{align-items:stretch;flex-direction:column}
+  .tiktok-video-controls>button,
+  #tiktokVideoPagination .btn{width:100%}
+}
