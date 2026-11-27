@@ -258,7 +258,7 @@
       const parsed=parseMcpResult(result);
       if(parsed?.isError||parsed?.error||parsed?.code&&Number(parsed.code)!==0)throw new Error(parsed.message||parsed.error?.message||"TikTok a retourné une erreur de publication.");
       const replyId=String(parsed?.data?.comment_id||parsed?.data?.id||parsed?.comment_id||parsed?.id||"");
-      await api("/api/community/inbox",ctx,"PATCH",{artist_id:ctx.artistId,id:item.id,published_reply:reply,platform_reply_id:replyId});
+      await api("/api/community/inbox",ctx,"PATCH",{artist_id:ctx.artistId,id:item.id,published_reply:reply,platform_reply_id:replyId,ai_draft:null});
       await loadInbox();
       setStatus("Réponse publiée sur TikTok et enregistrée dans la boîte de réception.");
     }catch(error){setStatus(error.message||"Publication impossible.",true);}
