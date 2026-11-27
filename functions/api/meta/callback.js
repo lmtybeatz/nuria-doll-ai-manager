@@ -13,14 +13,20 @@ async function encrypt(value,keyB64){
  const data=await crypto.subtle.encrypt({name:"AES-GCM",iv},key,new TextEncoder().encode(JSON.stringify(value)));
  return btoa(String.fromCharCode(...iv))+"."+btoa(String.fromCharCode(...new Uint8Array(data)));
 }
-async function grantedScopes(version,token,env){
+async function inspectAccessToken(version,token,env){
  const url=new URL("https://graph.facebook.com/"+version+"/debug_token");
  url.searchParams.set("input_token",token);
  url.searchParams.set("access_token",env.META_APP_ID+"|"+env.META_APP_SECRET);
  const response=await fetch(url),data=await response.json();
- if(!response.ok||data.error||!data.data?.is_valid)return [];
- if(String(data.data.app_id)!==String(env.META_APP_ID))return [];
- return Array.isArray(data.data.scopes)?data.data.scopes:[];
+ if(!response.ok||data.error||!data.data?.is_valid)throw new Error("Le jeton Meta renvoyé par OAuth est invalide ou non vérifiable.");
+ if(String(data.data.app_id)!==String(env.META_APP_ID))throw new Error("Le jeton Meta appartient à une autre application. Vérifie META_APP_ID et reconnecte les comptes.");
+ const info=data.data;
+ return {
+  scopes:Array.isArray(info.scopes)?info.scopes:[],
+  type:String(info.type||"unknown").toLowerCase(),
+  expires_at:Number(info.expires_at||0)||null,
+  data_access_expires_at:Number(info.data_access_expires_at||0)||null
+ };
 }
 async function graphCollection(version,edge,token,fields){
  const url=new URL("https://graph.facebook.com/"+version+"/"+edge);
@@ -48,14 +54,15 @@ export async function onRequestGet({request,env}){
   if(!code||state!==payload.state||payload.exp<Date.now())return fail("etat_invalide_ou_expire");
   const version=env.META_GRAPH_API_VERSION,redirectUri=env.META_REDIRECT_URI;
   if(!env.META_APP_ID||!env.META_APP_SECRET||!env.META_LOGIN_CONFIG_ID||!env.META_TOKEN_ENCRYPTION_KEY)return fail("configuration_meta_incomplete");
-  // Unified Login returns a system-user access token: no fb_exchange_token long-lived-user-token exchange.
+  // Business Login returns an OAuth access token. Its actual type and expiration are verified below.
   const exchange=new URL("https://graph.facebook.com/"+version+"/oauth/access_token");
   exchange.searchParams.set("client_id",env.META_APP_ID);exchange.searchParams.set("client_secret",env.META_APP_SECRET);
   exchange.searchParams.set("redirect_uri",redirectUri);exchange.searchParams.set("code",code);
   const tokenResponse=await fetch(exchange),tokenData=await tokenResponse.json();
   if(!tokenResponse.ok||!tokenData.access_token)throw new Error("Échange du code Unified Login refusé ("+String(tokenData.error?.code||tokenResponse.status)+").");
   const accessToken=tokenData.access_token;
-  const scopes=await grantedScopes(version,accessToken,env);
+  const tokenInfo=await inspectAccessToken(version,accessToken,env);
+  const scopes=tokenInfo.scopes;
   // Retrieve both asset families. Pages are read without requesting page tokens until Page-management permissions are approved.
   const [pagesRaw,instagramRaw]=await Promise.all([
    graphCollection(version,"me/accounts",accessToken,"id,name,access_token,instagram_business_account{id,username}"),
@@ -87,9 +94,10 @@ export async function onRequestGet({request,env}){
    return {page_id:page.id,page_name:page.name,instagram_id:ig?.id||null,instagram_username:ig?.username||null};
   });
   const encrypted=await encrypt({
-   token_type:"system_user",
-   system_user_access_token:accessToken,
-   user_access_token:accessToken,
+   token_type:tokenInfo.type,
+   access_token:accessToken,
+   token_expires_at:tokenInfo.expires_at,
+   data_access_expires_at:tokenInfo.data_access_expires_at,
    pages,
    instagram_accounts:instagramAccounts
   },env.META_TOKEN_ENCRYPTION_KEY);
@@ -100,7 +108,9 @@ export async function onRequestGet({request,env}){
     name:account.name,profile_picture_url:account.profile_picture_url,
     permitted_roles:account.permitted_roles
    })),
-   token_type:"system_user",
+   token_type:tokenInfo.type,
+   token_expires_at:tokenInfo.expires_at,
+   data_access_expires_at:tokenInfo.data_access_expires_at,
    connected_at:new Date().toISOString()
   };
   const base=env.SUPABASE_URL.replace(/\/$/,""),admin={apikey:env.SUPABASE_SERVICE_ROLE_KEY,authorization:"Bearer "+env.SUPABASE_SERVICE_ROLE_KEY};
