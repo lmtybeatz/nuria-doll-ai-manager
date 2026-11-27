@@ -26,6 +26,6 @@ export async function onRequestPost({request,env}){
   auth.searchParams.set("response_type","code");auth.searchParams.set("resource",SERVER);auth.searchParams.set("client_id",clientId);auth.searchParams.set("redirect_uri",redirectUri);auth.searchParams.set("code_challenge",challenge);auth.searchParams.set("code_challenge_method","S256");
   auth.searchParams.set("scope","user.info.basic user.info.username user.info.stats user.info.profile user.account.type user.insights video.list video.insights comment.list comment.list.manage discovery.search.words");
   auth.searchParams.set("state",state);
-  return json({auth_url:auth.toString()},{status:200,headers:{"set-cookie":"amm_tiktok_social_mcp="+cookie+"; HttpOnly; Secure; SameSite=Lax; Path=/api/tiktok/social-mcp; Max-Age=600"}});
+  return json({auth_url:auth.toString()},200,{"set-cookie":"amm_tiktok_social_mcp="+cookie+"; HttpOnly; Secure; SameSite=Lax; Path=/api/tiktok/social-mcp; Max-Age=600"});
  }catch(e){return json({error:e.message||"Connexion TikTok Social impossible.",missing:e.missing||undefined},e.status||502);}
 }
