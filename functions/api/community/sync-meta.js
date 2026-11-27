@@ -19,7 +19,8 @@ export async function onRequestPost({request,env}){
   const tokens=await decrypt(connections[0].token_ciphertext,env.META_TOKEN_ENCRYPTION_KEY),version=env.META_GRAPH_API_VERSION,all=[],warnings=[];
   const granted=Array.isArray(connections[0].scopes)?connections[0].scopes:[];
   const required=[];
-  if((tokens.pages||[]).length)required.push("pages_show_list","pages_read_engagement","pages_read_user_content");\n  if((tokens.instagram_accounts||[]).length)required.push("pages_show_list","pages_read_engagement","instagram_basic","instagram_manage_comments");
+  if((tokens.pages||[]).length)required.push("pages_show_list","pages_read_engagement","pages_read_user_content");
+  if((tokens.instagram_accounts||[]).length)required.push("pages_show_list","pages_read_engagement","instagram_basic","instagram_manage_comments");
   const missingScopes=[...new Set(required)].filter(scope=>!granted.includes(scope));
   if(missingScopes.length)return json({error:"Autorisations de lecture des commentaires manquantes. Mets à jour la configuration de connexion Meta puis reconnecte les comptes.",missing_permissions:missingScopes,settings_required:true},403);
   stage="facebook";
