@@ -1,5 +1,5 @@
 const clear="amm_tiktok_oauth=; HttpOnly; Secure; SameSite=Lax; Path=/api/tiktok; Max-Age=0";
-const redirect=(origin,q)=>new Response(null,{status:302,headers:{location:origin+"/?tiktok="+q,"set-cookie":clear,"cache-control":"no-store"}});
+const redirect=(origin,q,artistId)=>new Response(null,{status:302,headers:{location:origin+"/?tiktok="+q+(artistId?"&artist_id="+encodeURIComponent(artistId):""),"set-cookie":clear,"cache-control":"no-store"}});
 const dec=s=>Uint8Array.from(atob(s.replace(/-/g,"+").replace(/_/g,"/")+"=".repeat((4-s.length%4)%4)),c=>c.charCodeAt(0));
 async function verify(v,k){const p=v.split(".");if(p.length!==2)return null;const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(k),{name:"HMAC",hash:"SHA-256"},false,["verify"]);const ok=await crypto.subtle.verify("HMAC",key,dec(p[1]),new TextEncoder().encode(p[0]));return ok?JSON.parse(new TextDecoder().decode(dec(p[0]))):null;}
 async function encrypt(v,keyB64){const raw=Uint8Array.from(atob(keyB64),c=>c.charCodeAt(0));if(raw.length!==32)throw new Error("Clé de chiffrement invalide.");const key=await crypto.subtle.importKey("raw",raw,"AES-GCM",false,["encrypt"]),iv=crypto.getRandomValues(new Uint8Array(12)),data=await crypto.subtle.encrypt({name:"AES-GCM",iv},key,new TextEncoder().encode(JSON.stringify(v)));return btoa(String.fromCharCode(...iv))+"."+btoa(String.fromCharCode(...new Uint8Array(data)));}
@@ -26,6 +26,6 @@ export async function onRequestGet({request,env}){
   const metadata={open_id:openId,display_name:account.display_name||"",avatar_url:account.avatar_url||"",follower_count:account.follower_count??null,following_count:account.following_count??null,likes_count:account.likes_count??null,video_count:account.video_count??null,scope:token.scope||"",profile_available:!!account.open_id,connected_at:new Date().toISOString(),token_expires_at:new Date(Date.now()+Number(token.expires_in||86400)*1000).toISOString()};
   const save=await fetch(base+"/rest/v1/ai_social_connections?on_conflict=owner_id,artist_id,provider",{method:"POST",headers:{...h,"content-type":"application/json",prefer:"resolution=merge-duplicates,return=minimal"},body:JSON.stringify({owner_id:p.uid,artist_id:p.artistId,provider:"tiktok",token_ciphertext:encrypted,scopes:(token.scope||"").split(",").filter(Boolean),account_metadata:metadata,connected_at:new Date().toISOString(),updated_at:new Date().toISOString()})});
   if(!save.ok)throw new Error("Enregistrement sécurisé TikTok impossible.");
-  return redirect(origin,"connected");
+  return redirect(origin,"connected",p.artistId);
  }catch(e){console.error("AI_MUSIC_MANAGER_TIKTOK_OAUTH",String(e?.message||"error").slice(0,220));return fail("connexion_impossible");}
 }

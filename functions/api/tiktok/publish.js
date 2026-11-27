@@ -11,12 +11,13 @@ export async function onRequestPost({request,env}){
   }
   if(action==="init_video"||action==="init_draft"){
    if(!body.title||typeof body.title!=="string"||body.title.length>2200)return reply({error:"Ajoute une légende de 2 200 caractères maximum."},400);
-   const draft=action==="init_draft",size=Number(body.video_size),chunkSize=10*1024*1024;
+   const draft=action==="init_draft",size=Number(body.video_size);
    if(!Number.isSafeInteger(size)||size<1||size>4*1024*1024*1024)return reply({error:"Taille de vidéo invalide (maximum 4 Go)."},400);
-   const total=Math.ceil(size/chunkSize),privacy=String(body.privacy_level||"SELF_ONLY");
+   const chunkSize=Math.min(size,10*1024*1024),total=Math.ceil(size/chunkSize),privacy=String(body.privacy_level||"SELF_ONLY");
    const postInfo={title:body.title,privacy_level:privacy,disable_comment:!!body.disable_comment,disable_duet:!!body.disable_duet,disable_stitch:!!body.disable_stitch};
    const path=draft?"/v2/post/publish/inbox/video/init/":"/v2/post/publish/video/init/";
-   const requestBody=draft?{source_info:{source:"FILE_UPLOAD",video_size:size,chunk_size:chunkSize,total_chunk_count:total}}:{post_info:postInfo,source_info:{source:"FILE_UPLOAD",video_size:size,chunk_size:chunkSize,total_chunk_count:total}};\n   const data=await tiktokApi(path,token,requestBody);
+   const requestBody=draft?{source_info:{source:"FILE_UPLOAD",video_size:size,chunk_size:chunkSize,total_chunk_count:total}}:{post_info:postInfo,source_info:{source:"FILE_UPLOAD",video_size:size,chunk_size:chunkSize,total_chunk_count:total}};
+   const data=await tiktokApi(path,token,requestBody);
    if(!data.upload_url||!data.publish_id)throw new Error("TikTok n’a pas fourni les informations de téléversement.");
    return reply({publish_id:data.publish_id,upload_url:data.upload_url,chunk_size:chunkSize,total_chunks:total,draft});
   }
