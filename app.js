@@ -4,7 +4,7 @@
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => [...document.querySelectorAll(s)];
   let supabase = null, user = null, signupMode = false, profile = null, settings = null, media = [];
-  let artists = [], activeArtistId = null, switchingArtist = false, workspaceLoadVersion = 0;
+  let artists = [], activeArtistId = null, switchingArtist = false, workspaceLoadVersion = 0, artistKnowledge = [];
   const assistantDrafts = new Map();
   const assistantConversations = new Map();
   const assistantApprovals = new Map();
@@ -209,7 +209,7 @@
     if(!isNuriaDollArtist()){parentApprovals=[];renderNotificationCenter();}
     else {parentApprovals=[];const history=$('#parentApprovalHistory');if(history)history.textContent='Chargement des validations…';}
     try{
-      const tasks=[loadProfile(version),loadSettings(version),loadMedia(version),loadCampaigns(version),loadYoutubeRecommendationHistory(version),loadArtistResearch(version)];
+      const tasks=[loadProfile(version),loadSettings(version),loadMedia(version),loadCampaigns(version),loadYoutubeRecommendationHistory(version),loadArtistResearch(version),loadArtistKnowledge(version)];
       if(isNuriaDollArtist())tasks.push(loadParentApprovals(version));
       else {parentApprovals=[];renderParentApprovals();}
       await Promise.all(tasks);
@@ -597,6 +597,94 @@
       head.append(identity,toggle);card.append(head,content);list.append(card);
     });
   }
+  function renderArtistKnowledge(rows=[]){
+    const list=$("#artistKnowledgeList");if(!list)return;
+    list.replaceChildren();
+    if(!rows.length){const empty=document.createElement("div");empty.className="empty-state";empty.textContent="Aucun fait confirmé pour cet artiste.";list.append(empty);return;}
+    rows.forEach(row=>{
+      const card=document.createElement("article");card.className="artist-knowledge-card";
+      const head=document.createElement("div");head.className="artist-knowledge-card-head";
+      const title=document.createElement("strong");title.textContent=String(row.fact_key||"Fait artiste").replace(/_/g," ");
+      const tag=document.createElement("span");tag.className="tag "+(["manager_confirmed","official_source_verified"].includes(row.verification_status)?"green":"amber");tag.textContent=row.verification_status==="manager_confirmed"?"Confirmé par le gestionnaire":row.verification_status==="official_source_verified"?"Source officielle vérifiée":"À vérifier";
+      head.append(title,tag);
+      const value=document.createElement("p");value.textContent=row.fact_value||"";
+      const meta=document.createElement("small");meta.textContent=(row.category||"autre")+" · vérifié le "+(row.last_verified_at?new Date(row.last_verified_at).toLocaleDateString("fr-FR"):"date non indiquée");
+      card.append(head,value,meta);
+      if(row.source_url){
+        const link=document.createElement("a");link.href=row.source_url;link.target="_blank";link.rel="noopener noreferrer";link.textContent=row.source_label||"Ouvrir la source officielle";card.append(link);
+      }
+      const actions=document.createElement("div");actions.className="artist-knowledge-actions";
+      const edit=document.createElement("button");edit.type="button";edit.className="btn secondary";edit.textContent="Modifier";
+      edit.addEventListener("click",()=>{
+        $("#knowledgeCategory").value=row.category||"other";
+        $("#knowledgeKey").value=row.fact_key||"";
+        $("#knowledgeValue").value=row.fact_value||"";
+        $("#knowledgeUrl").value=row.source_url||"";
+        $("#artistKnowledgeForm")?.scrollIntoView({behavior:"smooth",block:"center"});
+        $("#knowledgeValue")?.focus();
+      });
+      const remove=document.createElement("button");remove.type="button";remove.className="btn secondary";remove.textContent="Supprimer";
+      remove.addEventListener("click",()=>deleteArtistKnowledge(row.id));
+      actions.append(edit,remove);card.append(actions);list.append(card);
+    });
+  }
+  async function loadArtistKnowledge(version=workspaceLoadVersion){
+    const artistId=activeArtistId,status=$("#artistKnowledgeStatus");
+    if(!artistId||!status)return;
+    status.textContent="Chargement des faits confirmés…";
+    try{
+      const {data,error}=await supabase.from("ai_artist_knowledge")
+        .select("id,category,fact_key,fact_value,verification_status,public_safe,is_active,source_url,source_label,last_verified_at,updated_at")
+        .eq("owner_id",user.id).eq("artist_id",artistId).eq("is_active",true)
+        .order("updated_at",{ascending:false});
+      if(error)throw error;
+      if(version!==workspaceLoadVersion||artistId!==activeArtistId)return;
+      artistKnowledge=data||[];
+      renderArtistKnowledge(artistKnowledge);
+      status.textContent=artistKnowledge.length+" fait(s) confirmé(s) enregistré(s) pour "+activeArtistName()+". L’assistant utilise uniquement les faits publics confirmés.";
+    }catch(error){
+      if(version!==workspaceLoadVersion||artistId!==activeArtistId)return;
+      artistKnowledge=[];renderArtistKnowledge([]);
+      status.textContent="Mémoire factuelle indisponible : "+(error.message||"erreur Supabase");
+    }
+  }
+  async function deleteArtistKnowledge(id){
+    if(!id||!activeArtistId||!confirm("Supprimer ce fait de la mémoire de l’artiste ?"))return;
+    try{
+      const {error}=await supabase.from("ai_artist_knowledge").delete().eq("id",id).eq("artist_id",activeArtistId);
+      if(error)throw error;
+      await loadArtistKnowledge();
+      toast("Fait supprimé de la mémoire de l’artiste.");
+    }catch(error){toast("Suppression impossible : "+error.message,true);}
+  }
+  $("#artistKnowledgeForm")?.addEventListener("submit",async event=>{
+    event.preventDefault();
+    const artistId=activeArtistId,button=$("#knowledgeSave"),status=$("#artistKnowledgeStatus");
+    const category=$("#knowledgeCategory").value;
+    const rawKey=$("#knowledgeKey").value.trim().toLowerCase();
+    const factKey=rawKey.normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").replace(/[^a-z0-9_]+/g,"_").replace(/^_+|_+$/g,"").slice(0,100);
+    const factValue=$("#knowledgeValue").value.trim(),rawUrl=$("#knowledgeUrl").value.trim();
+    let sourceUrl="";
+    if(rawUrl){try{const parsed=new URL(rawUrl);if(parsed.protocol!=="https:")throw new Error();sourceUrl=parsed.href;}catch{status.textContent="Le lien de source doit être une URL HTTPS valide.";return;}}
+    if(!artistId||!factKey||!factValue){status.textContent="Renseigne l’identifiant et le fait à enregistrer.";return;}
+    button.disabled=true;button.textContent="Enregistrement…";
+    try{
+      const now=new Date().toISOString();
+      const {error}=await supabase.from("ai_artist_knowledge").upsert({
+        owner_id:user.id,artist_id:artistId,category,fact_key:factKey,fact_value:factValue,
+        verification_status:"manager_confirmed",public_safe:true,is_active:true,source_kind:"manager_confirmed",
+        source_url:sourceUrl||null,source_label:sourceUrl?"Source indiquée par le gestionnaire":"Confirmation du gestionnaire",
+        evidence_note:"Information confirmée et maintenue par le gestionnaire dans AI Music Manager.",
+        last_verified_at:now,updated_at:now
+      },{onConflict:"owner_id,artist_id,fact_key"});
+      if(error)throw error;
+      $("#knowledgeForm")?.reset();
+      $("#artistKnowledgeForm")?.reset();
+      await loadArtistKnowledge();
+      toast("Fait confirmé ajouté à la mémoire de "+activeArtistName()+".");
+    }catch(error){status.textContent="Enregistrement impossible : "+error.message;toast("Enregistrement de la mémoire impossible.",true);}
+    finally{button.disabled=false;button.textContent="Enregistrer ce fait";}
+  });
   async function loadArtistResearch(version=workspaceLoadVersion){
     const artistId=activeArtistId,status=$("#artistResearchStatus");
     if(!artistId||!status)return;
