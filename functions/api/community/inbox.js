@@ -1,13 +1,13 @@
 const HEADERS={"content-type":"application/json; charset=utf-8","cache-control":"no-store"};
 const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:HEADERS});
 const allowedWorkflow=new Set(["new","read","drafted","awaiting_approval","ignored"]);
-function getBearer(request){return (request.headers.get("authorization")||"").match(/^Bearer\\s+(.+)$/i)?.[1]||null;}
+function getBearer(request){return (request.headers.get("authorization")||"").match(/^Bearer\s+(.+)$/i)?.[1]||null;}
 async function getContext(request,env,artistId){
   const required=["SUPABASE_URL","SUPABASE_PUBLISHABLE_KEY","SUPABASE_SERVICE_ROLE_KEY"];
   const missing=required.filter(key=>!env[key]);
   if(missing.length)throw Object.assign(new Error("Configuration serveur incomplète."),{status:503,missing});
   const token=getBearer(request);if(!token)throw Object.assign(new Error("Connexion requise."),{status:401});
-  const base=env.SUPABASE_URL.replace(/\\/$/,"");
+  const base=env.SUPABASE_URL.replace(/\/$/,"");
   const userResponse=await fetch(base+"/auth/v1/user",{headers:{apikey:env.SUPABASE_PUBLISHABLE_KEY,authorization:"Bearer "+token}});
   if(!userResponse.ok)throw Object.assign(new Error("Session expirée."),{status:401});
   const user=await userResponse.json();if(!user?.id)throw Object.assign(new Error("Session invalide."),{status:401});
@@ -20,16 +20,16 @@ async function getContext(request,env,artistId){
 function safeText(value,max=5000){return typeof value==="string"?value.trim().slice(0,max):"";}
 function normalizedDate(value){
   if(value===null||value===undefined||value==="")return null;
-  if(typeof value==="number"||/^\\d+(?:\\.\\d+)?$/.test(String(value))){
+  if(typeof value==="number"||/^\d+(?:\.\d+)?$/.test(String(value))){
     const n=Number(value),ms=n>1e12?n:n*1000;
     const date=new Date(ms);return Number.isNaN(date.getTime())?null:date.toISOString();
   }
   const date=new Date(value);return Number.isNaN(date.getTime())?null:date.toISOString();
 }
 function safeUrl(value){
-  try{const url=new URL(String(value||""));return url.protocol==="https:"&&/(^|\\.)tiktok\\.com$/i.test(url.hostname)?url.href:null;}catch{return null;}
+  try{const url=new URL(String(value||"")),host=url.hostname.toLowerCase();return url.protocol==="https:"&&(host==="tiktok.com"||host.endsWith(".tiktok.com"))?url.href:null;}catch{return null;}
 }
-export async function onRequestGet({request,env}){
+async function handleGet({request,env}){
   try{
     const url=new URL(request.url),ctx=await getContext(request,env,url.searchParams.get("artist_id"));
     const provider=url.searchParams.get("provider"),status=url.searchParams.get("status");
@@ -48,7 +48,7 @@ export async function onRequestGet({request,env}){
     return json({messages:Array.isArray(data)?data:[]});
   }catch(error){return json({error:error.message||"Boîte de réception indisponible.",missing:error.missing||undefined},error.status||500);}
 }
-export async function onRequestPost({request,env}){
+async function handlePost({request,env}){
   let body={};try{body=await request.json();}catch{return json({error:"Requête JSON invalide."},400);}
   try{
     const ctx=await getContext(request,env,body.artist_id);
@@ -87,7 +87,7 @@ export async function onRequestPost({request,env}){
     return json({stored:Array.isArray(data)?data.length:rows.length});
   }catch(error){return json({error:error.message||"Synchronisation de commentaires impossible.",missing:error.missing||undefined},error.status||500);}
 }
-export async function onRequestPatch({request,env}){
+async function handlePatch({request,env}){
   let body={};try{body=await request.json();}catch{return json({error:"Requête JSON invalide."},400);}
   try{
     const ctx=await getContext(request,env,body.artist_id),id=safeText(body.id,80);
@@ -110,4 +110,12 @@ export async function onRequestPatch({request,env}){
     if(!Array.isArray(data)||!data.length)return json({error:"Commentaire introuvable pour cet artiste."},404);
     return json({message:data[0]});
   }catch(error){return json({error:error.message||"Mise à jour impossible.",missing:error.missing||undefined},error.status||500);}
+}
+
+export async function onRequest(context){
+  const method=context.request.method.toUpperCase();
+  if(method==="GET")return handleGet(context);
+  if(method==="POST")return handlePost(context);
+  if(method==="PATCH")return handlePatch(context);
+  return json({error:"Méthode non autorisée."},405);
 }
