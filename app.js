@@ -1548,6 +1548,7 @@
       const mergedVideos=append?[...(existing?.videos||[]),...incoming]:incoming;
       latestTikTokAnalytics={...a,videos:mergedVideos,warnings:d.warnings||[],synced_at:d.synced_at,cursor:d.cursor??null,has_more:!!d.has_more};
       latestTikTokAnalyticsArtistId=artistId;
+      window.dispatchEvent(new CustomEvent('aimm:tiktok-videos-updated',{detail:{artistId}}));
       if(status)status.textContent=(append?'Vidéos supplémentaires chargées · ':'Données actualisées ')+(append?mergedVideos.length+' vidéos au total':new Date(d.synced_at).toLocaleString('fr-FR'))+(d.warnings?.length?' · '+d.warnings.join(' · '):'');
       const recStatus=$('#tiktokRecommendationStatus'),recButton=$('#generateTikTokRecommendations');
       if(recStatus)recStatus.textContent='Données TikTok chargées ('+mergedVideos.length+' vidéos disponibles). Tu peux maintenant générer une analyse marketing pour cet artiste.';
