@@ -208,8 +208,9 @@
     replyToolPromise=(async()=>{
       const result=await mcpRequest(ctx,{action:"tools/list"});
       const tools=Array.isArray(result.tools)?result.tools:[];
-      return tools.find(tool=>tool.name==="account_user_comment_create")
-        ||tools.find(tool=>/comment.*(reply|create)|(?:reply|create).*comment/i.test(tool.name||""))||null;
+      const writable=tools.filter(tool=>tool?.annotations?.readOnlyHint!==true);
+      return writable.find(tool=>tool.name==="account_user_comment_create")
+        ||writable.find(tool=>/comment.*(create|reply_create|reply_post|reply_add)|(?:create|post|publish).*comment/i.test(tool.name||"")&&!/(list|get|query|search)/i.test(tool.name||""))||null;
     })();
     return replyToolPromise;
   }
