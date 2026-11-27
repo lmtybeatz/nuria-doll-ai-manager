@@ -32,7 +32,7 @@
   let assistantRecordingChunks = [];
   let assistantRecordingTimeout = null;
   const lastAssistantTasks = new Map();
-  let latestYoutubeAnalytics=null, latestMetaInsights=null, latestTikTokAnalytics=null, activeSocialPlatform=null;
+  let latestYoutubeAnalytics=null, latestMetaInsights=null, latestTikTokAnalytics=null, latestTikTokAnalyticsArtistId=null, activeSocialPlatform=null;
   const oauthParams=new URLSearchParams(location.search);
   const oauthArtistId=oauthParams.get('artist_id');
   const tiktokOAuthResult=oauthParams.get('tiktok');
@@ -1510,22 +1510,54 @@
       else $('#tiktokAccountPanel')?.classList.add('hidden');
     }catch(e){if(artistId===activeArtistId)box.textContent='Statut TikTok indisponible : '+e.message;}
   }
-  async function loadTikTokAnalytics(artistId){
-    const status=$('#tiktokInsightsStatus'),list=$('#tiktokVideoList');if(status)status.textContent='Chargement des données TikTok…';
+  async function loadTikTokAnalytics(artistId,options={}){
+    const append=options.append===true,existing=append&&latestTikTokAnalyticsArtistId===artistId?latestTikTokAnalytics:null;
+    const status=$('#tiktokInsightsStatus'),list=$('#tiktokVideoList');
+    if(append&&(!existing?.has_more||existing.cursor==null))return;
+    if(!append&&latestTikTokAnalyticsArtistId!==artistId){latestTikTokAnalytics=null;latestTikTokAnalyticsArtistId=null;if(list)list.replaceChildren();}
+    if(status)status.textContent=append?'Chargement des vidéos supplémentaires…':'Chargement des données TikTok…';
     try{
       const {data:{session}}=await supabase.auth.getSession();if(!session?.access_token)throw new Error('Session expirée.');
-      const r=await fetch('/api/tiktok/analytics?artist_id='+encodeURIComponent(artistId),{headers:{authorization:'Bearer '+session.access_token}});
+      const query=new URLSearchParams({artist_id:artistId});if(append)query.set('cursor',String(existing.cursor));
+      const r=await fetch('/api/tiktok/analytics?'+query.toString(),{headers:{authorization:'Bearer '+session.access_token}});
       const d=await r.json();if(!r.ok)throw new Error(d.error||'Statistiques TikTok indisponibles.');
       if(artistId!==activeArtistId)return;
-      const a=d.account||{};
+      const a=d.account||{},incoming=Array.isArray(d.videos)?d.videos:[];
       $('#ttFollowers').textContent=a.follower_count==null?'—':ytNumber(a.follower_count);
       $('#ttLikes').textContent=a.likes_count==null?'—':ytNumber(a.likes_count);
       $('#ttVideos').textContent=a.video_count==null?'—':ytNumber(a.video_count);
       $('#ttFollowing').textContent=a.following_count==null?'—':ytNumber(a.following_count);
-      if(status)status.textContent='Données actualisées '+new Date(d.synced_at).toLocaleString('fr-FR')+(d.warnings?.length?' · '+d.warnings.join(' · '):'');
-      if(list){list.replaceChildren();if(!d.videos?.length){list.textContent='Aucune vidéo accessible ou autorisation video.list non accordée.';}else d.videos.forEach(v=>{const card=document.createElement('article');card.className='tiktok-video-card';if(v.cover_image_url){const img=document.createElement('img');img.src=v.cover_image_url;img.alt='Aperçu vidéo';img.loading='lazy';card.append(img);}const info=document.createElement('div'),title=document.createElement('strong'),meta=document.createElement('small'),link=document.createElement('a');title.textContent=v.title||v.video_description||'Vidéo TikTok';meta.textContent=(v.view_count==null?'—':ytNumber(v.view_count)+' vues')+' · '+(v.like_count==null?'—':ytNumber(v.like_count)+' j’aime')+' · '+(v.comment_count==null?'—':ytNumber(v.comment_count)+' commentaires')+' · '+(v.share_count==null?'—':ytNumber(v.share_count)+' partages');link.href=v.share_url||'#';link.target='_blank';link.rel='noopener noreferrer';link.textContent='Voir la vidéo';info.append(title,meta,link);card.append(info);list.append(card);});}
-      latestTikTokAnalytics={...a,videos:d.videos||[],warnings:d.warnings||[],synced_at:d.synced_at};const recStatus=$('#tiktokRecommendationStatus'),recButton=$('#generateTikTokRecommendations');if(recStatus)recStatus.textContent='Statistiques TikTok chargées. Tu peux maintenant générer une analyse marketing pour cet artiste.';if(recButton)recButton.disabled=false;
-    }catch(e){if(artistId===activeArtistId){if(status)status.textContent='Statistiques TikTok indisponibles : '+e.message;const recStatus=$('#tiktokRecommendationStatus'),recButton=$('#generateTikTokRecommendations');if(recStatus)recStatus.textContent='Les statistiques ne sont pas encore disponibles. Vérifie la connexion puis actualise les données.';if(recButton)recButton.disabled=true;}}
+      if(list){
+        if(!append)list.replaceChildren();
+        if(!append&&!incoming.length)list.textContent='Aucune vidéo accessible ou autorisation video.list non accordée.';
+        else incoming.forEach(v=>{
+          const card=document.createElement('article');card.className='tiktok-video-card';
+          if(v.cover_image_url){const img=document.createElement('img');img.src=v.cover_image_url;img.alt='Aperçu vidéo';img.loading='lazy';card.append(img);}
+          const info=document.createElement('div'),title=document.createElement('strong'),meta=document.createElement('small'),link=document.createElement('a');
+          title.textContent=v.title||v.video_description||'Vidéo TikTok';
+          meta.textContent=(v.view_count==null?'—':ytNumber(v.view_count)+' vues')+' · '+(v.like_count==null?'—':ytNumber(v.like_count)+' j’aime')+' · '+(v.comment_count==null?'—':ytNumber(v.comment_count)+' commentaires')+' · '+(v.share_count==null?'—':ytNumber(v.share_count)+' partages');
+          link.href=v.share_url||'#';link.target='_blank';link.rel='noopener noreferrer';link.textContent='Voir la vidéo';info.append(title,meta,link);card.append(info);list.append(card);
+        });
+        $('#tiktokLoadMoreVideos')?.remove();
+        if(d.has_more&&d.cursor!=null){
+          const more=document.createElement('button');more.id='tiktokLoadMoreVideos';more.type='button';more.className='btn secondary';more.textContent='Charger les 20 vidéos suivantes';
+          more.addEventListener('click',async()=>{more.disabled=true;more.textContent='Chargement…';await loadTikTokAnalytics(artistId,{append:true});});
+          list.append(more);
+        }
+      }
+      const mergedVideos=append?[...(existing?.videos||[]),...incoming]:incoming;
+      latestTikTokAnalytics={...a,videos:mergedVideos,warnings:d.warnings||[],synced_at:d.synced_at,cursor:d.cursor??null,has_more:!!d.has_more};
+      latestTikTokAnalyticsArtistId=artistId;
+      if(status)status.textContent=(append?'Vidéos supplémentaires chargées · ':'Données actualisées ')+(append?mergedVideos.length+' vidéos au total':new Date(d.synced_at).toLocaleString('fr-FR'))+(d.warnings?.length?' · '+d.warnings.join(' · '):'');
+      const recStatus=$('#tiktokRecommendationStatus'),recButton=$('#generateTikTokRecommendations');
+      if(recStatus)recStatus.textContent='Données TikTok chargées ('+mergedVideos.length+' vidéos disponibles). Tu peux maintenant générer une analyse marketing pour cet artiste.';
+      if(recButton)recButton.disabled=false;
+    }catch(e){
+      if(artistId===activeArtistId){
+        if(status)status.textContent=(append?'Chargement des vidéos supplémentaires impossible : ':'Statistiques TikTok indisponibles : ')+e.message;
+        if(!append){const recStatus=$('#tiktokRecommendationStatus'),recButton=$('#generateTikTokRecommendations');if(recStatus)recStatus.textContent='Les statistiques ne sont pas encore disponibles. Vérifie la connexion puis actualise les données.';if(recButton)recButton.disabled=true;}
+      }
+    }
   }
   function summarizeTikTokVideos(data){
     const videos=Array.isArray(data.videos)?data.videos:[];
