@@ -40,6 +40,8 @@ create index if not exists ai_community_messages_inbox_idx
   on public.ai_community_messages(owner_id, artist_id, workflow_status, comment_created_at desc);
 create index if not exists ai_community_messages_provider_idx
   on public.ai_community_messages(owner_id, artist_id, provider, comment_created_at desc);
+create index if not exists ai_community_messages_artist_id_idx
+  on public.ai_community_messages(artist_id);
 
 alter table public.ai_community_messages enable row level security;
 
