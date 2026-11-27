@@ -3,7 +3,7 @@
   const esc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
   const MUSIC_URL="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en";
   const BRAND_URL="https://www.tiktok.com/legal/page/global/bc-policy/en";
-  let creatorInfo=null,creatorInfoArtistId=null,busy=false,videoPreviewUrl=null;
+  let creatorInfo=null,creatorInfoArtistId=null,publishCapabilities=null,publishCapabilitiesArtistId=null,busy=false,videoPreviewUrl=null;
 
   function mount(){
     const root=$("#socialTiktokDetail");if(!root||$("#tiktokPublisher"))return;
@@ -71,7 +71,7 @@
       <div class="tiktok-publish-footnote">L’envoi ne démarre qu’après ton accord explicite. TikTok peut prendre quelques minutes pour traiter le contenu. Les brouillons doivent être finalisés dans l’application TikTok. Les publications publiques restent soumises à l’audit et aux autorisations TikTok.</div>`;
     const rec=$("#socialTiktokDetail .tiktok-recommendations");
     root.insertBefore(section,rec||null);
-    $("#ttCreatorRefresh")?.addEventListener("click",()=>loadCreatorInfo().catch(()=>{}));
+    $("#ttCreatorRefresh")?.addEventListener("click",()=>refreshPublishingSettings().catch(()=>{}));
     $("#ttVideoForm")?.addEventListener("submit",publishVideo);
     $("#ttPhotoForm")?.addEventListener("submit",publishPhotos);
     $("#ttVideoMode")?.addEventListener("change",()=>{const draft=$("#ttVideoMode").value==="draft";$("#ttPublishVideo").textContent=draft?"Envoyer le brouillon":"Publier la vidéo";});
@@ -84,7 +84,7 @@
     $("#ttVideoFile")?.addEventListener("change",previewVideo);
     $("#ttPhotoUrls")?.addEventListener("input",previewPhotos);
     syncDisclosure("Video");syncDisclosure("Photo");
-    $("#artistSwitcher")?.addEventListener("change",()=>{creatorInfo=null;creatorInfoArtistId=null;fillPrivacy(null);$("#ttCreatorAccount").textContent="Compte TikTok cible : actualise les paramètres de l’artiste actif.";$("#ttPublishCapability").textContent="Les paramètres de l’artiste actif doivent être rechargés avant une publication directe.";});
+    $("#artistSwitcher")?.addEventListener("change",()=>{creatorInfo=null;creatorInfoArtistId=null;publishCapabilities=null;publishCapabilitiesArtistId=null;fillPrivacy(null);$("#ttCreatorAccount").textContent="Compte TikTok cible : actualise les paramètres de l’artiste actif.";$("#ttPublishCapability").textContent="Les paramètres de l’artiste actif doivent être rechargés avant une publication directe.";});
   }
 
   async function context(){
@@ -120,6 +120,31 @@
     applyInteraction("ttPhotoAllowComments",!!info.comment_disabled);
     const account=$("#ttCreatorAccount");
     if(account)account.textContent="Compte TikTok cible : "+(info.creator_nickname||"Créateur")+(info.creator_username?" (@"+info.creator_username+")":"");
+  }
+  function setModeAvailability(selectId,direct,upload){
+    const select=$("#"+selectId);if(!select)return;
+    const directOption=Array.from(select.options).find(o=>o.value==="direct"),draftOption=Array.from(select.options).find(o=>o.value==="draft");
+    if(directOption)directOption.disabled=!direct;if(draftOption)draftOption.disabled=!upload;
+    if(!direct&&upload)select.value="draft";else if(direct)select.value="direct";
+  }
+  async function loadCapabilities(ctxOverride=null){
+    const ctx=ctxOverride||await context(),result=await api("capabilities",{},ctx),current=await context();
+    if(current.artistId!==ctx.artistId)return null;
+    publishCapabilities=result;publishCapabilitiesArtistId=ctx.artistId;
+    setModeAvailability("ttVideoMode",!!result.direct_posting,!!result.draft_upload);
+    setModeAvailability("ttPhotoMode",!!result.direct_posting,!!result.draft_upload);
+    const any=!!result.direct_posting||!!result.draft_upload;
+    $("#ttPublishVideo").disabled=!any;$("#ttPublishPhoto").disabled=!any;
+    if(!result.enabled)$("#ttPublishCapability").textContent="Content Posting API n’est pas encore activé dans la configuration serveur.";
+    else if(!result.direct_posting&&result.draft_upload)$("#ttPublishCapability").textContent="L’envoi en brouillon est disponible. La publication directe attend l’autorisation video.publish.";
+    else if(result.direct_posting)$("#ttPublishCapability").textContent="Publication directe autorisée par les permissions actuelles. Actualisation des paramètres du créateur…";
+    else $("#ttPublishCapability").textContent="Aucune permission video.publish ou video.upload n’est encore accordée. Ajoute les permissions TikTok puis reconnecte le compte.";
+    if(!result.direct_posting){creatorInfo=null;creatorInfoArtistId=null;fillPrivacy(null);}
+    return result;
+  }
+  async function refreshPublishingSettings(){
+    const caps=await loadCapabilities();
+    if(caps?.direct_posting)await loadCreatorInfo();
   }
   async function loadCreatorInfo(ctxOverride=null){
     const ctx=ctxOverride||await context();
@@ -219,7 +244,9 @@
     try{
       setBusy(true,button,draft?"Préparation du brouillon…":"Préparation de la publication…");
       let info=creatorInfo;
-      if(!draft){info=info&&creatorInfoArtistId===ctx.artistId?info:await loadCreatorInfo(ctx);if(!info?.privacy_level_options?.length)throw new Error("Les paramètres de visibilité du créateur ne sont pas disponibles pour cet artiste.");}
+      const caps=publishCapabilitiesArtistId===ctx.artistId?publishCapabilities:await loadCapabilities(ctx);
+      if(!draft){if(!caps?.direct_posting)throw new Error("La permission video.publish n’est pas activée pour cet artiste.");info=info&&creatorInfoArtistId===ctx.artistId?info:await loadCreatorInfo(ctx);if(!info?.privacy_level_options?.length)throw new Error("Les paramètres de visibilité du créateur ne sont pas disponibles pour cet artiste.");}
+      else if(!caps?.draft_upload)throw new Error("La permission video.upload n’est pas activée pour cet artiste.");
       const disclosure=validateConsent("Video",!draft);
       const max=Number(info?.max_video_post_duration_sec||0);
       if(!["video/mp4","video/quicktime","video/webm"].includes(file.type))throw new Error("Format non pris en charge. Utilise MP4, MOV ou WebM.");
@@ -247,7 +274,9 @@
       if(title.length>90)throw new Error("Le titre photo ne peut pas dépasser 90 caractères.");
       if(description.length>4000)throw new Error("La description photo ne peut pas dépasser 4 000 caractères.");
       let info=creatorInfo;
-      if(!draft){info=info&&creatorInfoArtistId===ctx.artistId?info:await loadCreatorInfo(ctx);if(!info?.privacy_level_options?.length)throw new Error("Les paramètres de visibilité du créateur ne sont pas disponibles pour cet artiste.");}
+      const caps=publishCapabilitiesArtistId===ctx.artistId?publishCapabilities:await loadCapabilities(ctx);
+      if(!draft){if(!caps?.direct_posting)throw new Error("La permission video.publish n’est pas activée pour cet artiste.");info=info&&creatorInfoArtistId===ctx.artistId?info:await loadCreatorInfo(ctx);if(!info?.privacy_level_options?.length)throw new Error("Les paramètres de visibilité du créateur ne sont pas disponibles pour cet artiste.");}
+      else if(!caps?.draft_upload)throw new Error("La permission video.upload n’est pas activée pour cet artiste.");
       const disclosure=validateConsent("Photo",!draft);
       const result=await api("init_photo",{photo_images:urls,title,description,privacy_level:$("#ttPhotoPrivacy").value,draft,disable_comment:!$("#ttPhotoAllowComments").checked,...disclosure},ctx);
       const status=await waitForStatus(result.publish_id,resultNode,ctx);
@@ -260,6 +289,6 @@
   }
   document.addEventListener("DOMContentLoaded",()=>{
     mount();
-    document.querySelectorAll('[data-social-platform="tiktok"]').forEach(button=>button.addEventListener("click",()=>setTimeout(()=>{if($("#socialTiktokDetail")&&!$("#socialTiktokDetail").classList.contains("hidden"))loadCreatorInfo().catch(()=>{});},150)));
+    document.querySelectorAll('[data-social-platform="tiktok"]').forEach(button=>button.addEventListener("click",()=>setTimeout(()=>{if($("#socialTiktokDetail")&&!$("#socialTiktokDetail").classList.contains("hidden"))loadCapabilities().catch(()=>{});},150)));
   });
 })();
