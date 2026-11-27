@@ -66,9 +66,21 @@
         const draftBox=document.createElement("div");draftBox.className="community-draft-box";
         const title=document.createElement("strong");title.textContent="Brouillon de réponse IA";
         const textarea=document.createElement("textarea");textarea.value=item.ai_draft;textarea.setAttribute("aria-label","Modifier le brouillon de réponse");
-        const note=document.createElement("small");note.className="community-draft-note";note.textContent="Brouillon non publié. Relis-le avant toute utilisation.";
+        const note=document.createElement("small");note.className="community-draft-note";note.textContent=item.workflow_status==="replied"?"Réponse publiée sur TikTok.": "Brouillon non publié. Relis-le avant toute utilisation.";
         const save=makeButton("Enregistrer le brouillon",async()=>{save.disabled=true;try{const ctx=await context();await api("/api/community/inbox",ctx,"PATCH",{artist_id:ctx.artistId,id:item.id,ai_draft:textarea.value});await loadInbox();}catch(e){setStatus(e.message,true);}finally{save.disabled=false;}});
-        draftBox.append(title,textarea,note,save);card.append(draftBox);
+        draftBox.append(title,textarea,note,save);
+        if(item.workflow_status!=="replied"){
+          const publish=makeButton("Publier la réponse sur TikTok",()=>publishCommentReply(item,textarea,publish),"primary");
+          publish.dataset.commentReply="true";publish.disabled=true;publish.textContent="Vérification de l’autorisation TikTok…";
+          draftBox.append(publish);
+          discoverReplyTool().then(tool=>{
+            if(!publish.isConnected)return;
+            publish.disabled=!tool;
+            publish.textContent=tool?"Publier la réponse sur TikTok":"Réponse directe non disponible pour ce compte";
+            publish.title=tool?"La réponse sera publiée uniquement après confirmation.":"TikTok n’a pas exposé l’outil officiel de réponse pour ce compte.";
+          }).catch(()=>{if(publish.isConnected){publish.disabled=true;publish.textContent="Outil de réponse indisponible";}});
+        }
+        card.append(draftBox);
       }
       const actions=document.createElement("div");actions.className="community-comment-actions";
       if(!item.ai_draft)actions.append(makeButton("Préparer une réponse IA",()=>prepareDraft(item,card), "primary"));
@@ -187,6 +199,61 @@
       }
     }catch(error){setStatus(error.message,true);}
     finally{busy=false;if(button){button.disabled=false;button.textContent=originalButtonText;}if(refresh)refresh.disabled=false;}
+  }
+  let replyToolPromise=null,replyToolArtistId=null;
+  async function discoverReplyTool(){
+    const ctx=await context();
+    if(replyToolPromise&&replyToolArtistId===ctx.artistId)return replyToolPromise;
+    replyToolArtistId=ctx.artistId;
+    replyToolPromise=(async()=>{
+      const result=await mcpRequest(ctx,{action:"tools/list"});
+      const tools=Array.isArray(result.tools)?result.tools:[];
+      return tools.find(tool=>tool.name==="account_user_comment_create")
+        ||tools.find(tool=>/comment.*(reply|create)|(?:reply|create).*comment/i.test(tool.name||""))||null;
+    })();
+    return replyToolPromise;
+  }
+  function replyArguments(tool,item,replyText){
+    const schema=tool?.inputSchema||{},properties=schema.properties||{},required=schema.required||[];
+    const args={},known=new Set();
+    for(const [key,definition] of Object.entries(properties)){
+      const name=key.toLowerCase();
+      if(/^(video_id|videoid)$/.test(name)){args[key]=String(item.external_media_id||"");known.add(key);}
+      else if(/^(comment_id|parent_comment_id|parent_id)$/.test(name)){args[key]=String(item.external_comment_id||"");known.add(key);}
+      else if(/^(text|comment_text|reply_text|content|message)$/.test(name)){args[key]=replyText;known.add(key);}
+      else if(/^(business_id|open_id)$/.test(name)){continue;}
+      else if(definition?.default!==undefined){args[key]=definition.default;known.add(key);}
+    }
+    const missing=required.filter(key=>!known.has(key));
+    if(missing.length||!Object.keys(args).some(key=>/text|content|message/i.test(key)))return null;
+    return args;
+  }
+  async function publishCommentReply(item,textarea,button){
+    if(busy||item.workflow_status==="replied")return;
+    const reply=String(textarea?.value||"").trim();
+    if(!reply){setStatus("Le texte de la réponse est vide.",true);return;}
+    if(reply.length>150){setStatus("La réponse dépasse 150 caractères. Raccourcis-la avant publication.",true);return;}
+    const child=String((await context()).artistName||"").trim().toUpperCase()==="NURIA DOLL";
+    const confirmation=child
+      ?"Validation parentale obligatoire : publier cette réponse publique sur TikTok ?\n\n"+reply+"\n\nConfirmer uniquement si tu es le parent ou le gestionnaire autorisé."
+      :"Publier cette réponse publique sur TikTok ?\n\n"+reply;
+    if(!window.confirm(confirmation))return;
+    busy=true;button.disabled=true;button.textContent="Publication en cours…";
+    try{
+      const ctx=await context(),tool=await discoverReplyTool();
+      if(!tool)throw new Error("TikTok n’a pas exposé d’outil officiel de réponse pour ce compte.");
+      const args=replyArguments(tool,item,reply);
+      if(!args)throw new Error("Le schéma de l’outil TikTok a changé ou exige des paramètres non reconnus. Aucune publication effectuée.");
+      const result=await mcpRequest(ctx,{action:"tools/call",name:tool.name,arguments:args});
+      if(result?.isError)throw new Error("TikTok a refusé la publication. Vérifie les autorisations et réessaie.");
+      const parsed=parseMcpResult(result);
+      if(parsed?.isError||parsed?.error||parsed?.code&&Number(parsed.code)!==0)throw new Error(parsed.message||parsed.error?.message||"TikTok a retourné une erreur de publication.");
+      const replyId=String(parsed?.data?.comment_id||parsed?.data?.id||parsed?.comment_id||parsed?.id||"");
+      await api("/api/community/inbox",ctx,"PATCH",{artist_id:ctx.artistId,id:item.id,published_reply:reply,platform_reply_id:replyId});
+      await loadInbox();
+      setStatus("Réponse publiée sur TikTok et enregistrée dans la boîte de réception.");
+    }catch(error){setStatus(error.message||"Publication impossible.",true);}
+    finally{busy=false;if(button.isConnected){button.disabled=false;button.textContent="Publier la réponse sur TikTok";}}
   }
   async function prepareDraft(item,card){
     if(busy)return;busy=true;
