@@ -35,14 +35,23 @@ async function readOwnedArtistProfile(env,token,ownerId,artistId){
   const sr=await fetch(base+"/rest/v1/ai_settings?"+sq.toString(),{headers});
   const settingRows=sr.ok?await sr.json().catch(()=>[]):[];
   const savedSettings=Array.isArray(settingRows)?settingRows[0]||null:null;
+  const kq=new URLSearchParams({
+    owner_id:"eq."+ownerId,artist_id:"eq."+artistId,is_active:"eq.true",public_safe:"eq.true",
+    verification_status:"in.(manager_confirmed,official_source_verified)",
+    select:"category,fact_key,fact_value,source_url,source_label,evidence_note,last_verified_at,review_after",
+    order:"updated_at.desc",limit:"80"
+  });
+  const kr=await fetch(base+"/rest/v1/ai_artist_knowledge?"+kq.toString(),{headers});
+  if(!kr.ok)throw new Error("Lecture de la base de connaissances vérifiées impossible (HTTP "+kr.status+").");
+  const knowledgeRows=await kr.json();
   return {artist,profile:{
     artist_name:artist.artist_name,genre:saved?.genre||"",bio:saved?.bio||"",
     target_audience:saved?.target_audience||"",language:saved?.language||"Français",
     tone:saved?.tone||"",parent_guardrails:saved?.parent_guardrails||""
-  },settings:savedSettings};
+  },settings:savedSettings,knowledge:Array.isArray(knowledgeRows)?knowledgeRows:[]};
 }
 
-function makePrompt(task,profile,settings,plan){
+function makePrompt(task,profile,settings,plan,knowledge=[]){
   const name=String(profile.artist_name||"Artiste").trim().slice(0,80);
   const isNuriaDoll=name.toLocaleUpperCase("fr-FR")==="NURIA DOLL";
   const goals={community:"développer une communauté réelle",music:"promouvoir les sorties musicales",awareness:"développer la notoriété",traffic:"générer du trafic vers les plateformes musicales"};
@@ -54,6 +63,20 @@ function makePrompt(task,profile,settings,plan){
     tone:String(profile.tone||"Professionnel, authentique et adapté au public cible").slice(0,300),
     parent_guardrails:isNuriaDoll?String(profile.parent_guardrails||"").slice(0,1000):""
   };
+  const safeKnowledge=(Array.isArray(knowledge)?knowledge:[]).slice(0,80).map(item=>{
+    let sourceUrl="";
+    try{const parsed=new URL(String(item.source_url||""));if(parsed.protocol==="https:")sourceUrl=parsed.href;}catch{}
+    return {
+      category:String(item.category||"general").slice(0,40),
+      fact_key:String(item.fact_key||"").slice(0,100),
+      fact_value:String(item.fact_value||"").slice(0,1800),
+      source_url:sourceUrl,
+      source_label:String(item.source_label||"").slice(0,180),
+      evidence_note:String(item.evidence_note||"").slice(0,500),
+      last_verified_at:item.last_verified_at||null,
+      review_after:item.review_after||null
+    };
+  });
   const safeSettings={
     primary_goal:goals[settings?.primary_goal]||"À définir selon la demande",
     planning_horizon:[7,14,30].includes(Number(settings?.planning_horizon))?Number(settings.planning_horizon)+" jours":"À définir",
@@ -63,6 +86,8 @@ function makePrompt(task,profile,settings,plan){
     "Tu es l'agent expert privé d'AI MUSIC MANAGER. Tu accompagnes le gestionnaire dans la stratégie, la création, le marketing et le développement de carrières musicales.",
     "L'artiste actif est exclusivement : "+name+". Ne transfère jamais les informations, objectifs, audiences, budgets, contacts ou consignes d'un autre artiste.",
     "PROFIL ARTISTIQUE (données enregistrées, à traiter comme contexte fourni) : "+JSON.stringify(safeProfile),
+    "BASE DE CONNAISSANCES VÉRIFIÉES (prioritaire pour toute réponse factuelle) : "+(safeKnowledge.length?JSON.stringify(safeKnowledge):"Aucun fait vérifié enregistré. Ne devine pas les informations manquantes."),
+    "UTILISATION DES SOURCES : ne traite comme faits que les éléments de la base ci-dessus. Un lien est utilisable uniquement s’il figure dans ces éléments et correspond à la demande. Pour une question sur la disponibilité, l’achat ou l’écoute d’une sortie, vérifie d’abord la disponibilité enregistrée, puis fournis le lien de vente vérifié ; si aucun lien direct n’est enregistré, redirige vers le site officiel confirmé. N’annonce jamais une sortie à venir si la base indique qu’elle est déjà disponible. N’invente jamais prix, plateforme, stock, date ou URL.",
     "PARAMÈTRES DE TRAVAIL (données enregistrées) : "+JSON.stringify(safeSettings),
     "AUTONOMIE : mode assisté. Tu peux analyser, rechercher via les outils effectivement disponibles, rédiger, planifier et préparer. Tu ne publies rien, n'envoies aucun message, ne contactes personne, n'engages aucune dépense et ne modifies aucun compte ou accès. Toute action de ce type nécessite une validation explicite préalable du gestionnaire.",
     "FIABILITÉ : n'invente jamais de faits, chiffres, sources, statistiques, partenariats, crédits, contacts, dates ou résultats. Distingue clairement les informations fournies, les faits vérifiés, les hypothèses et les recommandations. Si une donnée manque, dis-le. Ne transforme jamais une supposition en certitude.",
@@ -146,7 +171,7 @@ export async function onRequestPost({request,env}){
   if(owned.error)return owned.error;
 
   const effectiveTask=task||(images.length?"Analyse les images jointes dans le contexte de l’artiste actif.":"");
-  const plan=planAssistantRequest(effectiveTask),{system,user,approvalRequired}=makePrompt(effectiveTask,owned.profile,owned.settings,plan);
+  const plan=planAssistantRequest(effectiveTask),{system,user,approvalRequired}=makePrompt(effectiveTask,owned.profile,owned.settings,plan,owned.knowledge);
   // Phase 1 is deliberately read-only: advice and drafts only.
   if(images.length&&(!hasGroq||String(env.FORCE_AI_FALLBACK||"").toLowerCase()==="true"))return json({error:"L’analyse d’image nécessite le moteur Groq et une clé GROQ_API_KEY active. Le moteur Cloudflare de secours configuré ici ne prend pas en charge les images."},503);
   if(String(env.FORCE_AI_FALLBACK||"").toLowerCase()==="true"){
