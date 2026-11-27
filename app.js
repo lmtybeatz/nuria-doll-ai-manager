@@ -83,7 +83,7 @@
     if(view==='connections'&&user&&supabase){void youtubeStatus();void metaStatus();void loadTikTokStatus();}
     window.dispatchEvent(new CustomEvent('aimm:view-changed',{detail:{view}}));
   }
-  function authMode(){ $('#authTitle').textContent=signupMode?'Créer ton compte':'Connexion'; $('#authSubtitle').textContent=signupMode?'Crée ton accès privé de gestionnaire.':'Connecte-toi à ton espace de gestion privé.'; $('#authSubmit').innerHTML=signupMode?'Créer mon compte <span>→</span>':'Se connecter <span>→</span>'; $('#authSwitchText').textContent=signupMode?'Tu as déjà un compte ?':'Pas encore de compte ?'; $('#authSwitch').textContent=signupMode?'Se connecter':'Créer un compte'; $('#authPassword').autocomplete=signupMode?'new-password':'current-password'; }
+  function authMode(){ $('#authTitle').textContent=signupMode?'Créer ton compte':'Connexion'; $('#authSubtitle').textContent=signupMode?'Crée ton espace professionnel pour gérer un ou plusieurs artistes.':'Connecte-toi à ton espace professionnel AI Music Manager.'; $('#authSubmit').innerHTML=signupMode?'Créer mon compte <span>→</span>':'Se connecter <span>→</span>'; $('#authSwitchText').textContent=signupMode?'Tu as déjà un compte ?':'Pas encore de compte ?'; $('#authSwitch').textContent=signupMode?'Se connecter':'Créer un compte'; $('#authPassword').autocomplete=signupMode?'new-password':'current-password'; }
   async function init(){
     if(!configured){setupMessage();return;}
     if(!window.supabase?.createClient){
@@ -129,7 +129,14 @@
     const {data,error}=await supabase.from('ai_artists').select('id,artist_name,is_default,status,created_at').eq('status','active').order('is_default',{ascending:false}).order('artist_name');
     if(error)throw new Error('Chargement des espaces artistes impossible : '+error.message);
     artists=data||[];
-    if(!artists.length)throw new Error('Aucun espace artiste trouvé. Vérifie la migration multi-artistes.');
+    if(!artists.length){
+      const {data:created,error:createError}=await supabase.from('ai_artists').insert({owner_id:user.id,artist_name:'Mon premier artiste',status:'active',is_default:true}).select('id,artist_name,is_default,status,created_at').single();
+      if(createError){
+        const retry=await supabase.from('ai_artists').select('id,artist_name,is_default,status,created_at').eq('status','active').order('created_at');
+        if(retry.error||!retry.data?.length)throw new Error('Initialisation de ton espace artiste impossible : '+createError.message);
+        artists=retry.data;
+      }else artists=[created];
+    }
     const savedState=readWorkspaceState();
     if(oauthArtistId&&artists.some(a=>a.id===oauthArtistId))activeArtistId=oauthArtistId;
     else if(savedState.artistId&&artists.some(a=>a.id===savedState.artistId))activeArtistId=savedState.artistId;
