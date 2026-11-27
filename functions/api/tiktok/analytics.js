@@ -2,6 +2,7 @@ import {getTikTokContext,tiktokApi} from "../../_shared/tiktok-auth.js";
 const H={"content-type":"application/json; charset=utf-8","cache-control":"no-store"};
 const VIDEO_FIELDS="id,title,video_description,duration,cover_image_url,share_url,view_count,like_count,comment_count,share_count,create_time";
 const PROFILE_FIELDS="open_id,avatar_url,display_name,follower_count,following_count,likes_count,video_count";
+const PROFILE_EXTRA_FIELDS="username,profile_deep_link,bio_description,is_verified";
 const reply=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:H});
 
 export async function onRequestGet({request,env}){
@@ -13,7 +14,7 @@ export async function onRequestGet({request,env}){
   const ctx=await getTikTokContext(request,env,artistId),warnings=[];
   let account={};
   try{
-   const profileFields=ctx.scopes.includes("user.info.profile")?PROFILE_FIELDS+",username,profile_deep_link":PROFILE_FIELDS;
+   const profileFields=ctx.scopes.includes("user.info.profile")?PROFILE_FIELDS+","+PROFILE_EXTRA_FIELDS:PROFILE_FIELDS;
    const response=await fetch("https://open.tiktokapis.com/v2/user/info/?fields="+encodeURIComponent(profileFields),{headers:{authorization:"Bearer "+ctx.token.access_token}});
    const payload=await response.json().catch(()=>({}));
    if(!response.ok||payload.error?.code&&payload.error.code!=="ok")throw new Error(payload.error?.message||"Profil TikTok indisponible.");
