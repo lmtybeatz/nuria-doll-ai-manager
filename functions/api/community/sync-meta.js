@@ -25,7 +25,7 @@ export async function onRequestPost({request,env}){
   for(const page of (tokens.pages||[])){
    if(!page.id||!page.access_token){warnings.push("Une Page Facebook n'a pas de jeton Page.");continue;}
    try{
-    const url=new URL("https://graph.facebook.com/"+version+"/"+encodeURIComponent(page.id)+"/feed");url.searchParams.set("fields","id,message,permalink_url,created_time,comments.limit(100){id,message,created_time,from,like_count,comment_count,parent}");url.searchParams.set("limit","10");url.searchParams.set("access_token",page.access_token);
+    const url=new URL("https://graph.facebook.com/"+version+"/"+encodeURIComponent(page.id)+"/feed");url.searchParams.set("fields","id,message,permalink_url,created_time,comments.limit(100){id,message,created_time,from,like_count,comment_count}");url.searchParams.set("limit","10");url.searchParams.set("access_token",page.access_token);
     const posts=await collect(url.toString(),2);
     for(const post of posts){const comments=post.comments?.data||[];for(const c of comments)all.push(row("facebook",c,{id:post.id,title:post.message||"Publication Facebook",url:post.permalink_url}));}
    }catch(e){warnings.push("Facebook ("+(page.name||page.id)+") : "+e.message);}
@@ -38,7 +38,7 @@ export async function onRequestPost({request,env}){
     const mediaUrl=new URL("https://graph.facebook.com/"+version+"/"+encodeURIComponent(account.id)+"/media");mediaUrl.searchParams.set("fields","id,caption,permalink,timestamp,comments_count");mediaUrl.searchParams.set("limit","10");mediaUrl.searchParams.set("access_token",tokens.system_user_access_token||tokens.user_access_token);
     const media=await collect(mediaUrl.toString(),1);
     for(const post of media){
-     const commentsUrl=new URL("https://graph.facebook.com/"+version+"/"+encodeURIComponent(post.id)+"/comments");commentsUrl.searchParams.set("fields","id,text,timestamp,username,like_count,replies_count");commentsUrl.searchParams.set("limit","100");commentsUrl.searchParams.set("access_token",tokens.system_user_access_token||tokens.user_access_token);
+     const commentsUrl=new URL("https://graph.facebook.com/"+version+"/"+encodeURIComponent(post.id)+"/comments");commentsUrl.searchParams.set("fields","id,text,timestamp,username,like_count");commentsUrl.searchParams.set("limit","100");commentsUrl.searchParams.set("access_token",tokens.system_user_access_token||tokens.user_access_token);
      const comments=await collect(commentsUrl.toString(),2);
      for(const c of comments)all.push(row("instagram",c,{id:post.id,title:post.caption||"Publication Instagram",url:post.permalink}));
     }
