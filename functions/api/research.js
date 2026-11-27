@@ -28,17 +28,31 @@ function makeQueries(subject,context){
   const exact='"'+subject+'"';
   const qualifier=anchors?" "+anchors:"";
   const queries=[
-    {kind:"biography",query:exact+qualifier+" artiste musicien biography official profile"},
-    {kind:"discography",query:exact+qualifier+" discography songs singles albums official music"},
-    {kind:"debut",query:exact+qualifier+" first single debut release music career"},
+    {kind:"identity",query:exact+qualifier+" artiste musical officiel Bénin"},
+    {kind:"biography",query:exact+qualifier+" biographie parcours artistique musique"},
+    {kind:"discography",query:exact+" discographie chansons singles album"},
+    {kind:"release",query:'"DOLL & FRIENDS" "'+subject+'" album musique'},
+    {kind:"release",query:'"Papa dis-moi" "'+subject+'" chanson'},
+    {kind:"release",query:'"Toboggan" "'+subject+'" chanson'}
   ];
   const official=[["youtube",context.youtube],["instagram",context.instagram],["facebook",context.facebook],["tiktok",context.tiktok],["website",context.website]].filter(item=>item[1]);
   official.forEach(([kind,url])=>{
     const domain=urlDomain(url);
-    queries.push({kind:"presence",query:exact+" "+(domain?"site:"+domain+" ":"")+url+" official artist"});
+    queries.push({kind:"official_presence",query:exact+" "+(domain?"site:"+domain+" ":"")+url+" profil officiel"});
   });
-  if(context.legal_name)queries.push({kind:"biography",query:exact+' "'+context.legal_name+'" '+(context.country||"")+" artist"});
   return queries;
+}
+function normText(value){return String(value||"").normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").toLowerCase().replace(/[^a-z0-9]+/g," ").trim();}
+function relevantToArtist(result,subject,context){
+  const url=typeof result?.url==="string"?result.url:"";
+  const knownDomains=[context.website,context.youtube,context.instagram,context.facebook,context.tiktok].map(urlDomain).filter(Boolean);
+  const domain=urlDomain(url);
+  if(domain&&knownDomains.some(known=>domain===known||domain.endsWith("."+known)))return true;
+  const haystack=normText([result?.title,result?.content].filter(Boolean).join(" "));
+  const name=normText(subject);
+  if(name&&haystack.includes(name))return true;
+  const tokens=name.split(" ").filter(token=>token.length>2);
+  return tokens.length>=2&&tokens.every(token=>new RegExp("(^| )"+token+"( |$)").test(haystack));
 }
 export async function onRequestGet({request,env}){
   const missing=["SUPABASE_URL","SUPABASE_PUBLISHABLE_KEY"].filter(key=>!env[key]);if(missing.length)return json({error:"Configuration serveur incomplète.",missing},503);
@@ -69,18 +83,38 @@ export async function onRequestPost({request,env}){
   if(!artistResponse.ok)return json({error:"Vérification du profil artiste impossible."},502);
   const rows=await artistResponse.json(),artist=Array.isArray(rows)?rows[0]:null;
   if(!artist)return json({error:"Cet artiste n’appartient pas à ton espace ou n’est pas actif."},404);
+  const verifiedQuery=new URLSearchParams({
+    owner_id:"eq."+session.user.id,artist_id:"eq."+artist.id,is_active:"eq.true",public_safe:"eq.true",
+    verification_status:"in.(manager_confirmed,official_source_verified)",select:"fact_key,fact_value,source_url"
+  });
+  const verifiedResponse=await fetch(base+"/rest/v1/ai_artist_knowledge?"+verifiedQuery,{headers:sbHeaders(env,session.token)});
+  const verifiedFacts=verifiedResponse.ok?await verifiedResponse.json().catch(()=>[]):[];
+  const websiteFact=verifiedFacts.find(item=>item.fact_key==="official_website")?.fact_value;
+  const tiktokFact=verifiedFacts.find(item=>item.fact_key==="official_tiktok")?.fact_value;
+  if(!context.website&&websiteFact)context.website=safeUrl(websiteFact);
+  if(!context.tiktok&&tiktokFact)context.tiktok=safeUrl(tiktokFact);
+  const profileQuery=new URLSearchParams({owner_id:"eq."+session.user.id,artist_id:"eq."+artist.id,select:"genre"});
+  const profileResponse=await fetch(base+"/rest/v1/ai_brand_profile?"+profileQuery,{headers:sbHeaders(env,session.token)});
+  if(profileResponse.ok){
+    const profileRows=await profileResponse.json().catch(()=>[]);
+    if(!context.genre)context.genre=clean(profileRows?.[0]?.genre,180);
+  }
   const queries=makeQueries(subject,context);
   const outcomes=await Promise.allSettled(queries.map(item=>searchTavily(env.TAVILY_API_KEY,item.query)));
   const sources=[],seen=new Set(),queryLog=queries.map((item,index)=>({kind:item.kind,query:item.query,status:outcomes[index].status}));
+  let excludedResults=0;
   outcomes.forEach((outcome,index)=>{
     if(outcome.status!=="fulfilled")return;
     outcome.value.forEach(result=>{
-      const url=typeof result?.url==="string"?result.url:"";if(!url||seen.has(url))return;seen.add(url);
+      const url=typeof result?.url==="string"?result.url:"";if(!url||seen.has(url))return;
+      if(!relevantToArtist(result,subject,context)){excludedResults++;return;}
+      seen.add(url);
       sources.push({kind:queries[index].kind,title:String(result.title||"Source sans titre").slice(0,300),url:url.slice(0,2000),domain:urlDomain(url),
-        snippet:String(result.content||"").slice(0,2500),score:Number.isFinite(Number(result.score))?Number(result.score):null,published_date:result.published_date||null});
+        snippet:String(result.content||"").slice(0,2500),score:Number.isFinite(Number(result.score))?Number(result.score):null,published_date:result.published_date||null,
+        relevance:"candidate_identity_match"});
     });
   });
-  if(!sources.length)return json({error:"Aucune source exploitable n’a été retournée. Vérifie le nom exact et les précisions d’identité.",queries:queryLog},502);
+  if(!sources.length)return json({error:"Aucune source correspondant clairement à cet artiste n’a été trouvée. Aucun résultat d’homonyme n’a été conservé. Ajoute des liens officiels ou des précisions d’identité puis réessaie.",queries:queryLog,excluded_results:excludedResults},422);
   const status=outcomes.every(item=>item.status==="fulfilled")?"completed":"partial";
   const saved=await fetch(base+"/rest/v1/ai_artist_research",{method:"POST",headers:{...sbHeaders(env,session.token),prefer:"return=representation"},
     body:JSON.stringify({owner_id:session.user.id,artist_id:artist.id,research_type:"artist_profile",subject_name:subject,status,
@@ -90,5 +124,5 @@ export async function onRequestPost({request,env}){
   const savedRows=await saved.json().catch(()=>[]);
   return json({status,artist:{id:artist.id,name:artist.artist_name},subject,research_id:savedRows?.[0]?.id||null,source_count:sources.length,
     queries:queryLog,sources,identity_context:context,
-    verification_note:"Les résultats sont des pistes documentaires, pas des faits automatiquement certifiés. Vérifie que chaque source concerne bien l’artiste identifié."});
+    verification_note:"Les sources ont passé un premier filtre d’identité, mais restent des pistes documentaires. Elles ne deviennent jamais des faits vérifiés sans validation du gestionnaire ou contrôle d’une source officielle.",excluded_results:excludedResults});
 }
