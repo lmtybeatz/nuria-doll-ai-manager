@@ -10,9 +10,9 @@ async function decrypt(value,keyB64){
 export async function onRequestPost({request,env}){
  const missing=["SUPABASE_URL","SUPABASE_PUBLISHABLE_KEY","SUPABASE_SERVICE_ROLE_KEY"].filter(k=>!env[k]);
  if(missing.length)return Response.json({error:"Configuration serveur incomplète.",missing},{status:503,headers:H});
- const match=(request.headers.get("authorization")||"").match(/^Bearer\\s+(.+)$/i);
+ const match=(request.headers.get("authorization")||"").match(/^Bearer\s+(.+)$/i);
  if(!match)return Response.json({error:"Connexion requise."},{status:401,headers:H});
- const base=env.SUPABASE_URL.replace(/\\/$/,"");
+ const base=env.SUPABASE_URL.replace(/\/$/,"");
  const auth=await fetch(base+"/auth/v1/user",{headers:{apikey:env.SUPABASE_PUBLISHABLE_KEY,authorization:"Bearer "+match[1]}});
  const user=auth.ok?await auth.json():null;
  if(!user?.id)return Response.json({error:"Session invalide."},{status:401,headers:H});
