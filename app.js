@@ -769,8 +769,8 @@
     mobileMenuBackdrop?.setAttribute('aria-hidden','false');
     document.body.classList.add('mobile-navigation-open');
   };
-  $('.nav-item[data-view]').forEach(b=>b.onclick=()=>{nav(b.dataset.view);closeMobileMenu();});
-  $('[data-goto]').forEach(b=>b.onclick=()=>{nav(b.dataset.goto);closeMobileMenu();});
+  $$('.nav-item[data-view]').forEach(b=>b.onclick=()=>{nav(b.dataset.view);closeMobileMenu();});
+  $$('[data-goto]').forEach(b=>b.onclick=()=>{nav(b.dataset.goto);closeMobileMenu();});
   mobileMenu?.addEventListener('click',()=>{
     if(sidebar?.classList.contains('open'))closeMobileMenu();
     else openMobileMenu();
