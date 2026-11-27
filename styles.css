@@ -720,3 +720,27 @@
 .artist-knowledge-actions{display:flex;gap:8px;flex-wrap:wrap}
 .artist-knowledge-actions .btn{padding:7px 10px;font-size:10px}
 @media(max-width:680px){.artist-knowledge-form{grid-template-columns:1fr}.artist-knowledge-form .research-submit-row{align-items:stretch;flex-direction:column}.artist-knowledge-form .research-submit-row .btn{width:100%}.artist-knowledge-card-head{align-items:flex-start;flex-direction:column}}
+
+/* TikTok Display API: creator identity and safe embedded previews */
+.tiktok-profile-copy{min-width:0;display:grid;gap:4px}
+.tiktok-profile-copy>a{width:max-content;max-width:100%;margin-top:4px;color:#5d3b78;font-size:10px;font-weight:700;overflow-wrap:anywhere}
+.tiktok-profile-bio{margin:5px 0 0;color:var(--muted);font-size:10px;line-height:1.5;overflow-wrap:anywhere}
+.tiktok-verified{display:inline-flex;width:max-content;padding:3px 7px;border-radius:999px;background:#eee8f6;color:#563b72;font-size:9px;font-weight:700}
+.tiktok-videos-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.tiktok-videos-heading h4{margin:0}
+.tiktok-videos-heading .btn{margin:0;padding:8px 10px;font-size:10px}
+.tiktok-video-card{flex-wrap:wrap;min-width:0}
+.tiktok-video-info{flex:1;min-width:0}
+.tiktok-video-info strong{overflow-wrap:anywhere}
+.tiktok-video-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-top:7px}
+.tiktok-video-actions a,.tiktok-preview-toggle{color:#5d3b78;font-size:10px;font-weight:700;text-decoration:none}
+.tiktok-preview-toggle{padding:0;border:0;background:transparent;font-family:inherit;cursor:pointer}
+.tiktok-video-embed{flex:0 0 100%;width:min(100%,380px);aspect-ratio:9/16;max-height:620px;margin:8px auto 0;overflow:hidden;border-radius:10px;background:#111}
+.tiktok-video-embed iframe{display:block;width:100%;height:100%;border:0}
+@media(max-width:560px){
+ .tiktok-videos-heading{align-items:stretch;flex-direction:column}
+ .tiktok-videos-heading .btn{width:100%}
+ .tiktok-video-card{gap:9px}
+ .tiktok-video-card img{width:72px}
+ .tiktok-video-embed{width:min(100%,340px);max-height:560px}
+}
