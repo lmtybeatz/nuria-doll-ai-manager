@@ -7,7 +7,7 @@ alter table public.ai_social_connections
 
 alter table public.ai_social_connections
   add constraint ai_social_connections_provider_check
-  check (provider in ('youtube','meta'));
+  check (provider in ('youtube','meta','tiktok','tiktok_social_mcp'));
 
 alter table public.ai_social_connections
   add column if not exists account_metadata jsonb not null default '{}'::jsonb;

@@ -19,7 +19,7 @@ export async function onRequestGet({request,env}){
   catch(e){console.error("AI_MUSIC_MANAGER_TIKTOK_PROFILE",String(e?.message||"profile_error").slice(0,180));}
   const account=profile.user||{},openId=token.open_id||account.open_id;
   if(!openId)throw new Error("TikTok n’a pas retourné l’identifiant du compte.");
-  const encrypted=await encrypt({access_token:token.access_token,refresh_token:token.refresh_token,open_id:openId,expires_at:Date.now()+Number(token.expires_in||86400)*1000,refresh_expires_at:Date.now()+Number(token.refresh_expires_in||31536000)*1000,scope:token.scope||""},env.META_TOKEN_ENCRYPTION_KEY);
+  const encrypted=await encrypt({access_token:token.access_token,refresh_token:token.refresh_token,open_id:openId,expires_at:Date.now()+Number(token.expires_in||7200)*1000,refresh_expires_at:Date.now()+Number(token.refresh_expires_in||15552000)*1000,scope:token.scope||""},env.META_TOKEN_ENCRYPTION_KEY);
   const base=env.SUPABASE_URL.replace(/\/$/,""),h={apikey:env.SUPABASE_SERVICE_ROLE_KEY,authorization:"Bearer "+env.SUPABASE_SERVICE_ROLE_KEY};
   const a=await fetch(base+"/rest/v1/ai_artists?id=eq."+encodeURIComponent(p.artistId)+"&owner_id=eq."+encodeURIComponent(p.uid)+"&status=eq.active&select=id",{headers:h});
   if(!a.ok||!(await a.json()).length)throw new Error("Espace artiste non autorisé.");
