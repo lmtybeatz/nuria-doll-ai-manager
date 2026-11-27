@@ -37,6 +37,8 @@
   const oauthArtistId=oauthParams.get('artist_id');
   const tiktokOAuthResult=oauthParams.get('tiktok');
   const tiktokOAuthReason=oauthParams.get('reason');
+  const tiktokMcpOAuthResult=oauthParams.get('tiktok_mcp');
+  const tiktokMcpOAuthReason=oauthParams.get('reason');
   const recommendationBusy=new Set();
   let campaigns = [], editingCampaignId = null;
   const toast = (msg, bad=false) => { const el=$('#toast'); el.textContent=msg; el.className='toast show'+(bad?' error':''); setTimeout(()=>el.className='toast',3600); };
@@ -111,12 +113,14 @@
     const validViews=['overview','brand','strategy','library','agent','connections','artists'];
     // Restaurer la rubrique pendant que l'application est encore masquée.
     // L'utilisateur ne voit donc jamais brièvement la vue d'ensemble par défaut.
-    nav(tiktokOAuthResult?'connections':(validViews.includes(savedView)?savedView:'overview'));
+    nav((tiktokOAuthResult||tiktokMcpOAuthResult)?'connections':(validViews.includes(savedView)?savedView:'overview'));
     show(shell);
     await reloadArtistWorkspace();
     if(tiktokOAuthResult==='connected')toast('Compte TikTok connecté à '+activeArtistName()+'.');
     else if(tiktokOAuthResult==='error')toast('Connexion TikTok non aboutie. Motif : '+(tiktokOAuthReason||'erreur inconnue')+'.',true);
-    if(tiktokOAuthResult){history.replaceState({},'',location.pathname+location.hash);}
+    if(tiktokMcpOAuthResult==='connected')toast('Gestion des commentaires TikTok connectée pour '+activeArtistName()+'.');
+    else if(tiktokMcpOAuthResult==='error')toast('Connexion TikTok Social non aboutie. Motif : '+(tiktokMcpOAuthReason||'erreur inconnue')+'.',true);
+    if(tiktokOAuthResult||tiktokMcpOAuthResult){history.replaceState({},'',location.pathname+location.hash);}
   }
   async function loadArtists(){
     const {data,error}=await supabase.from('ai_artists').select('id,artist_name,is_default,status,created_at').eq('status','active').order('is_default',{ascending:false}).order('artist_name');
