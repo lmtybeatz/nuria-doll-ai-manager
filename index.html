@@ -180,13 +180,13 @@
       <section id="view-community" class="view">
         <div class="intro-row community-intro">
           <div><p class="eyebrow">GESTION DE COMMUNAUTÉ</p><h2>Boîte de réception</h2><p class="muted">Centralise les commentaires des artistes et prépare les réponses avec l’IA, sans publication automatique.</p></div>
-          <div class="community-toolbar-actions"><button type="button" class="btn secondary" id="communityRefresh">Actualiser</button><button type="button" class="btn primary" id="communitySyncTikTok">Synchroniser TikTok</button></div>
+          <div class="community-toolbar-actions"><button type="button" class="btn secondary" id="communityRefresh">Actualiser</button><button type="button" class="btn primary" id="communitySyncTikTok">Synchroniser TikTok</button><button type="button" class="btn secondary" id="communitySyncMeta">Synchroniser Meta</button><button type="button" class="btn secondary" id="communitySyncYouTube">Synchroniser YouTube</button></div>
         </div>
         <div class="community-platform-strip">
           <div class="community-platform active"><strong>TikTok</strong><span>Collecte disponible</span></div>
-          <div class="community-platform"><strong>Instagram</strong><span>Étape suivante</span></div>
-          <div class="community-platform"><strong>Facebook</strong><span>Étape suivante</span></div>
-          <div class="community-platform"><strong>YouTube</strong><span>Autorisation à compléter</span></div>
+          <div class="community-platform"><strong>Instagram</strong><span>Via connexion Meta</span></div>
+          <div class="community-platform"><strong>Facebook</strong><span>Via connexion Meta</span></div>
+          <div class="community-platform"><strong>YouTube</strong><span>Via connexion Google</span></div>
         </div>
         <div class="community-summary-grid">
           <div class="community-summary-card"><small>Commentaires synchronisés</small><strong id="communityTotal">0</strong></div>
@@ -197,7 +197,7 @@
         <section class="panel community-inbox-panel">
           <div class="panel-head community-inbox-head"><div><p class="eyebrow">ARTISTE ACTIF</p><h3>Commentaires reçus</h3><p class="muted">Les données affichées restent séparées pour chaque artiste.</p></div><span class="tag" id="communityArtistLabel">Chargement…</span></div>
           <div class="community-filters">
-            <label>Réseau<select id="communityPlatformFilter"><option value="all">Tous les réseaux</option><option value="tiktok">TikTok</option><option value="instagram" disabled>Instagram · bientôt</option><option value="facebook" disabled>Facebook · bientôt</option><option value="youtube" disabled>YouTube · bientôt</option></select></label>
+            <label>Réseau<select id="communityPlatformFilter"><option value="all">Tous les réseaux</option><option value="tiktok">TikTok</option><option value="instagram">Instagram</option><option value="facebook">Facebook</option><option value="youtube">YouTube</option></select></label>
             <label>État<select id="communityStatusFilter"><option value="all">Tous les états</option><option value="new">À traiter</option><option value="read">Lus</option><option value="drafted">Brouillon IA</option><option value="ignored">Ignorés</option></select></label>
             <label class="community-search-label">Rechercher<input id="communitySearch" type="search" placeholder="Nom ou contenu du commentaire…"></label>
           </div>
