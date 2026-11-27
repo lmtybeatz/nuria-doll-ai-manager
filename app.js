@@ -1695,14 +1695,21 @@
   }
   function getTikTokFirstRowCount(list,cards){
     if(!list||!cards.length)return 0;
-    const template=window.getComputedStyle(list).gridTemplateColumns||'';
-    const columns=template.trim()&&template.trim()!=='none'?template.trim().split(/\\s+/).length:1;
-    return Math.min(cards.length,Math.max(1,columns));
+    // Mesurer la vraie disposition CSS, pas interpréter grid-template-columns.
+    // Les cartes masquées sont temporairement réaffichées pour que la grille
+    // puisse calculer correctement toutes ses rangées avant la mesure.
+    if(list.getBoundingClientRect().width<=0)return null;
+    cards.forEach(card=>{card.hidden=false;});
+    const firstTop=cards[0].getBoundingClientRect().top;
+    return Math.max(1,cards.filter(card=>Math.abs(card.getBoundingClientRect().top-firstTop)<1).length);
   }
   function updateTikTokVideoVisibility(){
     const list=$('#tiktokVideoList');
     const cards=list?[...list.querySelectorAll('.tiktok-video-card')]:[];
     const firstRowCount=getTikTokFirstRowCount(list,cards);
+    // La rubrique peut être cachée pendant le chargement initial.
+    // Le ResizeObserver recalculera dès qu'elle retrouvera sa largeur.
+    if(firstRowCount===null)return;
     const hiddenCount=Math.max(0,cards.length-firstRowCount);
     cards.forEach((card,index)=>{card.hidden=!tiktokVideoListExpanded&&index>=firstRowCount;});
     const toggle=$('#tiktokShowMoreVideos');
@@ -1726,6 +1733,11 @@
       updateTikTokVideoVisibility();
     });
   },{passive:true});
+  const tiktokVideoListElement=$('#tiktokVideoList');
+  if(tiktokVideoListElement&&'ResizeObserver' in window){
+    const tiktokVideoListObserver=new ResizeObserver(()=>updateTikTokVideoVisibility());
+    tiktokVideoListObserver.observe(tiktokVideoListElement);
+  }
   async function loadTikTokStatus(){
     const artistId=activeArtistId,box=$('#tiktokStatus'),button=$('#connectTikTok');if(!artistId||!box)return;
     box.textContent='Vérification de la connexion TikTok…';
