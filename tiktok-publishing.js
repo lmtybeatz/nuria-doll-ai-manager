@@ -74,16 +74,18 @@
     $("#ttCreatorRefresh")?.addEventListener("click",()=>refreshPublishingSettings().catch(()=>{}));
     $("#ttVideoForm")?.addEventListener("submit",publishVideo);
     $("#ttPhotoForm")?.addEventListener("submit",publishPhotos);
-    $("#ttVideoMode")?.addEventListener("change",()=>{const draft=$("#ttVideoMode").value==="draft";$("#ttPublishVideo").textContent=draft?"Envoyer le brouillon":"Publier la vidéo";});
-    $("#ttPhotoMode")?.addEventListener("change",()=>{const draft=$("#ttPhotoMode").value==="draft";$("#ttPublishPhoto").textContent=draft?"Envoyer les photos en brouillon":"Publier les photos";});
+    $("#ttVideoMode")?.addEventListener("change",()=>{const draft=$("#ttVideoMode").value==="draft";$("#ttPublishVideo").textContent=draft?"Envoyer le brouillon":"Publier la vidéo";updatePublishButtons();});
+    $("#ttPhotoMode")?.addEventListener("change",()=>{const draft=$("#ttPhotoMode").value==="draft";$("#ttPublishPhoto").textContent=draft?"Envoyer les photos en brouillon":"Publier les photos";updatePublishButtons();});
     ["Video","Photo"].forEach(kind=>{
       $("#tt"+kind+"CommercialToggle")?.addEventListener("change",()=>syncDisclosure(kind));
       $("#tt"+kind+"Branded")?.addEventListener("change",()=>syncDisclosure(kind));
       $("#tt"+kind+"Privacy")?.addEventListener("change",()=>syncDisclosure(kind));
+      $("#tt"+kind+"Consent")?.addEventListener("change",updatePublishButtons);
+      $("#tt"+kind+"YourBrand")?.addEventListener("change",()=>syncDisclosure(kind));
     });
     $("#ttVideoFile")?.addEventListener("change",previewVideo);
     $("#ttPhotoUrls")?.addEventListener("input",previewPhotos);
-    syncDisclosure("Video");syncDisclosure("Photo");
+    syncDisclosure("Video");syncDisclosure("Photo");updatePublishButtons();
     $("#artistSwitcher")?.addEventListener("change",()=>{creatorInfo=null;creatorInfoArtistId=null;publishCapabilities=null;publishCapabilitiesArtistId=null;$("#ttPublishVideo").disabled=true;$("#ttPublishPhoto").disabled=true;fillPrivacy(null);$("#ttCreatorAccount").textContent="Compte TikTok cible : actualise les paramètres de l’artiste actif.";$("#ttPublishCapability").textContent="Les paramètres de l’artiste actif doivent être rechargés avant une publication directe.";});
   }
 
@@ -96,7 +98,7 @@
     const ctx=ctxOverride||await context();
     const response=await fetch("/api/tiktok/publish",{method:"POST",headers:{"content-type":"application/json",authorization:"Bearer "+ctx.accessToken},body:JSON.stringify({artist_id:ctx.artistId,action,...extra})});
     const data=await response.json().catch(()=>({}));
-    if(!response.ok)throw new Error(data.error||"Opération TikTok impossible.");
+    if(!response.ok){const error=new Error(data.error||"Opération TikTok impossible.");error.details=data.details||null;throw error;}
     return data;
   }
   function fillPrivacy(options){
@@ -128,6 +130,17 @@
     if(!direct&&upload)select.value="draft";else if(direct)select.value="direct";
     if(selectId==="ttVideoMode")$("#ttPublishVideo").textContent=select.value==="draft"?"Envoyer le brouillon":"Publier la vidéo";
     if(selectId==="ttPhotoMode")$("#ttPublishPhoto").textContent=select.value==="draft"?"Envoyer les photos en brouillon":"Publier les photos";
+    updatePublishButtons();
+  }
+  function updatePublishButtons(){
+    const videoDirect=$("#ttVideoMode")?.value==="direct",photoDirect=$("#ttPhotoMode")?.value==="direct";
+    const videoAllowed=videoDirect?!!publishCapabilities?.direct_posting:!!publishCapabilities?.draft_upload;
+    const photoAllowed=photoDirect?!!publishCapabilities?.direct_posting:!!publishCapabilities?.draft_upload;
+    const videoDisclosure=$("#ttVideoCommercialToggle")?.checked&&!$("#ttVideoYourBrand")?.checked&&!$("#ttVideoBranded")?.checked;
+    const photoDisclosure=$("#ttPhotoCommercialToggle")?.checked&&!$("#ttPhotoYourBrand")?.checked&&!$("#ttPhotoBranded")?.checked;
+    const videoNeedsPrivacy=videoDirect&&!$("#ttVideoPrivacy")?.value,photoNeedsPrivacy=photoDirect&&!$("#ttPhotoPrivacy")?.value;
+    $("#ttPublishVideo").disabled=!videoAllowed||!$("#ttVideoConsent")?.checked||!!videoDisclosure||videoNeedsPrivacy;
+    $("#ttPublishPhoto").disabled=!photoAllowed||!$("#ttPhotoConsent")?.checked||!!photoDisclosure||photoNeedsPrivacy;
   }
   async function loadCapabilities(ctxOverride=null){
     const ctx=ctxOverride||await context(),result=await api("capabilities",{},ctx),current=await context();
@@ -142,6 +155,7 @@
     else if(result.direct_posting)$("#ttPublishCapability").textContent="Publication directe autorisée par les permissions actuelles. Actualisation des paramètres du créateur…";
     else $("#ttPublishCapability").textContent="Aucune permission video.publish ou video.upload n’est encore accordée. Ajoute les permissions TikTok puis reconnecte le compte.";
     if(!result.direct_posting){creatorInfo=null;creatorInfoArtistId=null;fillPrivacy(null);}
+    updatePublishButtons();
     return result;
   }
   async function refreshPublishingSettings(){
@@ -163,8 +177,12 @@
       return creatorInfo;
     }catch(error){
       creatorInfo=null;creatorInfoArtistId=null;fillPrivacy(null);
-      if(status)status.textContent="Paramètres de publication directe indisponibles : "+error.message+". Le mode brouillon peut rester disponible si video.upload est autorisé.";
-      throw error;
+      const code=String(error.details?.code||error.message||"");
+      const blocked=/spam_risk_too_many_posts|creator_cannot_post|post_limit|cannot_post/i.test(code);
+      const message=blocked?"TikTok indique que ce compte ne peut plus publier pour le moment. Réessaie plus tard.":error.message;
+      if(status)status.textContent="Paramètres de publication directe indisponibles : "+message+". Le mode brouillon peut rester disponible si video.upload est autorisé.";
+      updatePublishButtons();
+      throw new Error(message);
     }
   }
   function syncDisclosure(kind){
@@ -177,7 +195,8 @@
       const selfOption=Array.from(privacy.options).find(o=>o.value==="SELF_ONLY");
       if(privacy.value==="SELF_ONLY"&&branded.checked)branded.checked=false;
       branded.disabled=!enabled||privacy.value==="SELF_ONLY";
-      if(selfOption)selfOption.disabled=enabled&&branded.checked;
+      if(selfOption){selfOption.disabled=enabled&&branded.checked;selfOption.title=selfOption.disabled?"Branded content visibility cannot be set to private.":"";}
+      const brandedLabel=branded.closest("label");if(brandedLabel)brandedLabel.title=privacy.value==="SELF_ONLY"?"Branded content visibility cannot be set to private.":"";
     }
     const brandedSelected=enabled&&!!branded?.checked;
     const notice=$("#"+prefix+"DisclosureNotice");
@@ -189,6 +208,7 @@
     }
     if(yourBrand?.closest("label"))yourBrand.closest("label").classList.toggle("is-disabled",!enabled);
     if(branded?.closest("label"))branded.closest("label").classList.toggle("is-disabled",!enabled||branded.disabled);
+    updatePublishButtons();
   }
   function validateConsent(kind,direct){
     const prefix="tt"+kind,consent=$("#"+prefix+"Consent"),commercial=$("#"+prefix+"CommercialToggle")?.checked,yourBrand=$("#"+prefix+"YourBrand")?.checked,branded=$("#"+prefix+"Branded")?.checked,privacy=$("#tt"+kind+"Privacy")?.value;
