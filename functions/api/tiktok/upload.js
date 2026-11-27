@@ -3,6 +3,7 @@ const reply=(data,status=200)=>new Response(JSON.stringify(data),{status,headers
 export async function onRequestPost({request,env}){
  try{
   const url=new URL(request.url),ctx=await getTikTokContext(request,env,url.searchParams.get("artist_id"));
+  if(env.TIKTOK_CONTENT_POSTING_ENABLED!=="true"||!ctx.scopes.includes("video.upload"))return reply({error:"Permission TikTok manquante : video.upload."},403);
   const uploadUrl=request.headers.get("x-tiktok-upload-url")||"",range=request.headers.get("content-range")||"",type=request.headers.get("content-type")||"video/mp4";
   let parsed;try{parsed=new URL(uploadUrl);}catch{}
   if(!parsed||parsed.protocol!=="https:"||parsed.hostname!=="open-upload.tiktokapis.com"||!parsed.pathname.startsWith("/"))return reply({error:"URL de téléversement TikTok invalide."},400);
