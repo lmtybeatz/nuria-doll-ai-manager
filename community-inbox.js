@@ -221,7 +221,7 @@
       const writable=tools.filter(tool=>tool?.annotations?.readOnlyHint!==true);
       return writable.find(tool=>tool.name==="account_user_comment_create")
         ||writable.find(tool=>/comment.*(create|reply_create|reply_post|reply_add)|(?:create|post|publish).*comment/i.test(tool.name||"")&&!/(list|get|query|search)/i.test(tool.name||""))||null;
-    })();
+    })().catch(error=>{replyToolPromise=null;replyToolArtistId=null;throw error;});
     return replyToolPromise;
   }
   function replyArguments(tool,item,replyText){
@@ -296,6 +296,7 @@
       if(draft.length>150){draft=draft.slice(0,150);const lastSpace=draft.lastIndexOf(" ");if(lastSpace>100)draft=draft.slice(0,lastSpace);draft=draft.replace(/[\\s,;:–—-]+$/g,"").trim();}
       if(!draft||draft.length>150)throw new Error("Impossible de produire une réponse TikTok de 150 caractères maximum. Réessaie.");
       await api("/api/community/inbox",ctx,"PATCH",{artist_id:ctx.artistId,id:item.id,ai_draft:draft,workflow_status:"drafted"});
+      item.ai_draft=draft;item.workflow_status="drafted";
       if(!silent)await loadInbox();
       setStatus(regenerate?"Nouvelle proposition générée et enregistrée.":(child?"Brouillon préparé. Validation parentale obligatoire avant toute publication.":"Brouillon préparé et enregistré. Il n’a pas été publié."));
     }catch(error){setStatus(error.message,true);}
