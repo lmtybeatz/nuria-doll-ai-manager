@@ -73,7 +73,7 @@ export async function onRequestGet({request,env}){
   if(!r.ok)return json({error:"Lecture de la connexion Meta impossible."},502);
   const rows=await r.json();if(!rows.length)return json({error:"Aucune connexion Meta pour cet artiste."},404);
   stage="dechiffrement_jeton";const tokens=await decrypt(rows[0].token_ciphertext,env.META_TOKEN_ENCRYPTION_KEY);
-  const systemToken=tokens.system_user_access_token||tokens.user_access_token;
+  const systemToken=tokens.access_token||tokens.system_user_access_token||tokens.user_access_token;
   if(!systemToken)throw new Error("Jeton Meta absent. Reconnecte les comptes.");
   const version=env.META_GRAPH_API_VERSION;
   stage="verification_autorisations_reelles";
