@@ -1606,7 +1606,7 @@
       else{avatar.removeAttribute("src");avatar.alt="";avatar.classList.add("hidden");}
     }
     const link=$('#tiktokProfileLink'),profileUrl=safeTikTokUrl(account.profile_deep_link);
-    if(link){link.href=profileUrl||"https://www.tiktok.com/";link.setAttribute("aria-disabled",String(!profileUrl));}
+    if(link){link.href=profileUrl||"https://www.tiktok.com/";link.setAttribute("aria-disabled",String(!profileUrl));link.classList.toggle("hidden",!profileUrl);}
     const bio=$('#tiktokBio'),bioText=String(account.bio_description||"").trim();
     if(bio){bio.textContent=bioText.slice(0,500);bio.classList.toggle("hidden",!bioText);}
     const verified=$('#tiktokVerified');
