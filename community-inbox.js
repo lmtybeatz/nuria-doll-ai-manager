@@ -43,7 +43,7 @@
       list.append(empty);return;
     }
     filtered.forEach(item=>{
-      const card=document.createElement("article");card.className="community-comment";
+      const card=document.createElement("article");card.className="community-comment";card.dataset.commentId=String(item.id);
       const head=document.createElement("div");head.className="community-comment-head";
       const authorWrap=document.createElement("div");authorWrap.className="community-comment-author";
       const author=document.createElement("strong");author.textContent=item.author_name?(/^[\w.]+$/.test(item.author_name)?"@"+item.author_name:item.author_name):"Utilisateur TikTok";
@@ -200,6 +200,7 @@
         const unique=[...new Map(gathered.map(item=>[item.external_comment_id,item])).values()];
         const saved=await api("/api/community/inbox",ctx,"POST",{artist_id:ctx.artistId,messages:unique});
         await loadInbox();
+        await autoGenerateMissingDrafts();
         setStatus(saved.stored+" commentaire(s) TikTok synchronisé(s). Jusqu’à 20 commentaires ont été demandés par vidéo sur les 10 dernières vidéos."+(errors.length?" Certaines vidéos n’ont pas pu être lues ("+errors.length+").":""));
       }else{
         await loadInbox();
@@ -264,9 +265,9 @@
     }catch(error){setStatus(error.message||"Publication impossible.",true);}
     finally{busy=false;if(button.isConnected){button.disabled=false;button.textContent="Publier la réponse sur TikTok";}}
   }
-  async function prepareDraft(item,card,regenerate=false){
+  async function prepareDraft(item,card,regenerate=false,silent=false){
     if(busy)return;
-    if(regenerate&&!window.confirm("Générer une nouvelle proposition ? L’ancien brouillon sera remplacé uniquement si la nouvelle réponse est bien générée."))return;
+    if(regenerate&&!silent&&!window.confirm("Générer une nouvelle proposition ? L’ancien brouillon sera remplacé uniquement si la nouvelle réponse est bien générée."))return;
     busy=true;
     const trigger=[...card.querySelectorAll("button")].find(button=>button.textContent.includes(regenerate?"Régénérer":"Préparer"));
     const originalTriggerText=trigger?.textContent||"";
@@ -276,7 +277,7 @@
       const child=String(ctx.artistName||"").trim().toUpperCase()==="NURIA DOLL";
       const task=[
         "Prépare un brouillon de réponse publique au commentaire suivant pour l’artiste "+String(ctx.artistName||"artiste actif")+".",
-        "COMMENTAIRE : "+String(item.message_text||"").slice(0,1200),
+        "COMMENTAIRE : "+String(item.message_text||"").slice(0,5000),
         regenerate?"NOUVELLE TENTATIVE : la proposition précédente ne convient pas. Rédige une réponse réellement différente, avec une autre formulation et un angle naturel. Ne copie pas la proposition précédente : "+String(item.ai_draft||"").slice(0,180):"",
         "RÈGLE ABSOLUE DE LONGUEUR : la réponse finale doit contenir 150 caractères maximum, espaces, emojis et ponctuation compris. Vise 120 à 140 caractères pour garder une marge. Compte les caractères avant de répondre. Si nécessaire, reformule et raccourcis jusqu’à respecter strictement la limite. Ne dépasse jamais 150 caractères, même d’un seul caractère.",
         "RÈGLES DE CONTENU : réponds dans la langue du commentaire si elle est identifiable, sinon en français. Sois bref, naturel, poli et adapté à la communauté de cet artiste. Pour les questions commerciales, titres, liens, dates ou disponibilités, utilise uniquement les faits confirmés du contexte de l’artiste. N’invente aucun prix, URL, date ni disponibilité. Ne demande jamais de coordonnées, de photos, d’adresse, de lieu de rencontre ou de conversation privée. Ne divulgue aucune information personnelle.",
@@ -295,6 +296,34 @@
     }catch(error){setStatus(error.message,true);}
     finally{busy=false;if(trigger?.isConnected){trigger.disabled=false;trigger.textContent=originalTriggerText;}}
   }
+  let autoQueueRunning=false;
+  async function autoGenerateMissingDrafts(){
+    if(autoQueueRunning||busy)return;
+    const pending=messages.filter(item=>!item.ai_draft&&!item.published_reply&&!["replied","ignored"].includes(item.workflow_status));
+    if(!pending.length)return;
+    autoQueueRunning=true;
+    const filter=$("#communityStatusFilter"),previousFilter=filter?.value||"all";
+    if(filter)filter.value="all";
+    render();
+    let completed=0,failed=0;
+    try{
+      setStatus("Préparation automatique des réponses IA · 0/"+pending.length+"…");
+      for(const item of pending){
+        if(loadedArtistId!==item.artist_id&&item.artist_id)break;
+        const card=[...($("#communityList")?.querySelectorAll(".community-comment")||[])].find(node=>node.dataset.commentId===String(item.id));
+        if(!card){failed++;continue;}
+        await prepareDraft(item,card,false,true);
+        const current=messages.find(message=>message.id===item.id);
+        if(current?.ai_draft)completed++;else failed++;
+        setStatus("Génération automatique · "+completed+"/"+pending.length+" réponse(s) prête(s)"+(failed?" · "+failed+" à réessayer":"")+".");
+      }
+    }finally{
+      if(filter)filter.value=previousFilter;
+      render();
+      autoQueueRunning=false;
+      setStatus(completed+" réponse(s) IA préparée(s) automatiquement"+(failed?" · "+failed+" commentaire(s) à réessayer":"")+". Aucune réponse n’a été publiée.");
+    }
+  }
   function mount(){
     window.addEventListener("aimm:app-notice",event=>showAppNotice(event.detail));
     if(window.AIMM_LAST_TOAST&&Date.now()-window.AIMM_LAST_TOAST.at<600000)showAppNotice(window.AIMM_LAST_TOAST);
@@ -304,8 +333,8 @@
     $("#communityPlatformFilter")?.addEventListener("change",render);
     $("#communityStatusFilter")?.addEventListener("change",render);
     $("#communitySearch")?.addEventListener("input",render);
-    window.addEventListener("aimm:view-changed",event=>{if(event.detail?.view==="community")void loadInbox();});
-    window.addEventListener("aimm:artist-changed",()=>{if($("#view-community")?.classList.contains("active-view"))void loadInbox();});
+    window.addEventListener("aimm:view-changed",event=>{if(event.detail?.view==="community")void loadInbox().then(autoGenerateMissingDrafts);});
+    window.addEventListener("aimm:artist-changed",()=>{if($("#view-community")?.classList.contains("active-view"))void loadInbox().then(autoGenerateMissingDrafts);});
     if($("#view-community")?.classList.contains("active-view"))void loadInbox();
   }
   document.addEventListener("DOMContentLoaded",mount);
