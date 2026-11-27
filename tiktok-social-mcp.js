@@ -9,17 +9,29 @@
       <div class="tt-mcp-head"><div><h4>Communauté & interactions TikTok</h4><p>Lire les commentaires, préparer des réponses et gérer les interactions avec les autorisations TikTok.</p></div><span id="ttMcpBadge" class="tag amber">Non connecté</span></div>
       <p id="ttMcpStatus" class="youtube-channel-sync" role="status">Vérification de la connexion à TikTok Social…</p>
       <div class="tt-mcp-actions"><button id="ttMcpConnect" type="button" class="btn primary">Connecter la gestion des commentaires</button><button id="ttMcpLoadTools" type="button" class="btn secondary hidden">Charger les outils disponibles</button></div>
-      <div id="ttMcpWorkbench" class="tt-mcp-workbench hidden">
-        <label>Action TikTok<select id="ttMcpTool"><option value="">Choisir une action…</option></select></label>
-        <p id="ttMcpToolDescription" class="muted"></p>
-        <div id="ttMcpFields" class="tt-mcp-fields"></div>
-        <button id="ttMcpRun" type="button" class="btn primary">Exécuter l’action</button>
-        <div id="ttMcpOutput" class="tt-mcp-output" aria-live="polite"></div>
+      <div id="ttMcpQuickComments" class="tt-mcp-quick hidden">
+        <div class="tt-mcp-quick-heading"><div><h5>Commentaires des vidéos</h5><p>Choisis une vidéo déjà chargée dans le tableau TikTok. Les commentaires s’afficheront directement ici.</p></div></div>
+        <label class="tt-mcp-video-picker">Vidéo<select id="ttMcpVideo"><option value="">Chargement des vidéos…</option></select></label>
+        <div class="tt-mcp-actions"><button id="ttMcpLoadComments" type="button" class="btn primary">Afficher les commentaires</button></div>
+        <p id="ttMcpCommentsStatus" class="muted" role="status"></p>
+        <div id="ttMcpComments" class="tt-mcp-comments" aria-live="polite"></div>
       </div>
+      <details id="ttMcpAdvanced" class="tt-mcp-advanced">
+        <summary>Outils TikTok avancés</summary>
+        <div class="tt-mcp-actions"><button id="ttMcpLoadTools" type="button" class="btn secondary hidden">Actualiser les outils disponibles</button></div>
+        <div id="ttMcpWorkbench" class="tt-mcp-workbench hidden">
+          <label>Action TikTok<select id="ttMcpTool"><option value="">Choisir une action…</option></select></label>
+          <p id="ttMcpToolDescription" class="muted"></p>
+          <div id="ttMcpFields" class="tt-mcp-fields"></div>
+          <button id="ttMcpRun" type="button" class="btn primary">Exécuter l’action</button>
+          <div id="ttMcpOutput" class="tt-mcp-output" aria-live="polite"></div>
+        </div>
+      </details>
       <p class="tt-mcp-footnote">Les outils disponibles dépendent des autorisations accordées par TikTok et de la région du compte. Les actions de modération et de réponse sont exécutées uniquement après ton clic de confirmation.</p>`;
     root.append(section);
     $("#ttMcpConnect").addEventListener("click",connect);
     $("#ttMcpLoadTools").addEventListener("click",loadTools);
+    $("#ttMcpLoadComments").addEventListener("click",loadComments);
     $("#ttMcpTool").addEventListener("change",renderToolForm);
     $("#ttMcpRun").addEventListener("click",runTool);
     document.querySelectorAll('[data-social-platform="tiktok"]').forEach(button=>button.addEventListener("click",()=>setTimeout(refreshStatus,220)));
@@ -46,8 +58,10 @@
       const data=await request("tools/list");tools=(data.tools||[]).filter(t=>/comment|video|insight|discovery|hashtag|profile|benchmark/i.test(t.name+" "+(t.annotations?.title||"")+" "+(t.description||"")));
       const select=$("#ttMcpTool");select.replaceChildren(new Option("Choisir une action…",""));
       tools.forEach(tool=>select.add(new Option((tool.annotations?.title||tool.name)+" · "+tool.name,tool.name)));
-      const preferred=tools.find(t=>/comment.*list|list.*comment/i.test(t.name+" "+(t.annotations?.title||"")));if(preferred)select.value=preferred.name;
+      const preferred=tools.find(t=>t.name==="account_user_comment_list_get")||tools.find(t=>/comment.*list|list.*comment/i.test(t.name+" "+(t.annotations?.title||"")));if(preferred)select.value=preferred.name;
+      $("#ttMcpQuickComments").classList.remove("hidden");
       $("#ttMcpWorkbench").classList.remove("hidden");renderToolForm();
+      await renderVideoOptions();
       status(tools.length+" outils TikTok disponibles. Les actions de commentaires et d’analyse sont chargées dynamiquement.");
     }catch(e){status("Impossible de charger les outils TikTok : "+e.message,true);}
     finally{if(button){button.disabled=false;button.textContent="Actualiser les outils disponibles";}}
