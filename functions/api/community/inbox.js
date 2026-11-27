@@ -98,8 +98,8 @@ async function handlePatch({request,env}){
       patch.workflow_status=body.workflow_status;
     }
     if(body.ai_draft!==undefined){
-      if(typeof body.ai_draft!=="string"||body.ai_draft.length>4000)return json({error:"Le brouillon dépasse la taille autorisée."},400);
-      patch.ai_draft=body.ai_draft;
+      if(typeof body.ai_draft!=="string"||body.ai_draft.trim().length>150)return json({error:"Un brouillon de réponse TikTok ne peut pas dépasser 150 caractères, espaces compris."},400);
+      patch.ai_draft=body.ai_draft.trim();
       if(!patch.workflow_status)patch.workflow_status="drafted";
     }
     if(body.published_reply!==undefined){
