@@ -12,8 +12,9 @@
     section.innerHTML=`
       <div class="tiktok-publisher-heading">
         <div><h4>Studio de publication TikTok</h4><p>Prépare tes contenus, vérifie leur aperçu et choisis les paramètres avant chaque envoi.</p><p class="tt-creator-account" id="ttCreatorAccount">Compte TikTok connecté : informations à actualiser.</p></div>
-        <button type="button" class="btn secondary" id="ttCreatorRefresh">Actualiser les paramètres TikTok</button>
+        <div class="tiktok-publisher-heading-actions"><button type="button" class="btn secondary" id="ttCreatorRefresh">Actualiser les paramètres TikTok</button><button type="button" class="btn secondary tt-studio-toggle" id="ttStudioToggle" aria-expanded="true" aria-controls="ttStudioContent"><span aria-hidden="true" class="tt-studio-toggle-icon">⌃</span><span id="ttStudioToggleLabel">Replier le studio</span></button></div>
       </div>
+      <div id="ttStudioContent" class="tt-studio-content">
       <p id="ttPublishCapability" class="youtube-channel-sync" role="status">Les informations du créateur doivent être chargées avant une publication directe.</p>
       <div class="tiktok-publisher-grid">
         <form id="ttVideoForm" class="tiktok-publish-form">
@@ -68,10 +69,11 @@
           <p id="ttPhotoResult" class="tiktok-publish-result" role="status"></p>
         </form>
       </div>
-      <div class="tiktok-publish-footnote">L’envoi ne démarre qu’après ton accord explicite. TikTok peut prendre quelques minutes pour traiter le contenu. Les brouillons doivent être finalisés dans l’application TikTok. Les publications publiques restent soumises à l’audit et aux autorisations TikTok.</div>`;
+      <div class="tiktok-publish-footnote">L’envoi ne démarre qu’après ton accord explicite. TikTok peut prendre quelques minutes pour traiter le contenu. Les brouillons doivent être finalisés dans l’application TikTok. Les publications publiques restent soumises à l’audit et aux autorisations TikTok.</div></div>`;
     const rec=$("#socialTiktokDetail .tiktok-recommendations");
     root.insertBefore(section,rec||null);
     $("#ttCreatorRefresh")?.addEventListener("click",()=>refreshPublishingSettings().catch(()=>{}));
+    $("#ttStudioToggle")?.addEventListener("click",()=>{const content=$("#ttStudioContent"),toggle=$("#ttStudioToggle"),label=$("#ttStudioToggleLabel");if(!content||!toggle)return;const expanded=toggle.getAttribute("aria-expanded")==="true";content.hidden=expanded;toggle.setAttribute("aria-expanded",String(!expanded));toggle.classList.toggle("is-collapsed",expanded);if(label)label.textContent=expanded?"Déplier le studio":"Replier le studio";});
     $("#ttVideoForm")?.addEventListener("submit",publishVideo);
     $("#ttPhotoForm")?.addEventListener("submit",publishPhotos);
     $("#ttVideoMode")?.addEventListener("change",()=>{const draft=$("#ttVideoMode").value==="draft";$("#ttPublishVideo").textContent=draft?"Envoyer le brouillon":"Publier la vidéo";});
