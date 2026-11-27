@@ -48,9 +48,13 @@ Chaque artiste doit autoriser individuellement les permissions. Les jetons sont 
 - Les vidéos locales sont transférées par blocs vers TikTok ; les brouillons sont finalisés dans l'application TikTok.
 - Les options de confidentialité, commentaires, Duos et Collages sont chargées depuis les informations récentes du créateur avant la publication.
 
-## 5. Commentaires
+## 5. Commentaires et gestion de communauté
 
-Le module ne simule pas l'accès aux commentaires. La Research API TikTok expose des commentaires publics, mais TikTok indique que les créateurs, annonceurs et utilisateurs commerciaux ne sont pas éligibles à cet accès de recherche. La gestion des commentaires nécessite donc une intégration distincte autorisée par TikTok, par exemple via les produits TikTok for Business si le compte et l'application remplissent leurs critères.
+La gestion des commentaires est intégrée séparément via **TikTok Social MCP**, sans dépendre de Display API ni de Research API. Après la connexion TikTok Developer principale et l'exécution de la migration Supabase `supabase/tiktok_social_mcp_migration.sql`, l'artiste peut autoriser la connexion Social MCP depuis son espace TikTok.
+
+AI Music Manager découvre les outils réellement exposés par TikTok pour le compte et la région : lecture des commentaires et réponses, réponse à un commentaire, ainsi que les actions de modération disponibles (like, masquage ou suppression selon les droits TikTok). Les actions qui modifient le compte nécessitent une confirmation explicite. Les outils de publication vidéo/photo ne sont pas disponibles via l'autorisation MCP standard : ils restent gérés par Content Posting API.
+
+La Research API est un produit distinct, soumis à des critères d'éligibilité de recherche ; elle n'est pas utilisée comme contournement pour les commentaires des artistes.
 
 ## 6. Endpoints ajoutés
 
