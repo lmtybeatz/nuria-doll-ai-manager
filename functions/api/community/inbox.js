@@ -27,7 +27,7 @@ function normalizedDate(value){
   const date=new Date(value);return Number.isNaN(date.getTime())?null:date.toISOString();
 }
 function safeUrl(value){
-  try{const url=new URL(String(value||"")),host=url.hostname.toLowerCase();return url.protocol==="https:"&&(host==="tiktok.com"||host.endsWith(".tiktok.com"))?url.href:null;}catch{return null;}
+  try{const url=new URL(String(value||"")),host=url.hostname.toLowerCase();return url.protocol==="https:"&&(["tiktok.com","instagram.com","facebook.com","youtube.com","youtu.be"].some(domain=>host===domain||host.endsWith("."+domain)))?url.href:null;}catch{return null;}
 }
 async function handleGet({request,env}){
   try{
@@ -59,7 +59,7 @@ async function handlePost({request,env}){
       const message=safeText(item?.message_text||item?.text,5000);
       if(!id||!mediaId||!message)continue;
       const provider=safeText(item?.provider||"tiktok",20);
-      if(provider!=="tiktok")return json({error:"La synchronisation disponible dans cette première étape concerne TikTok uniquement."},400);
+      if(!["tiktok","instagram","facebook","youtube"].includes(provider))return json({error:"Réseau social non pris en charge."},400);
       const count=value=>{const n=Number(value);return Number.isFinite(n)?Math.max(0,Math.min(2147483647,Math.floor(n))):0;};
       rows.push({
         owner_id:ctx.user.id,artist_id:ctx.artistId,provider,
