@@ -13,7 +13,8 @@ export async function onRequestGet({request,env}){
   const ctx=await getTikTokContext(request,env,artistId),warnings=[];
   let account={};
   try{
-   const response=await fetch("https://open.tiktokapis.com/v2/user/info/?fields="+encodeURIComponent(PROFILE_FIELDS),{headers:{authorization:"Bearer "+ctx.token.access_token}});
+   const profileFields=ctx.scopes.includes("user.info.profile")?PROFILE_FIELDS+",username,profile_deep_link":PROFILE_FIELDS;
+   const response=await fetch("https://open.tiktokapis.com/v2/user/info/?fields="+encodeURIComponent(profileFields),{headers:{authorization:"Bearer "+ctx.token.access_token}});
    const payload=await response.json().catch(()=>({}));
    if(!response.ok||payload.error?.code&&payload.error.code!=="ok")throw new Error(payload.error?.message||"Profil TikTok indisponible.");
    account=payload.data?.user||{};
