@@ -1558,7 +1558,11 @@
           .eq('source','automatic').contains('analytics_snapshot',{platform})
           .order('created_at',{ascending:false}).limit(1).maybeSingle();
         if(error)throw error;
-        if(existing){displaySocialRecommendation(platform,existing,artistId);if(status)status.textContent='Analyse automatique déjà disponible.';await loadSocialRecommendationHistory(platform);return;}
+        const currentSnapshot={reach:metrics.reach??null,interactions:metrics.interactions??null,views:metrics.views??null,warnings:Array.isArray(metrics.warnings)?metrics.warnings:[]};
+        const previousMetrics=existing?.analytics_snapshot?.metrics||{};
+        const previousSnapshot={reach:previousMetrics.reach??null,interactions:previousMetrics.interactions??null,views:previousMetrics.views??null,warnings:Array.isArray(previousMetrics.warnings)?previousMetrics.warnings:[]};
+        const sameSnapshot=!!existing&&JSON.stringify(currentSnapshot)===JSON.stringify(previousSnapshot);
+        if(sameSnapshot){displaySocialRecommendation(platform,existing,artistId);if(status)status.textContent='Analyse automatique déjà à jour avec les dernières statistiques.';await loadSocialRecommendationHistory(platform);return;}
       }
       const {data:sessionData,error:sessionError}=await supabase.auth.getSession();
       if(sessionError||!sessionData?.session?.access_token)throw new Error('Session expirée. Reconnecte-toi.');
