@@ -80,7 +80,7 @@ function makePrompt(task,profile,settings,plan,knowledge=[]){
   const safeSettings={
     primary_goal:goals[settings?.primary_goal]||"À définir selon la demande",
     planning_horizon:[7,14,30].includes(Number(settings?.planning_horizon))?Number(settings.planning_horizon)+" jours":"À définir",
-    monthly_budget_usd:Number.isFinite(Number(settings?.monthly_budget_usd))?Number(settings.monthly_budget_usd)+" USD maximum mensuel indicatif":"Non renseigné"
+    monthly_budget_usd:settings?.monthly_budget_usd!==null&&settings?.monthly_budget_usd!==undefined&&settings?.monthly_budget_usd!==""&&Number.isFinite(Number(settings.monthly_budget_usd))?Number(settings.monthly_budget_usd)+" USD maximum mensuel indicatif":"Non renseigné"
   };
   const common=[
     "Tu es l'agent expert privé d'AI MUSIC MANAGER. Tu accompagnes le gestionnaire dans la stratégie, la création, le marketing et le développement de carrières musicales.",
