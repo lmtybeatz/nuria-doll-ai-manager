@@ -356,7 +356,10 @@
       const ctx=await context();
       setStatus(provider==="meta"?"Récupération des commentaires Facebook et Instagram…":"Récupération des commentaires YouTube…");
       result=await api("/api/community/sync-"+provider,ctx,"POST",{artist_id:ctx.artistId});
-      setStatus((result.stored||0)+" commentaire(s) "+(provider==="meta"?"Facebook / Instagram":"YouTube")+" synchronisé(s).");
+      if(provider==="meta"){
+        const facebookCount=Number(result.facebook_comments||0),instagramCount=Number(result.instagram_comments||0),storedCount=Number(result.stored||0);
+        setStatus((result.partial?"Synchronisation Meta partielle":"Synchronisation Meta terminée")+" · Facebook : "+facebookCount+" · Instagram : "+instagramCount+" · "+storedCount+" commentaire(s) enregistré(s).");
+      }else setStatus((result.stored||0)+" commentaire(s) YouTube synchronisé(s).");
       if(result.warnings?.length)showAppNotice({message:result.warnings.slice(0,3).join(" · "),bad:true});
     }catch(e){error=e;setStatus(e.message||"Synchronisation impossible.",true);}
     finally{
