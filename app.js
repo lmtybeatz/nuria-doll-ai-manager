@@ -4,6 +4,7 @@
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => [...document.querySelectorAll(s)];
   let supabase = null, user = null, signupMode = false, profile = null, settings = null, media = [];
+  let appEntryPromise = null, appReadyUserId = null;
   let artists = [], activeArtistId = null, switchingArtist = false, workspaceLoadVersion = 0, artistKnowledge = [];
   const assistantDrafts = new Map();
   const assistantConversations = new Map();
@@ -100,15 +101,39 @@
       const {data:{session},error}=await supabase.auth.getSession();
       if(error)throw error;
       if(session){user=session.user;await enterApp();}else showPublicHome();
-      supabase.auth.onAuthStateChange(async(_event,session)=>{if(session&&!user){user=session.user;await enterApp();}else if(!session&&user){user=null;assistantConversations.clear();assistantApprovals.clear();assistantDrafts.clear();lastAssistantTasks.clear();hide($('#appShell'));showPublicHome();}});
+      supabase.auth.onAuthStateChange((_event,session)=>{
+        if(session){
+          const needsEntry=!user||user.id!==session.user.id||appReadyUserId!==session.user.id;
+          user=session.user;
+          // Ne jamais attendre des requêtes Supabase à l'intérieur de onAuthStateChange :
+          // le client peut encore détenir son verrou d'authentification.
+          if(needsEntry)window.setTimeout(()=>{void enterApp().catch(handleEntryError);},0);
+        }else if(user){
+          user=null;appReadyUserId=null;assistantConversations.clear();assistantApprovals.clear();assistantDrafts.clear();lastAssistantTasks.clear();
+          hide($('#appShell'));showPublicHome();
+        }
+      });
     }catch(error){
       show($('#authScreen'));
       $('#authSubtitle').textContent='Impossible d’initialiser la connexion : '+(error.message||'erreur inconnue');
       toast('Initialisation impossible : '+(error.message||'erreur inconnue'),true);
     }
   }
+  function handleEntryError(error){
+    console.error('AI_MUSIC_MANAGER_APP_ENTRY',error);
+    appReadyUserId=null;
+    hide($('#appShell'));
+    showPublicHome();
+    toast('Connexion établie, mais le tableau de bord n’a pas pu se charger : '+(error?.message||'erreur inconnue')+'. Recharge la page pour réessayer.',true);
+  }
   async function enterApp(){
+    if(!user?.id)return;
+    if(appReadyUserId===user.id&&!$('#appShell').classList.contains('hidden'))return;
+    if(appEntryPromise)return appEntryPromise;
+    const enteringUserId=user.id;
+    appEntryPromise=(async()=>{
     hide($('#authScreen'));
+    hide($('#publicHome'));
     const shell=$('#appShell');
     $('#userEmail').textContent=user.email||'Compte connecté';
     updateAccountMenuIdentity();
@@ -127,6 +152,9 @@
     if(tiktokMcpOAuthResult==='connected')toast('Gestion des commentaires TikTok connectée pour '+activeArtistName()+'.');
     else if(tiktokMcpOAuthResult==='error')toast('Connexion TikTok Social non aboutie. Motif : '+(tiktokMcpOAuthReason||'erreur inconnue')+'.',true);
     if(tiktokOAuthResult||tiktokMcpOAuthResult){history.replaceState({},'',location.pathname+location.hash);}
+    appReadyUserId=enteringUserId;
+    })();
+    try{await appEntryPromise;}finally{appEntryPromise=null;}
   }
   async function loadArtists(){
     const {data,error}=await supabase.from('ai_artists').select('id,artist_name,is_default,status,created_at').eq('status','active').order('is_default',{ascending:false}).order('artist_name');
@@ -827,8 +855,13 @@
         ?await supabase.auth.signUp({email,password})
         :await supabase.auth.signInWithPassword({email,password});
       if(error)throw error;
-      if(signupMode&&!data.session)toast('Compte créé. Vérifie ton e-mail pour confirmer ton adresse.');
-      else toast('Connexion réussie.');
+      if(signupMode&&!data.session){
+        toast('Compte créé. Vérifie ton e-mail pour confirmer ton adresse.');
+      }else if(data.session){
+        user=data.user||data.session.user;
+        await enterApp();
+        toast(signupMode?'Compte créé et espace ouvert.':'Connexion réussie.');
+      }
     }catch(error){
       toast(error.message||'La connexion a échoué. Réessaie.',true);
     }finally{
@@ -842,7 +875,7 @@
   $('#publicSignupBottom')?.addEventListener('click',()=>openAuthScreen(true));
   $('#authBackHome')?.addEventListener('click',showPublicHome);
   $('#authSwitch').onclick=()=>{signupMode=!signupMode;authMode();};
-  $('#signOut').onclick=async()=>{await supabase.auth.signOut();user=null;hide($('#appShell'));showPublicHome();};
+  $('#signOut').onclick=async()=>{await supabase.auth.signOut();user=null;appReadyUserId=null;hide($('#appShell'));showPublicHome();};
   const accountMenuButton=$('#accountMenuButton'),accountMenu=$('#accountMenu');
   accountMenuButton?.addEventListener('click',event=>{event.stopPropagation();const opening=accountMenu.classList.contains('hidden');accountMenu.classList.toggle('hidden',!opening);accountMenuButton.setAttribute('aria-expanded',String(opening));});
   document.addEventListener('click',event=>{if(accountMenu&&!accountMenu.classList.contains('hidden')&&!accountMenu.contains(event.target)&&!accountMenuButton?.contains(event.target)){hide(accountMenu);accountMenuButton?.setAttribute('aria-expanded','false');}});
