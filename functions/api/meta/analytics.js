@@ -44,14 +44,16 @@ function latestMetric(payload){
  if(typeof total==="number")return total;
  return null;
 }
-async function readMetric(version,id,token,metric,period){
+async function readMetric(version,id,token,metric,period,metricType){
  const url=new URL("https://graph.facebook.com/"+version+"/"+encodeURIComponent(id)+"/insights");
- url.searchParams.set("metric",metric);url.searchParams.set("period",period);url.searchParams.set("access_token",token);
+ url.searchParams.set("metric",metric);url.searchParams.set("period",period);
+ if(metricType)url.searchParams.set("metric_type",metricType);
+ url.searchParams.set("access_token",token);
  try{return {value:latestMetric(await graph(url)),error:null};}
  catch(e){return {value:null,error:String(e?.message||"Métrique indisponible.").slice(0,180)};}
 }
-async function readMetricSet(version,id,token,metrics,period){
- const entries=await Promise.all(metrics.map(async metric=>[metric,await readMetric(version,id,token,metric,period)]));
+async function readMetricSet(version,id,token,metrics,period,metricType){
+ const entries=await Promise.all(metrics.map(async metric=>[metric,await readMetric(version,id,token,metric,period,metricType)]));
  const values=Object.fromEntries(entries.map(([name,result])=>[name,result.value]));
  const errors=entries.filter(([,result])=>result.error).map(([name,result])=>name+": "+result.error);
  if(entries.every(([,result])=>result.value===null))return {values,errors,empty:true};
@@ -98,15 +100,15 @@ export async function onRequestGet({request,env}){
   if(hasPages){
    if(!page?.access_token)throw new Error("Jeton d’accès à la Page absent. Reconnecte Facebook pour renouveler l’accès à la Page.");
    stage="insights_facebook";
-   const data=await readMetricSet(version,page.id,page.access_token,["page_impressions","page_post_engagements","page_media_view"],"days_28");
-   result.facebook={page_name:page.name||"",reach:data.values.page_impressions,engagement:data.values.page_post_engagements,views:data.values.page_media_view};
+   const data=await readMetricSet(version,page.id,page.access_token,["page_total_media_view_unique","page_post_engagements","page_media_view"],"days_28");
+   result.facebook={page_name:page.name||"",reach:data.values.page_total_media_view_unique,engagement:data.values.page_post_engagements,views:data.values.page_media_view};
    if(data.errors.length)result.warnings.push("Facebook : "+data.errors.join(" · "));
    if(data.empty)result.warnings.push("Facebook : Meta ne renvoie aucune statistique pour cette Page. Les insights peuvent notamment être indisponibles si la Page compte moins de 100 mentions J’aime.");
   }
   if(hasInstagram){
    if(!instagram?.id)throw new Error("Compte Instagram professionnel absent dans la connexion Meta.");
    stage="insights_instagram";
-   const data=await readMetricSet(version,instagram.id,systemToken,["reach","total_interactions","views"],"days_28");
+   const data=await readMetricSet(version,instagram.id,systemToken,["reach","total_interactions","views"],"days_28","total_value");
    result.instagram={username:instagram.username||"",reach:data.values.reach,interactions:data.values.total_interactions,views:data.values.views};
    if(data.errors.length)result.warnings.push("Instagram : "+data.errors.join(" · "));
    if(data.empty)result.warnings.push("Instagram : Meta ne renvoie pas encore de statistiques pour ce compte sur la période sélectionnée.");
