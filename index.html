@@ -2,17 +2,83 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#171024"><meta name="description" content="Espace privé de gestion et de développement des projets musicaux.">
+  <meta name="theme-color" content="#171024"><meta name="description" content="AI Music Manager aide les artistes, managers et structures musicales à organiser leurs projets, préparer leurs campagnes et suivre leurs réseaux sociaux.">
   <title>AI MUSIC MANAGER</title><link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/assets/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/assets/icon.svg"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="tiktok-publishing.css"><link rel="stylesheet" href="tiktok-social-mcp.css"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" onerror="this.onerror=null;document.write('<script src=&quot;https://unpkg.com/@supabase/supabase-js@2&quot;><\\/script>')"></script>
+  <link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="/public-site.css"><link rel="stylesheet" href="tiktok-publishing.css"><link rel="stylesheet" href="tiktok-social-mcp.css"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" onerror="this.onerror=null;document.write('<script src=&quot;https://unpkg.com/@supabase/supabase-js@2&quot;><\\/script>')"></script>
   <script src="config.js"></script><script defer src="app.js"></script><script defer src="tiktok-publishing.js"></script><script defer src="tiktok-social-mcp.js"></script><script defer src="community-inbox.js"></script><script defer src="pwa.js"></script>
 </head>
 <body>
   <div id="setupNotice" class="setup-notice hidden"></div>
+
+  <main id="publicHome" class="public-home">
+    <header class="public-header">
+      <a class="public-brand" href="/" aria-label="AI Music Manager, accueil">
+        <span class="brand-mark">AI</span><span><strong>AI MUSIC</strong><small>MANAGER</small></span>
+      </a>
+      <nav class="public-nav" aria-label="Navigation principale">
+        <a href="/features/">Fonctionnalités</a><a href="/how-it-works/">Fonctionnement</a><a href="/about/">À propos</a><a href="/contact/">Contact</a>
+      </nav>
+      <div class="public-actions">
+        <button type="button" id="publicLoginButton" class="btn secondary">Connexion</button>
+        <button type="button" id="publicSignupButton" class="btn primary">Créer un compte</button>
+      </div>
+    </header>
+    <section class="public-hero">
+      <div class="public-hero-copy">
+        <span class="public-eyebrow">PLATEFORME DE GESTION MUSICALE</span>
+        <h1>Donnez à chaque projet musical un cap clair.</h1>
+        <p>AI Music Manager réunit l’organisation multi-artistes, la préparation marketing, la bibliothèque média et l’assistance IA dans un même espace de travail.</p>
+        <p class="public-audience">Conçu pour les artistes indépendants, les managers et les structures musicales qui accompagnent plusieurs projets.</p>
+        <div class="public-hero-actions">
+          <button type="button" id="publicSignupHero" class="btn primary">Créer mon espace <span>→</span></button>
+          <a class="public-text-link" href="/features/">Découvrir les fonctionnalités</a>
+        </div>
+        <div class="public-trust-line"><span>Comptes réservés aux adultes</span><span>·</span><span>Connexions autorisées</span><span>·</span><span>Validation humaine</span></div>
+      </div>
+      <div class="public-hero-visual" aria-label="Aperçu illustratif des outils AI Music Manager">
+        <div class="public-dashboard-card">
+          <div class="public-dashboard-top"><span class="public-dot"></span><span class="public-dot"></span><span class="public-dot"></span><small>CENTRE DE PILOTAGE</small></div>
+          <div class="public-dashboard-title"><span>ESPACE DE TRAVAIL</span><strong>Plusieurs projets, une vue claire.</strong></div>
+          <div class="public-preview-row"><span class="public-preview-icon">♬</span><div><strong>Profils artistes</strong><small>Identités et projets séparés</small></div><span class="public-preview-status">Organisés</span></div>
+          <div class="public-preview-row"><span class="public-preview-icon">◎</span><div><strong>Campagnes</strong><small>Plans, objectifs et suivi</small></div><span class="public-preview-status">Préparées</span></div>
+          <div class="public-preview-row"><span class="public-preview-icon">✧</span><div><strong>Assistant IA</strong><small>Recherche, rédaction et analyse</small></div><span class="public-preview-status">Assisté</span></div>
+          <div class="public-dashboard-note"><strong>Contrôle du gestionnaire</strong><span>Les actions externes nécessitent une validation explicite et restent soumises aux autorisations des plateformes.</span></div>
+        </div>
+        <span class="public-orbit public-orbit-one"></span><span class="public-orbit public-orbit-two"></span>
+      </div>
+    </section>
+    <section class="public-section public-intro" id="overview">
+      <div><span class="public-eyebrow">UN ENVIRONNEMENT DE TRAVAIL COHÉRENT</span><h2>Les outils essentiels autour de vos projets artistiques.</h2></div>
+      <p>Centralisez les informations utiles, structurez le travail quotidien et gardez la main sur les décisions créatives et les opérations liées aux réseaux sociaux.</p>
+    </section>
+    <section class="public-feature-grid" aria-label="Principales fonctionnalités">
+      <article class="public-feature-card"><span>♬</span><h3>Gestion multi-artistes</h3><p>Créez des espaces distincts pour chaque artiste et retrouvez son identité, ses informations et ses priorités.</p><a href="/features/#artist-workspaces">En savoir plus →</a></article>
+      <article class="public-feature-card"><span>◎</span><h3>Stratégie et campagnes</h3><p>Préparez les objectifs, le calendrier, les actions et les budgets indicatifs de vos sorties musicales.</p><a href="/features/#campaigns">En savoir plus →</a></article>
+      <article class="public-feature-card"><span>✧</span><h3>Assistant IA</h3><p>Travaillez vos idées, vos textes, vos recherches et vos recommandations avec une validation humaine.</p><a href="/features/#assistant">En savoir plus →</a></article>
+      <article class="public-feature-card"><span>▧</span><h3>Bibliothèque média</h3><p>Organisez les visuels, documents, vidéos et autres ressources liés à chaque projet.</p><a href="/features/#media">En savoir plus →</a></article>
+      <article class="public-feature-card"><span>◉</span><h3>Réseaux sociaux</h3><p>Connectez les comptes autorisés et consultez les données accessibles selon les permissions de chaque plateforme.</p><a href="/features/#social">En savoir plus →</a></article>
+      <article class="public-feature-card"><span>▷</span><h3>Préparation des publications</h3><p>Prévisualisez les contenus et leurs paramètres. Les fonctions de publication sont activables selon les autorisations et examens des plateformes.</p><a href="/features/#publishing">En savoir plus →</a></article>
+    </section>
+    <section class="public-how" id="workflow">
+      <div><span class="public-eyebrow">COMMENT ÇA MARCHE</span><h2>Un parcours simple, sous votre contrôle.</h2><p>Chaque compte est géré par un adulte autorisé. Les comptes sociaux restent la propriété de leurs titulaires.</p><a class="public-text-link" href="/how-it-works/">Voir le fonctionnement complet →</a></div>
+      <ol><li><span>01</span><div><strong>Créez votre espace</strong><p>Ouvrez un compte gestionnaire et renseignez vos projets.</p></div></li><li><span>02</span><div><strong>Organisez les artistes</strong><p>Ajoutez les profils, les médias et les informations utiles.</p></div></li><li><span>03</span><div><strong>Connectez vos comptes autorisés</strong><p>Accordez uniquement les permissions nécessaires depuis chaque plateforme.</p></div></li><li><span>04</span><div><strong>Vérifiez avant toute action</strong><p>Consultez les propositions et confirmez explicitement les actions externes.</p></div></li></ol>
+    </section>
+    <section class="public-responsibility">
+      <div><span class="public-eyebrow">SÉCURITÉ ET UTILISATION RESPONSABLE</span><h2>Vous gardez la maîtrise de vos comptes et de vos contenus.</h2></div>
+      <div class="public-responsibility-grid"><p>AI Music Manager ne demande pas les mots de passe des réseaux sociaux : les connexions passent par les parcours officiels d’autorisation. Vous devez connecter uniquement des comptes que vous possédez ou que vous êtes expressément autorisé à gérer.</p><p>Les comptes de gestion sont destinés aux adultes. Lorsqu’un projet concerne un enfant, le parent ou représentant légal conserve la responsabilité du compte, des contenus et de toute publication.</p></div>
+    </section>
+    <section class="public-contact-strip" id="contact"><div><span class="public-eyebrow">AI MUSIC MANAGER</span><h2>Structurez votre prochain projet musical.</h2><p>Découvrez l’espace de travail ou contactez l’équipe pour toute question.</p></div><div><button type="button" id="publicSignupBottom" class="btn primary">Créer un compte <span>→</span></button><a href="mailto:contact.nuriadoll@gmail.com">contact.nuriadoll@gmail.com</a></div></section>
+    <footer class="public-footer">
+      <div><a class="public-brand public-brand-footer" href="/"><span class="brand-mark">AI</span><span><strong>AI MUSIC</strong><small>MANAGER</small></span></a><p>Outils de gestion et d’accompagnement des projets musicaux.</p></div>
+      <nav aria-label="Liens du site"><a href="/features/">Fonctionnalités</a><a href="/how-it-works/">Fonctionnement</a><a href="/about/">À propos</a><a href="/contact/">Contact</a></nav>
+      <nav aria-label="Informations légales"><a href="/privacy-policy/">Confidentialité</a><a href="/terms/">Conditions de service</a><a href="/data-deletion/">Suppression des données</a></nav>
+    </footer>
+  </main>
+
   <main id="authScreen" class="auth-wrap hidden">
     <section class="auth-art"><div class="brand-mark">AI</div><p class="eyebrow">PLATEFORME PROFESSIONNELLE · ARTISTES / MANAGEMENT</p><h1>La créativité<br><span>en mouvement.</span></h1><p class="muted-light">Un espace de travail pour développer et gérer un ou plusieurs projets musicaux.</p><div class="orb orb-one"></div><div class="orb orb-two"></div></section>
-    <section class="auth-panel"><div class="auth-card"><div class="mobile-mark">AI <span>MUSIC MANAGER</span></div><p class="eyebrow">BIENVENUE</p><h2 id="authTitle">Connexion</h2><p class="subtext" id="authSubtitle">Connecte-toi à ton espace professionnel AI Music Manager.</p>
+    <section class="auth-panel"><button type="button" id="authBackHome" class="auth-back-home">← Retour au site</button><div class="auth-card"><div class="mobile-mark">AI <span>MUSIC MANAGER</span></div><p class="eyebrow">BIENVENUE</p><h2 id="authTitle">Connexion</h2><p class="subtext" id="authSubtitle">Connecte-toi à ton espace professionnel AI Music Manager.</p>
       <form id="authForm"><label>Adresse e-mail<input id="authEmail" type="email" autocomplete="email" required placeholder="gestion@exemple.com"></label><label>Mot de passe<input id="authPassword" type="password" autocomplete="current-password" minlength="8" required placeholder="8 caractères minimum"></label><button class="btn primary full" id="authSubmit">Se connecter <span>→</span></button></form>
       <p class="auth-switch"><span id="authSwitchText">Pas encore de compte ?</span> <button class="text-btn" id="authSwitch">Créer un compte</button></p><p class="fineprint">Chaque compte dispose de ses propres artistes, médias et connexions sociales.</p>
     </div></section>
@@ -254,7 +320,7 @@
         </section>
         <div id="artistManagementList" class="artist-management-list"><div class="empty-state">Chargement des artistes…</div></div>
       </section>
-      <footer class="app-footer">AI MUSIC MANAGER <span>·</span> Espace privé de gestion artistique <span>·</span> Multi-artistes <span>·</span> <a href="/privacy-policy/">Confidentialité</a> <span>·</span> <a href="/terms/">Conditions</a> <span>·</span> <a href="/data-deletion/">Suppression des données</a></footer>
+      <footer class="app-footer">AI MUSIC MANAGER <span>·</span> Gestion multi-artistes <span>·</span> Outils professionnels <span>·</span> <a href="/privacy-policy/">Confidentialité</a> <span>·</span> <a href="/terms/">Conditions</a> <span>·</span> <a href="/data-deletion/">Suppression des données</a></footer>
     </main>
   </div>
   <section id="artistDeleteDialog" class="artist-delete-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="artistDeleteTitle">
