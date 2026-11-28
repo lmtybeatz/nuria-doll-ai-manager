@@ -836,8 +836,13 @@
       button.innerHTML=signupMode?'Créer mon compte <span>→</span>':'Se connecter <span>→</span>';
     }
   });
+  $('#publicLoginButton')?.addEventListener('click',()=>openAuthScreen(false));
+  $('#publicSignupButton')?.addEventListener('click',()=>openAuthScreen(true));
+  $('#publicSignupHero')?.addEventListener('click',()=>openAuthScreen(true));
+  $('#publicSignupBottom')?.addEventListener('click',()=>openAuthScreen(true));
+  $('#authBackHome')?.addEventListener('click',showPublicHome);
   $('#authSwitch').onclick=()=>{signupMode=!signupMode;authMode();};
-  $('#signOut').onclick=async()=>{await supabase.auth.signOut();user=null;hide($('#appShell'));show($('#authScreen'));};
+  $('#signOut').onclick=async()=>{await supabase.auth.signOut();user=null;hide($('#appShell'));showPublicHome();};
   const accountMenuButton=$('#accountMenuButton'),accountMenu=$('#accountMenu');
   accountMenuButton?.addEventListener('click',event=>{event.stopPropagation();const opening=accountMenu.classList.contains('hidden');accountMenu.classList.toggle('hidden',!opening);accountMenuButton.setAttribute('aria-expanded',String(opening));});
   document.addEventListener('click',event=>{if(accountMenu&&!accountMenu.classList.contains('hidden')&&!accountMenu.contains(event.target)&&!accountMenuButton?.contains(event.target)){hide(accountMenu);accountMenuButton?.setAttribute('aria-expanded','false');}});
