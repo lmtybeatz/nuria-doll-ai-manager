@@ -46,6 +46,8 @@
   const toast = (msg, bad=false) => { const el=$('#toast'); el.textContent=msg; el.className='toast show'+(bad?' error':''); window.AIMM_LAST_TOAST={message:String(msg||''),bad:!!bad,at:Date.now()}; window.dispatchEvent(new CustomEvent('aimm:app-notice',{detail:window.AIMM_LAST_TOAST})); setTimeout(()=>el.className='toast',3600); };
   window.AIMusicManagerTikTokContext = { get: async () => { const result = await supabase?.auth?.getSession?.(); const videos=latestTikTokAnalyticsArtistId===activeArtistId&&Array.isArray(latestTikTokAnalytics?.videos)?latestTikTokAnalytics.videos.map(video=>({id:String(video.id||video.video_id||''),title:String(video.title||video.video_description||'Vidéo TikTok'),comment_count:video.comment_count??null,share_url:video.share_url||''})).filter(video=>video.id):[]; return { artistId: activeArtistId, artistName: activeArtistName(), accessToken: result?.data?.session?.access_token || null, videos }; } };
   const show = (el) => el.classList.remove('hidden'); const hide = (el) => el.classList.add('hidden');
+  function showPublicHome(){hide($('#authScreen'));hide($('#appShell'));show($('#publicHome'));}
+  function openAuthScreen(createAccount=false){signupMode=!!createAccount;authMode();hide($('#publicHome'));show($('#authScreen'));}
   function clearAssistantResult(){
     const result=$('#assistantResult');if(result)hide(result);
     const answer=$('#assistantAnswer');if(answer)answer.textContent='';
@@ -58,7 +60,7 @@
     const strategyApproval=$('#strategyApprovalControl');if(strategyApproval)strategyApproval.innerHTML='';
   }
   function setupMessage() {
-    const n=$('#setupNotice'); n.innerHTML='<strong>Configuration nécessaire.</strong> Crée un nouveau projet Supabase, exécute <code>supabase/schema.sql</code>, puis renseigne son URL et sa clé publique dans <code>config.js</code>. Aucun secret privé ne doit être placé dans ce fichier.'; show(n); show($('#authScreen'));
+    const n=$('#setupNotice'); n.innerHTML='<strong>Configuration nécessaire.</strong> Crée un nouveau projet Supabase, exécute <code>supabase/schema.sql</code>, puis renseigne son URL et sa clé publique dans <code>config.js</code>. Aucun secret privé ne doit être placé dans ce fichier.'; show(n); showPublicHome();
     $('#authTitle').textContent='Configuration requise'; $('#authSubtitle').textContent='L’interface est prête. Connecte d’abord ton nouveau projet Supabase.'; $('#authForm').classList.add('disabled-form'); $('#authSubmit').disabled=true;
   }
   function workspaceStateKey(){return user?.id?`nuriaAiManager:workspace:${user.id}`:null;}
@@ -97,8 +99,8 @@
       supabase=window.supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY);
       const {data:{session},error}=await supabase.auth.getSession();
       if(error)throw error;
-      if(session){user=session.user;await enterApp();}else show($('#authScreen'));
-      supabase.auth.onAuthStateChange(async(_event,session)=>{if(session&&!user){user=session.user;await enterApp();}else if(!session&&user){user=null;assistantConversations.clear();assistantApprovals.clear();assistantDrafts.clear();lastAssistantTasks.clear();hide($('#appShell'));show($('#authScreen'));}});
+      if(session){user=session.user;await enterApp();}else showPublicHome();
+      supabase.auth.onAuthStateChange(async(_event,session)=>{if(session&&!user){user=session.user;await enterApp();}else if(!session&&user){user=null;assistantConversations.clear();assistantApprovals.clear();assistantDrafts.clear();lastAssistantTasks.clear();hide($('#appShell'));showPublicHome();}});
     }catch(error){
       show($('#authScreen'));
       $('#authSubtitle').textContent='Impossible d’initialiser la connexion : '+(error.message||'erreur inconnue');
