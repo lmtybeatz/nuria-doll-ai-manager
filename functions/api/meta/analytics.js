@@ -33,6 +33,9 @@ function permissionGranted(info,scope,assetId){
 }
 function latestMetric(payload){
  const item=payload?.data?.[0];
+ const total=item?.total_value?.value;
+ if(typeof total==="number")return total;
+ if(total&&typeof total==="object")return Object.values(total).reduce((a,b)=>a+(Number(b)||0),0);
  const values=item?.values||[];
  if(values.length){
   const value=values[values.length-1].value;
@@ -40,20 +43,20 @@ function latestMetric(payload){
   if(value&&typeof value==="object")return Object.values(value).reduce((a,b)=>a+(Number(b)||0),0);
   if(value!==null&&value!==undefined&&value!=="")return Number(value);
  }
- const total=item?.total_value?.value;
- if(typeof total==="number")return total;
  return null;
 }
-async function readMetric(version,id,token,metric,period,metricType){
+async function readMetric(version,id,token,metric,period,metricType,range){
  const url=new URL("https://graph.facebook.com/"+version+"/"+encodeURIComponent(id)+"/insights");
  url.searchParams.set("metric",metric);url.searchParams.set("period",period);
  if(metricType)url.searchParams.set("metric_type",metricType);
+ if(range?.since)url.searchParams.set("since",String(range.since));
+ if(range?.until)url.searchParams.set("until",String(range.until));
  url.searchParams.set("access_token",token);
  try{return {value:latestMetric(await graph(url)),error:null};}
  catch(e){return {value:null,error:String(e?.message||"Métrique indisponible.").slice(0,180)};}
 }
-async function readMetricSet(version,id,token,metrics,period,metricType){
- const entries=await Promise.all(metrics.map(async metric=>[metric,await readMetric(version,id,token,metric,period,metricType)]));
+async function readMetricSet(version,id,token,metrics,period,metricType,range){
+ const entries=await Promise.all(metrics.map(async metric=>[metric,await readMetric(version,id,token,metric,period,metricType,range)]));
  const values=Object.fromEntries(entries.map(([name,result])=>[name,result.value]));
  const errors=entries.filter(([,result])=>result.error).map(([name,result])=>name+": "+result.error);
  if(entries.every(([,result])=>result.value===null))return {values,errors,empty:true};
@@ -108,7 +111,8 @@ export async function onRequestGet({request,env}){
   if(hasInstagram){
    if(!instagram?.id)throw new Error("Compte Instagram professionnel absent dans la connexion Meta.");
    stage="insights_instagram";
-   const data=await readMetricSet(version,instagram.id,systemToken,["reach","total_interactions","views"],"days_28","total_value");
+   const until=Math.floor(Date.now()/1000),since=until-28*24*60*60;
+   const data=await readMetricSet(version,instagram.id,systemToken,["reach","total_interactions","views"],"day","total_value",{since,until});
    result.instagram={username:instagram.username||"",reach:data.values.reach,interactions:data.values.total_interactions,views:data.values.views};
    if(data.errors.length)result.warnings.push("Instagram : "+data.errors.join(" · "));
    if(data.empty)result.warnings.push("Instagram : Meta ne renvoie pas encore de statistiques pour ce compte sur la période sélectionnée.");
