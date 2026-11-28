@@ -18,13 +18,14 @@ export async function onRequestPost({request,env}){
   stage="connexion";const cr=await fetch(base+"/rest/v1/ai_social_connections?owner_id=eq."+encodeURIComponent(u.id)+"&artist_id=eq."+encodeURIComponent(artistId)+"&provider=eq.meta&select=token_ciphertext,account_metadata,scopes",{headers:admin});if(!cr.ok)return json({error:"Connexion Meta indisponible."},502);const connections=await cr.json();if(!connections.length)return json({error:"Connecte d'abord Facebook et Instagram pour cet artiste."},404);
   const tokens=await decrypt(connections[0].token_ciphertext,env.META_TOKEN_ENCRYPTION_KEY),version=env.META_GRAPH_API_VERSION,all=[],warnings=[];
   const granted=Array.isArray(connections[0].scopes)?connections[0].scopes:[];
-  const required=[];
-  if((tokens.pages||[]).length)required.push("pages_show_list","pages_read_engagement","pages_read_user_content");
-  if((tokens.instagram_accounts||[]).length)required.push("pages_show_list","pages_read_engagement","instagram_basic","instagram_manage_comments");
-  const missingScopes=[...new Set(required)].filter(scope=>!granted.includes(scope));
-  if(missingScopes.length)return json({error:"Autorisations de lecture des commentaires manquantes. Mets à jour la configuration de connexion Meta puis reconnecte les comptes.",missing_permissions:missingScopes,settings_required:true},403);
+  const pages=Array.isArray(tokens.pages)?tokens.pages:[];
+  const accounts=Array.isArray(tokens.instagram_accounts)?tokens.instagram_accounts:[];
+  const missingFacebook=pages.length?["pages_show_list","pages_read_engagement","pages_read_user_content"].filter(scope=>!granted.includes(scope)):[];
+  const missingInstagram=accounts.length?["pages_show_list","pages_read_engagement","instagram_basic","instagram_manage_comments"].filter(scope=>!granted.includes(scope)):[];
+  if(missingFacebook.length)warnings.push("Facebook ignoré pour les commentaires : autorisations manquantes ("+missingFacebook.join(", ")+"). Ajoute-les à la configuration AI Music Manager Social puis reconnecte la Page.");
+  if(missingInstagram.length)warnings.push("Instagram ignoré pour les commentaires : autorisations manquantes ("+missingInstagram.join(", ")+"). Ajoute-les à la configuration AI Music Manager Social puis reconnecte le compte.");
   stage="facebook";
-  for(const page of (tokens.pages||[])){
+  if(!missingFacebook.length)for(const page of pages){
    if(!page.id||!page.access_token){warnings.push("Une Page Facebook n'a pas de jeton Page.");continue;}
    try{
     const url=new URL("https://graph.facebook.com/"+version+"/"+encodeURIComponent(page.id)+"/feed");url.searchParams.set("fields","id,message,permalink_url,created_time,comments.limit(100){id,message,created_time,from,like_count,comment_count}");url.searchParams.set("limit","10");url.searchParams.set("access_token",page.access_token);
@@ -33,8 +34,7 @@ export async function onRequestPost({request,env}){
    }catch(e){warnings.push("Facebook ("+(page.name||page.id)+") : "+e.message);}
   }
   stage="instagram";
-  const accounts=tokens.instagram_accounts||[];
-  for(const account of accounts){
+  if(!missingInstagram.length)for(const account of accounts){
    if(!account.id)continue;
    try{
     const mediaUrl=new URL("https://graph.facebook.com/"+version+"/"+encodeURIComponent(account.id)+"/media");mediaUrl.searchParams.set("fields","id,caption,permalink,timestamp,comments_count");mediaUrl.searchParams.set("limit","10");mediaUrl.searchParams.set("access_token",tokens.access_token||tokens.system_user_access_token||tokens.user_access_token);
@@ -47,6 +47,6 @@ export async function onRequestPost({request,env}){
    }catch(e){warnings.push("Instagram ("+(account.username||account.id)+") : "+e.message);}
   }
   stage="enregistrement";const stored=await save(base,admin,u.id,artistId,all);
-  return json({success:true,stored,facebook_comments:all.filter(x=>x?.provider==="facebook").length,instagram_comments:all.filter(x=>x?.provider==="instagram").length,warnings,synced_at:new Date().toISOString()});
+  return json({success:true,partial:!!(missingFacebook.length||missingInstagram.length),missing_permissions:{facebook:missingFacebook,instagram:missingInstagram},stored,facebook_comments:all.filter(x=>x?.provider==="facebook").length,instagram_comments:all.filter(x=>x?.provider==="instagram").length,warnings,synced_at:new Date().toISOString()});
  }catch(e){console.error("COMMUNITY_META_SYNC",JSON.stringify({stage,message:String(e?.message||"erreur").slice(0,220)}));return json({error:String(e?.message||"Synchronisation Meta impossible."),stage},502);}
 }
