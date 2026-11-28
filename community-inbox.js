@@ -12,7 +12,15 @@
   async function api(path,ctx,method="GET",body=null){
     const response=await fetch(path,{method,headers:{"content-type":"application/json",authorization:"Bearer "+ctx.accessToken},...(body?{body:JSON.stringify(body)}:{})});
     const payload=await response.json().catch(()=>({}));
-    if(!response.ok)throw new Error(payload.error||"Requête impossible.");
+    if(!response.ok){
+      const missing=Array.isArray(payload.missing_permissions)&&payload.missing_permissions.length
+        ?' Autorisations manquantes : '+payload.missing_permissions.join(', ')+'.'
+        :'';
+      const nextStep=payload.settings_required
+        ?' Ajoute ces autorisations dans la configuration Meta puis reconnecte les comptes.'
+        :'';
+      throw new Error((payload.error||"Requête impossible.")+missing+nextStep);
+    }
     return payload;
   }
   function labelStatus(value){
