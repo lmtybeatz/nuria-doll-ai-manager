@@ -2073,10 +2073,18 @@
         ?d.instagram_accounts
         :pages.filter(page=>page.instagram_id).map(page=>({instagram_id:page.instagram_id,instagram_username:page.instagram_username}));
       const facebookConnected=pages.length>0,instagramConnected=instagramAccounts.length>0;
+      const grantedScopes=Array.isArray(d.scopes)?d.scopes:[];
+      const missingCommentScopes=[];
+      if(facebookConnected&&!grantedScopes.includes('pages_read_user_content'))missingCommentScopes.push('pages_read_user_content');
+      if(facebookConnected&&!grantedScopes.includes('pages_read_engagement'))missingCommentScopes.push('pages_read_engagement');
+      if(instagramConnected&&!grantedScopes.includes('instagram_manage_comments'))missingCommentScopes.push('instagram_manage_comments');
       setSocialConnectionGate('facebook',facebookConnected);setSocialConnectionGate('instagram',instagramConnected);
-      box.textContent=connected
+      const metaSummary=connected
         ?'Comptes sociaux reliés à « '+activeArtistName()+' » · '+pages.length+' Page(s) Facebook · '+instagramAccounts.length+' compte(s) Instagram.'
         :'Aucune connexion Meta pour cet artiste.';
+      box.textContent=metaSummary+(missingCommentScopes.length
+        ?' Autorisations à ajouter pour synchroniser les commentaires : '+missingCommentScopes.join(', ')+'. Ajoute-les à la configuration Facebook Login for Business de AI Music Manager Social, puis reconnecte les comptes.'
+        :'');
       button.textContent=connected?'Reconnecter Facebook / Instagram':'Connecter Facebook / Instagram';
       const fbTag=$('#metaFacebookTag'),igTag=$('#metaInstagramTag'),fbDetailTag=$('#facebookDetailTag'),igDetailTag=$('#instagramDetailTag');
       if(fbTag){fbTag.textContent=facebookConnected?'Connecté':'À connecter';fbTag.className='tag '+(facebookConnected?'green':'amber');}
